@@ -1,0 +1,15 @@
+[package]
+name = "fed-core"
+version = "1.0.0"
+edition.workspace = true
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+
+[dependencies]
+flume = { workspace = true }
+tokio = { workspace = true }
+
+piece-table = { path = "../piece-table" }

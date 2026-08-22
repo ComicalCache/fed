@@ -1,0 +1,17 @@
+brace_style = "PreferSameLine"
+control_brace_style = "AlwaysSameLine"
+empty_item_single_line = true
+max_width = 100
+reorder_imports = true
+use_small_heuristics = "Max"
+
+# Unstable features
+unstable_features = true
+
+binop_separator = "Front"
+fn_params_layout = "Compressed"
+fn_single_line = true
+group_imports = "StdExternalCrate"
+imports_granularity = "Crate"
+struct_lit_single_line = true
+wrap_comments = true

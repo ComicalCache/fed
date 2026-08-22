@@ -1,0 +1,32 @@
+[package]
+name = "fed"
+version = "0.1.0"
+edition = { workspace = true }
+
+[workspace]
+resolver = "3"
+members = ["fed-core", "piece-table"]
+
+[workspace.package]
+edition = "2024"
+
+[workspace.dependencies]
+tokio = { version = "1.52.3", features = ["full"] }
+flume = "0.12.0"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+
+[profile.release]
+strip = "symbols"
+codegen-units = 1
+lto = "fat"
+panic = "abort"
+
+[dependencies]
+tokio = { workspace = true }
+flume = { workspace = true }
+
+fed-core = { path = "fed-core" }
