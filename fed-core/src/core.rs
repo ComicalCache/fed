@@ -65,9 +65,11 @@ impl Core {
             Insert { id, pos, str } => self.insert(id, pos, str),
             Append { id, str } => self.append(id, str),
             Remove { id, pos, n } => self.remove(id, pos, n),
+            GetLineStartByte { id, n, reply } => self.get_line_start_byte(id, n, reply),
+            GetLineEndByte { id, n, reply } => self.get_line_end_byte(id, n, reply),
             IsModified { id, reply } => self.is_modified(id, reply),
             Save { id, reply } => self.save(id, reply),
-            Slice { id, range, reply } => self.slice(id, range, reply),
+            GetSlice { id, range, reply } => self.get_slice(id, range, reply),
             Len { id, reply } => self.len(id, reply),
             Batch(cmds) => {
                 for cmd in cmds.into_iter().filter(|cmd| !matches!(cmd, CoreCommand::Batch(_))) {

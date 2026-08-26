@@ -174,6 +174,30 @@ impl Core {
         }
     }
 
+    pub(super) fn get_line_start_byte(
+        &self, id: DocumentId, n: usize, reply: oneshot::Sender<Result<usize, CoreCommandError>>,
+    ) {
+        let Some(doc) = self.documents.get(&id) else {
+            let _ = reply.send(Err(CoreCommandError::NoDocument));
+
+            return;
+        };
+
+        let _ = reply.send(Ok(doc.data.get_line_start_byte(n)));
+    }
+
+    pub(super) fn get_line_end_byte(
+        &self, id: DocumentId, n: usize, reply: oneshot::Sender<Result<usize, CoreCommandError>>,
+    ) {
+        let Some(doc) = self.documents.get(&id) else {
+            let _ = reply.send(Err(CoreCommandError::NoDocument));
+
+            return;
+        };
+
+        let _ = reply.send(Ok(doc.data.get_line_end_byte(n)));
+    }
+
     pub(super) fn is_modified(
         &self, id: DocumentId, reply: oneshot::Sender<Result<bool, CoreCommandError>>,
     ) {
@@ -212,7 +236,7 @@ impl Core {
         });
     }
 
-    pub(super) fn slice(
+    pub(super) fn get_slice(
         &self, id: DocumentId, range: (Bound<usize>, Bound<usize>),
         reply: oneshot::Sender<Result<String, CoreCommandError>>,
     ) {
