@@ -35,6 +35,9 @@ pub struct PieceTable {
     // TODO: use B-tree.
     pieces: Vec<Piece>,
 
+    /// Start bytes of lines.
+    lines: Vec<usize>,
+
     /// Length of the text contained in the `PieceTable`.
     total_length: usize,
 
@@ -47,6 +50,13 @@ pub struct PieceTable {
 
 impl From<&str> for PieceTable {
     fn from(str: &str) -> Self {
+        let mut lines = vec![0];
+        for (idx, byte) in str.bytes().enumerate() {
+            if byte == b'\n' {
+                lines.push(idx + 1);
+            }
+        }
+
         let string = String::from(str);
         let len = string.len();
         let pieces =
@@ -56,6 +66,7 @@ impl From<&str> for PieceTable {
             original: string,
             addition: String::new(),
             pieces,
+            lines,
             total_length: len,
             history: History::new(Commit::new()),
             active_commit: None,
@@ -65,6 +76,13 @@ impl From<&str> for PieceTable {
 
 impl From<String> for PieceTable {
     fn from(str: String) -> Self {
+        let mut lines = vec![0];
+        for (idx, byte) in str.bytes().enumerate() {
+            if byte == b'\n' {
+                lines.push(idx + 1);
+            }
+        }
+
         let len = str.len();
         let pieces =
             if str.is_empty() { vec![] } else { vec![Piece::new(Source::Original, 0, len)] };
@@ -73,6 +91,7 @@ impl From<String> for PieceTable {
             original: str,
             addition: String::new(),
             pieces,
+            lines,
             total_length: len,
             history: History::new(Commit::new()),
             active_commit: None,
@@ -142,6 +161,7 @@ impl PieceTable {
                 }
 
                 self.total_length += str.len();
+                self.update_lines_insert(pos, str);
                 self.addition.push_str(str);
 
                 return;
@@ -183,6 +203,7 @@ impl PieceTable {
         }
 
         self.total_length += str.len();
+        self.update_lines_insert(pos, str);
         self.addition.push_str(str);
     }
 
@@ -271,6 +292,19 @@ impl PieceTable {
                 commit.add_change(idx, piece, kind);
             }
         }
+
+        self.update_lines_remove(pos, n);
+    }
+
+    /// Returns the byte index where the nth line begins.
+    pub fn get_line_start_byte(&self, n: usize) -> usize {
+        self.lines.get(n).copied().unwrap_or(self.total_length)
+    }
+
+    /// Returns the byte index of where the nth line ends and the next line
+    /// begins (`get_line_end_byte(n) == get_line_start_byte(n + 1)`).
+    pub fn get_line_end_byte(&self, n: usize) -> usize {
+        if n + 1 < self.lines.len() { self.lines[n + 1] } else { self.total_length }
     }
 
     /// Returns the length of the text stored in the `PieceTable`.
@@ -298,6 +332,8 @@ impl PieceTable {
                 }
             }
         }
+
+        self.rebuild_lines();
     }
 
     /// Restores the `PieceTable` to the "hot" state *after* the last undo.
@@ -321,6 +357,8 @@ impl PieceTable {
                 }
             }
         }
+
+        self.rebuild_lines();
     }
 
     /// Returns text stored in the `PieceTable` (`upper` is exclusive).
@@ -375,6 +413,59 @@ impl PieceTable {
         }
 
         out
+    }
+
+    fn update_lines_insert(&mut self, pos: usize, text: &str) {
+        let mut lines = Vec::new();
+        for (idx, byte) in text.bytes().enumerate() {
+            if byte == b'\n' {
+                lines.push(pos + idx + 1);
+            }
+        }
+
+        let lines_idx = self.lines.partition_point(|&x| x <= pos);
+
+        for offset in &mut self.lines[lines_idx..] {
+            *offset += text.len();
+        }
+
+        self.lines.splice(lines_idx..lines_idx, lines);
+    }
+
+    fn update_lines_remove(&mut self, pos: usize, n: usize) {
+        let end = pos + n;
+
+        let start = self.lines.partition_point(|&x| x <= pos);
+        let end = self.lines.partition_point(|&x| x <= end);
+
+        self.lines.drain(start..end);
+
+        for offset in &mut self.lines[start..] {
+            *offset -= n;
+        }
+    }
+
+    fn rebuild_lines(&mut self) {
+        let mut lines = vec![0];
+
+        let mut pos = 0;
+        for piece in &self.pieces {
+            let source = match piece.source {
+                Source::Original => &self.original,
+                Source::Addition => &self.addition,
+            };
+
+            let text = &source[piece.offset..piece.offset + piece.length];
+            for (idx, byte) in text.bytes().enumerate() {
+                if byte == b'\n' {
+                    lines.push(pos + idx + 1);
+                }
+            }
+
+            pos += piece.length;
+        }
+
+        self.lines = lines;
     }
 }
 
