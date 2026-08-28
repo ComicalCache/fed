@@ -307,6 +307,10 @@ impl PieceTable {
         if n + 1 < self.lines.len() { self.lines[n + 1] } else { self.total_length }
     }
 
+    /// Returns the amonut of lines of the text stored in the `PieceTable`.
+    #[must_use]
+    pub const fn lines(&self) -> usize { self.lines.len() }
+
     /// Returns the length of the text stored in the `PieceTable`.
     #[must_use]
     pub const fn len(&self) -> usize { self.total_length }
