@@ -12,7 +12,8 @@ use crate::{
 
 impl Core {
     pub(super) fn create(
-        &mut self, path: Option<PathBuf>, reply: oneshot::Sender<Result<u64, CoreCommandError>>,
+        &mut self, path: Option<PathBuf>,
+        reply: oneshot::Sender<Result<DocumentId, CoreCommandError>>,
     ) {
         if let Some(path) = path {
             let tx = self.tx.clone();
@@ -267,6 +268,18 @@ impl Core {
         }
 
         let _ = reply.send(Ok(doc.data.slice(start..end)));
+    }
+
+    pub(super) fn lines(
+        &self, id: DocumentId, reply: oneshot::Sender<Result<usize, CoreCommandError>>,
+    ) {
+        let Some(doc) = self.documents.get(&id) else {
+            let _ = reply.send(Err(CoreCommandError::NoDocument));
+
+            return;
+        };
+
+        let _ = reply.send(Ok(doc.data.lines()));
     }
 
     pub(super) fn len(

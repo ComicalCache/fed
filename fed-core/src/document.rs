@@ -1,8 +1,23 @@
-use std::path::PathBuf;
+use std::{
+    hash::Hash,
+    ops::{Deref, DerefMut},
+    path::PathBuf,
+};
 
 use piece_table::PieceTable;
 
-pub type DocumentId = u64;
+#[derive(Default, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DocumentId(pub u64);
+
+impl DerefMut for DocumentId {
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
+}
+
+impl Deref for DocumentId {
+    type Target = u64;
+
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
 
 pub(crate) struct Document {
     pub(crate) path: Option<PathBuf>,

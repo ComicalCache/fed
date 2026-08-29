@@ -70,6 +70,7 @@ impl Core {
             IsModified { id, reply } => self.is_modified(id, reply),
             Save { id, reply } => self.save(id, reply),
             GetSlice { id, range, reply } => self.get_slice(id, range, reply),
+            Lines { id, reply } => self.lines(id, reply),
             Len { id, reply } => self.len(id, reply),
             Batch(cmds) => {
                 for cmd in cmds.into_iter().filter(|cmd| !matches!(cmd, CoreCommand::Batch(_))) {
@@ -91,7 +92,7 @@ impl Core {
     }
 
     fn create_document(&mut self, path: Option<PathBuf>, data: PieceTable) -> DocumentId {
-        let id = self.next_document_id;
+        let id = DocumentId(self.next_document_id);
         self.next_document_id += 1;
 
         self.documents.insert(id, Document::new(path, data));

@@ -184,6 +184,22 @@ impl CoreCommandSender {
         rx.await.unwrap_or_else(|_| Err(CoreCommandError::Dropped))
     }
 
+    /// Convenience function to get a line of a `Document`.
+    pub async fn get_line(&self, id: DocumentId, n: usize) -> Result<String, CoreCommandError> {
+        let start = self.get_line_start_byte(id, n).await?;
+        let end = self.get_line_end_byte(id, n).await?;
+
+        self.get_slice(id, start..end).await
+    }
+
+    /// Convenience function to remove a line of a `Document`.
+    pub async fn remove_line(&self, id: DocumentId, n: usize) -> Result<(), CoreCommandError> {
+        let start = self.get_line_start_byte(id, n).await?;
+        let end = self.get_line_end_byte(id, n).await?;
+
+        self.remove(id, start, end - start).await
+    }
+
     /// Convenience function to check if a `Document` has unsaved changes. See
     /// `CoreCommand::IsModified` for more details.
     pub async fn is_modified(&self, id: DocumentId) -> Result<bool, CoreCommandError> {
@@ -219,6 +235,19 @@ impl CoreCommandSender {
 
         let range = (range.start_bound().cloned(), range.end_bound().cloned());
         let cmd = CoreCommand::GetSlice { id, range, reply: tx };
+        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+            return Err(CoreCommandError::Offline);
+        }
+
+        rx.await.unwrap_or_else(|_| Err(CoreCommandError::Dropped))
+    }
+
+    /// Convenience function for getting number of lines of a `Document`. See
+    /// `CoreCommand::Len` for more details.
+    pub async fn lines(&self, id: DocumentId) -> Result<usize, CoreCommandError> {
+        let (tx, rx) = oneshot::channel();
+
+        let cmd = CoreCommand::Lines { id, reply: tx };
         if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
             return Err(CoreCommandError::Offline);
         }
@@ -310,6 +339,9 @@ pub enum CoreCommand {
         range: (Bound<usize>, Bound<usize>),
         reply: oneshot::Sender<Result<String, CoreCommandError>>,
     },
+
+    /// Gets the amount of lines of a `Document`.
+    Lines { id: DocumentId, reply: oneshot::Sender<Result<usize, CoreCommandError>> },
 
     /// Gets the length of a `Document` in bytes.
     Len { id: DocumentId, reply: oneshot::Sender<Result<usize, CoreCommandError>> },
