@@ -1,6 +1,6 @@
 [package]
 name = "fed"
-version = "0.1.0"
+version = "1.0.0"
 edition = { workspace = true }
 
 [workspace]
@@ -11,8 +11,8 @@ members = ["fed-core", "piece-table"]
 edition = "2024"
 
 [workspace.dependencies]
-tokio = { version = "1.52.3", features = ["full"] }
 flume = "0.12.0"
+tokio = { version = "1.52.3", features = ["full"] }
 
 [lints.clippy]
 all = { level = "deny", priority = -1 }
@@ -26,6 +26,18 @@ lto = "fat"
 panic = "abort"
 
 [dependencies]
+arboard = "3.6.1"
+crossterm = {
+    version = "0.29.0",
+    default-features = false,
+    features = ["bracketed-paste", "event-stream"]
+}
+fancy-regex = "0.18.0"
+futures = "0.3.32"
+rust-lapper = "1.3.0"
+unicode-segmentation = "1.13.3"
+unicode-width = "0.2.2"
+
 tokio = { workspace = true }
 flume = { workspace = true }
 

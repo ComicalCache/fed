@@ -11,7 +11,8 @@ source-of-truth for the editor state and as the *single* entity that can modify 
 ### Document
 
 The document struct is the core container wrapping the state of a document. It contains the
-underlying file (if applicable). Documents provide primitives to read from and write to the document, as well as persist it as a file on permanent storage.
+underlying file (if applicable). Documents provide primitives to read from and write to the
+document, as well as persist it as a file on permanent storage.
 
 ### Core
 
