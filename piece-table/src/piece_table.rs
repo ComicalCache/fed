@@ -25,7 +25,7 @@ impl Piece {
     }
 }
 
-/// `PieceTable` with a `History` to enable undo/redo operations.
+/// Piece table with a `History` to enable undo/redo operations.
 pub struct PieceTable {
     /// Read only input data.
     original: String,
@@ -38,7 +38,7 @@ pub struct PieceTable {
     /// Start bytes of lines.
     lines: Vec<usize>,
 
-    /// Length of the text contained in the `PieceTable`.
+    /// Length of the text contained in the piece table.
     total_length: usize,
 
     /// Edit history.
@@ -307,19 +307,19 @@ impl PieceTable {
         if n + 1 < self.lines.len() { self.lines[n + 1] } else { self.total_length }
     }
 
-    /// Returns the amonut of lines of the text stored in the `PieceTable`.
+    /// Returns the amonut of lines of the text stored in the piece table.
     #[must_use]
     pub const fn lines(&self) -> usize { self.lines.len() }
 
-    /// Returns the length of the text stored in the `PieceTable`.
+    /// Returns the length of the text stored in the piece table.
     #[must_use]
     pub const fn len(&self) -> usize { self.total_length }
 
-    /// Returns if the text stored in the `PieceTable` is empty.
+    /// Returns if the text stored in the piece table is empty.
     #[must_use]
     pub const fn is_empty(&self) -> bool { self.total_length == 0 }
 
-    /// Reverts the `PieceTable` to the state *before* the last changes.
+    /// Reverts the piece table to the state *before* the last changes.
     pub fn undo(&mut self) {
         let Some(commit) = self.history.undo() else {
             return;
@@ -340,7 +340,7 @@ impl PieceTable {
         self.rebuild_lines();
     }
 
-    /// Restores the `PieceTable` to the "hot" state *after* the last undo.
+    /// Restores the piece table to the "hot" state *after* the last undo.
     ///
     /// Hot state means the state the head was last at (e.g. at a fork in the
     /// history it can quickly be redone to the last head position without
@@ -365,7 +365,7 @@ impl PieceTable {
         self.rebuild_lines();
     }
 
-    /// Returns text stored in the `PieceTable` (`upper` is exclusive).
+    /// Returns text stored in the piece table (`upper` is exclusive).
     pub(crate) fn __slice(&self, lower: usize, upper: usize) -> String {
         assert!(lower <= upper, "Lower slice bound must be smaller than upper");
 
