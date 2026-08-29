@@ -8,6 +8,7 @@ use tokio::sync::oneshot;
 use crate::document::DocumentId;
 
 /// A wrapper for protocols to send `CoreCommand`s to the core.
+#[derive(Clone)]
 pub struct CoreCommandSender {
     pub(crate) tx: flume::Sender<CoreCommandFacade>,
 }
@@ -380,6 +381,7 @@ pub enum CoreEvent {
     Saved { id: DocumentId, path: PathBuf, len: usize },
 }
 
+#[derive(Debug)]
 pub enum CoreCommandError {
     /// An error regarding file IO occured.
     FileIo(String),

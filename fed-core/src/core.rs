@@ -11,7 +11,6 @@ use crate::{
     messages::{CoreCommand, CoreCommandFacade, CoreEvent, CoreEventMapper, InternalCoreCommand},
 };
 
-/// This is the application core, containing the `Core::run` application-loop.
 pub struct Core {
     documents: HashMap<DocumentId, Document>,
     next_document_id: u64,
