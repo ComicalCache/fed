@@ -7,9 +7,13 @@ newtype!(ViewId, u64);
 pub type ViewStore = HashMap<ViewId, TypeMap>;
 
 pub mod types {
+    use std::sync::Arc;
+
+    use rust_lapper::Lapper;
+
     use crate::{
         newtype::newtype,
-        types::{Cursor, Pos},
+        types::{Cursor, Decoration, Pos},
     };
 
     newtype!(TabWidth, usize);
@@ -25,5 +29,14 @@ pub mod types {
     pub enum Mode {
         #[default]
         Normal,
+    }
+
+    #[derive(Clone)]
+    pub struct Decorations {
+        pub tree: Arc<Lapper<usize, Decoration>>,
+    }
+
+    impl Default for Decorations {
+        fn default() -> Self { Self { tree: Arc::new(Lapper::new(vec![])) } }
     }
 }

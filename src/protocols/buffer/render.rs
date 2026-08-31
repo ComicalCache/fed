@@ -1,13 +1,11 @@
 use std::sync::{Arc, RwLock};
 
 use fed_core::DocumentId;
-use unicode_segmentation::UnicodeSegmentation;
-use unicode_width::UnicodeWidthStr;
 
 use crate::{
     protocols::buffer::store::BufferStore,
     render::{Cell, Renderer, Viewport, WindowId},
-    state::{State, ViewId, ViewStoreTypes},
+    state::{DocumentStoreTypes, State, ViewId, ViewStoreTypes},
     types::{Face, Pos},
 };
 
@@ -30,8 +28,6 @@ impl BufferRenderer {
 
 impl Renderer for BufferRenderer {
     fn render(&self, viewport: &mut Viewport, _: WindowId) {
-        // TODO: use properties for replacements, faces, etc...
-
         let viewport_width = viewport.width();
         let viewport_height = viewport.height();
 
@@ -47,127 +43,92 @@ impl Renderer for BufferRenderer {
             return;
         };
 
-        let (tab_width, cursors, scroll) = {
+        let (cursors, scroll, tab_width, doc_decorations, view_decorations) = {
             let view_store = self.state.view_store.read().unwrap();
-            let view = view_store.get(&self.view);
+            let doc_store = self.state.document_store.read().unwrap();
 
-            let tab_width = view
-                .and_then(|view| view.get::<ViewStoreTypes::TabWidth>())
-                .map(|&width| *width)
-                .unwrap_or(4);
+            let view = view_store.get(&self.view);
+            let doc = doc_store.get(&self.doc);
+
             let cursors = view.and_then(|view| view.get::<ViewStoreTypes::Cursors>()).cloned();
             let scroll = view
                 .and_then(|view| view.get::<ViewStoreTypes::Scroll>())
                 .map(|&scroll| scroll)
                 .unwrap_or_default();
+            let tab_width = view
+                .and_then(|view| view.get::<ViewStoreTypes::TabWidth>())
+                .map(|&tab_width| *tab_width)
+                .unwrap_or(4);
+            let doc_decs =
+                doc.and_then(|doc| doc.get::<DocumentStoreTypes::Decorations>()).cloned();
+            let view_decs =
+                view.and_then(|view| view.get::<ViewStoreTypes::Decorations>()).cloned();
 
-            (tab_width, cursors, scroll)
+            (cursors, scroll, tab_width, doc_decs, view_decs)
         };
+        let (doc_decs, view_decs) = (doc_decorations.as_ref(), view_decorations.as_ref());
 
         let mut lines_drawn = 0;
-        for (y, line) in entry.iter().enumerate() {
+        let mut offset = entry.offset;
+        for (y, line) in entry.lines.iter().enumerate() {
             if y >= viewport_height {
                 break;
             }
 
-            let doc_y = y + scroll.y;
+            let (layout, next_offset) =
+                crate::render::layout(line, offset, tab_width, doc_decs, view_decs);
+            offset = next_offset;
 
             let mut x = 0;
             let mut visual_x = 0;
-            for ch in line.graphemes(true) {
+            for cell in layout.cells {
+                if visual_x < scroll.x {
+                    visual_x += 1;
+                    continue;
+                }
+
                 if x >= viewport_width {
                     break;
                 }
 
-                let ch_width = if ch == "\t" {
-                    tab_width - (visual_x % tab_width)
-                } else if ch == "\n" {
-                    // "\n".width() == 1!
-                    0
-                } else {
-                    ch.width()
-                };
-
-                if ch_width == 0 {
-                    continue;
-                }
-
-                let start_col = visual_x;
-
-                visual_x += ch_width;
-                if visual_x <= scroll.x {
-                    continue;
-                }
-
-                let mut face = Face::default();
+                let mut face = cell.face;
                 if let Some(cursors) = &cursors
                     && cursors
                         .list
                         .iter()
-                        .any(|cursor| cursor.pos.y == doc_y && cursor.pos.x == start_col)
+                        .any(|cursor| cursor.pos.y == y + scroll.y && cursor.pos.x == visual_x)
                 {
                     face.reverse = Some(true);
                 }
 
-                if ch == "\t" {
-                    let visible_spaces = visual_x.saturating_sub(scroll.x.max(start_col));
-                    for _ in 0..visible_spaces {
-                        if x >= viewport_width {
-                            break;
-                        }
-
-                        viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, face));
-                        x += 1;
-                    }
-
-                    continue;
-                }
-
-                // A wide char's first section is off-screen.
-                if start_col < scroll.x {
+                if visual_x == scroll.x && cell.width == 0 {
+                    // A wide char's first section is off-screen.
                     viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, face));
-                    x += 1;
-
-                    continue;
+                } else if x + cell.width > viewport_width {
+                    // A wide char's trailing section is off-screen.
+                    viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, face));
+                } else {
+                    viewport.set(Pos::new(x, y), Cell::new(cell.ch, cell.width == 0, face));
                 }
 
-                // A wide char's trailing section is off-screen.
-                if x + ch_width > viewport_width {
-                    while x < viewport_width {
-                        viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, face));
-                        x += 1;
-                    }
-
-                    break;
-                }
-
-                viewport.set(Pos::new(x, y), Cell::new(ch.to_string(), false, face));
                 x += 1;
-
-                // Trailing wide cells.
-                for _ in 1..ch_width {
-                    if x >= viewport_width {
-                        break;
-                    }
-
-                    viewport.set(Pos::new(x, y), Cell::new(String::new(), true, face));
-                    x += 1;
-                }
+                visual_x += 1;
             }
 
             // Undrawn tail of line.
-            for x in x..viewport_width {
+            while x < viewport_width {
                 let mut face = Face::default();
                 if let Some(cursors) = &cursors
                     && cursors
                         .list
                         .iter()
-                        .any(|cursor| cursor.pos.y == doc_y && cursor.pos.x == visual_x)
+                        .any(|cursor| cursor.pos.y == y + scroll.y && cursor.pos.x == visual_x)
                 {
                     face.reverse = Some(true);
                 }
 
                 viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, face));
+                x += 1;
                 visual_x += 1;
             }
 

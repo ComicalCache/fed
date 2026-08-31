@@ -6,7 +6,7 @@ use std::{
 use fed_core::{CoreCommandSender, DocumentId};
 
 use crate::{
-    protocols::buffer::store::BufferStore,
+    protocols::buffer::store::{BufferData, BufferStore},
     render::WindowId,
     state::{State, ViewId, ViewStoreTypes},
     types::Pos,
@@ -223,6 +223,6 @@ impl BufferProtocol {
             lines.push(String::new());
         }
 
-        self.store.write().unwrap().insert(view, lines);
+        self.store.write().unwrap().insert(view, BufferData { offset: start, lines });
     }
 }
