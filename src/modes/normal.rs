@@ -1,3 +1,5 @@
-mod input;
+mod key;
+mod mouse;
 
-pub use input::NormalInput;
+pub use key::NormalKeyInput;
+pub use mouse::NormalMouseInput;

@@ -7,13 +7,18 @@ newtype!(ViewId, u64);
 pub type ViewStore = HashMap<ViewId, TypeMap>;
 
 pub mod types {
-    use crate::{newtype::newtype, types::Pos};
+    use crate::{
+        newtype::newtype,
+        types::{Cursor, Pos},
+    };
 
     newtype!(TabWidth, usize);
 
+    newtype!(Scroll, Pos);
+
     #[derive(Default, Clone)]
     pub struct Cursors {
-        pub list: Vec<Pos>,
+        pub list: Vec<Cursor>,
     }
 
     #[derive(Default, Clone, Copy, PartialEq, Eq)]

@@ -1,6 +1,6 @@
 use crate::{
     render::{Cell, Screen},
-    types::Rect,
+    types::{Pos, Rect},
 };
 
 /// A bounded proxy for the `Screen`, limited to a rectangle on the screen.
@@ -16,19 +16,19 @@ impl<'a> Viewport<'a> {
 
     pub fn height(&self) -> usize { self.rect.height }
 
-    pub fn get(&mut self, x: usize, y: usize) -> Option<&Cell> {
-        if x >= self.rect.width || y >= self.rect.height {
+    pub fn get(&mut self, pos: Pos) -> Option<&Cell> {
+        if pos.x >= self.rect.width || pos.y >= self.rect.height {
             return None;
         }
 
-        self.data.get(self.rect.x + x, self.rect.y + y)
+        self.data.get(self.rect.pos + pos)
     }
 
-    pub fn set(&mut self, x: usize, y: usize, cell: Cell) {
-        if x >= self.rect.width || y >= self.rect.height {
+    pub fn set(&mut self, pos: Pos, cell: Cell) {
+        if pos.x >= self.rect.width || pos.y >= self.rect.height {
             return;
         }
 
-        self.data.set(self.rect.x + x, self.rect.y + y, cell);
+        self.data.set(self.rect.pos + pos, cell);
     }
 }

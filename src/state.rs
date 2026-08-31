@@ -12,14 +12,14 @@ use std::{
 
 pub use document_store::{DocumentStore, types as DocumentStoreTypes};
 use fed_core::{CoreCommandSender, DocumentId, messages::CoreCommandError};
-use view_store::types::Cursors;
+use view_store::types::{Cursors, Scroll};
 pub use view_store::{ViewId, ViewStore, types as ViewStoreTypes};
 
 use crate::{
     render::{WindowId, Workspace},
     state::view_store::types::Mode,
     type_map::TypeMap,
-    types::Pos,
+    types::{Cursor, Pos},
 };
 
 #[derive(Default, Clone)]
@@ -47,8 +47,9 @@ pub fn create_view(state: &State, doc: DocumentId) -> ViewId {
 
     let mut map = TypeMap::new();
     map.insert(doc);
-    map.insert(Cursors { list: vec![Pos::new(0, 0)] });
+    map.insert(Cursors { list: vec![Cursor::default()] });
     map.insert(Mode::Normal);
+    map.insert(Scroll(Pos::default()));
 
     state.view_store.write().unwrap().insert(id, map);
 

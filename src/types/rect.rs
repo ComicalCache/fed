@@ -1,3 +1,5 @@
+use crate::types::Pos;
+
 #[derive(Clone, Copy)]
 pub enum RectSplit {
     Vertical,
@@ -6,17 +8,14 @@ pub enum RectSplit {
 
 #[derive(Default, Clone, Copy)]
 pub struct Rect {
-    pub x: usize,
-    pub y: usize,
+    pub pos: Pos,
 
     pub width: usize,
     pub height: usize,
 }
 
 impl Rect {
-    pub fn new(x: usize, y: usize, width: usize, height: usize) -> Self {
-        Self { x, y, width, height }
-    }
+    pub fn new(pos: Pos, width: usize, height: usize) -> Self { Self { pos, width, height } }
 
     /// Splits the `Rect` reserving `ratio` to the first split.
     pub fn split(&self, dir: RectSplit, ratio: f32) -> (Self, Self) {
@@ -26,8 +25,8 @@ impl Rect {
                 let w2 = self.width.saturating_sub(w1);
 
                 (
-                    Rect::new(self.x, self.y, w1, self.height),
-                    Rect::new(self.x + w1, self.y, w2, self.height),
+                    Rect::new(self.pos, w1, self.height),
+                    Rect::new(self.pos + Pos::new(w1, 0), w2, self.height),
                 )
             }
             RectSplit::Horizontal => {
@@ -35,24 +34,32 @@ impl Rect {
                 let h2 = self.height.saturating_sub(h1);
 
                 (
-                    Rect::new(self.x, self.y, self.width, h1),
-                    Rect::new(self.x, self.y + h1, self.width, h2),
+                    Rect::new(self.pos, self.width, h1),
+                    Rect::new(self.pos + Pos::new(0, h1), self.width, h2),
                 )
             }
         }
     }
 
+    /// Checks if a `Pos` is contained in the rect.
+    pub fn contains(&self, pos: Pos) -> bool {
+        pos.x >= self.pos.x
+            && pos.x < self.pos.x + self.width
+            && pos.y >= self.pos.y
+            && pos.y < self.pos.y + self.height
+    }
+
     /// Checks if other intersects the rect in x and y.
     pub fn intersects(&self, other: Rect) -> (bool, bool) {
         (
-            self.x < other.x + other.width && self.x + self.width > other.x,
-            self.y < other.y + other.height && self.y + self.height > other.y,
+            self.pos.x < other.pos.x + other.width && self.pos.x + self.width > other.pos.x,
+            self.pos.y < other.pos.y + other.height && self.pos.y + self.height > other.pos.y,
         )
     }
 
     /// Calculates the Manhattan distance to the other rectangle.
     pub fn distance(&self, other: Rect) -> usize {
-        (self.x + self.width / 2).abs_diff(other.x + other.width / 2)
-            + (self.y + self.height / 2).abs_diff(other.y + other.height / 2)
+        (self.pos.x + self.width / 2).abs_diff(other.pos.x + other.width / 2)
+            + (self.pos.y + self.height / 2).abs_diff(other.pos.y + other.height / 2)
     }
 }

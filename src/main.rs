@@ -25,16 +25,16 @@ use futures::StreamExt;
 
 use crate::{
     fed::Fed,
-    input::{InputHandler, InputRouter},
-    modes::normal::NormalInput,
+    input::InputRouter,
+    modes::normal::{NormalKeyInput, NormalMouseInput},
     protocols::{
-        buffer::{BufferCommand, BufferInput, BufferProtocol, BufferRenderer},
+        buffer::{BufferCommand, BufferProtocol, BufferRenderer, BufferResizeInput},
         cursor::CursorProtocol,
-        screen::{ScreenInput, ScreenProtocol},
+        screen::{ScreenProtocol, ScreenResizeInput},
     },
     render::Workspace,
     state::State,
-    types::{Rect, RectSplit},
+    types::{Pos, Rect, RectSplit},
 };
 
 /// Broadcasts input `Event`s into the application.
@@ -63,7 +63,7 @@ async fn setup(
     });
 
     let state = State {
-        workspace: Arc::new(RwLock::new(Workspace::new(Rect::new(0, 0, width, height)))),
+        workspace: Arc::new(RwLock::new(Workspace::new(Rect::new(Pos::default(), width, height)))),
         ..Default::default()
     };
 
@@ -97,12 +97,17 @@ async fn setup(
     let _ = buffer_tx.send(BufferCommand::Init { window, view, doc });
 
     // Setup input handlers.
-    let handlers: Vec<Box<dyn InputHandler>> = vec![
-        Box::new(ScreenInput::new(state.clone(), screen_tx)),
-        Box::new(NormalInput::new(state, cursor_tx, quit_tx)),
-        Box::new(BufferInput::new(buffer_tx)),
-    ];
-    let input_router = InputRouter::new(handlers, input_rx);
+    let mut input_router = InputRouter::new(input_rx);
+    input_router.add_key_handler(Box::new(NormalKeyInput::new(
+        state.clone(),
+        cursor_tx.clone(),
+        quit_tx.clone(),
+    )));
+
+    input_router.add_mouse_handler(Box::new(NormalMouseInput::new(state.clone(), cursor_tx)));
+
+    input_router.add_resize_handler(Box::new(BufferResizeInput::new(buffer_tx)));
+    input_router.add_resize_handler(Box::new(ScreenResizeInput::new(state, screen_tx)));
 
     (Fed::new(input_router, buffer, cursor, screen), quit_rx)
 }

@@ -42,8 +42,8 @@ impl Screen {
         self.dirty.resize(width * height, true);
     }
 
-    pub fn get(&mut self, x: usize, y: usize) -> Option<&Cell> {
-        let idx = (self.width * y) + x;
+    pub fn get(&mut self, pos: Pos) -> Option<&Cell> {
+        let idx = (self.width * pos.y) + pos.x;
 
         if idx >= self.grid.len() {
             return None;
@@ -52,8 +52,8 @@ impl Screen {
         Some(&self.grid[idx])
     }
 
-    pub fn set(&mut self, x: usize, y: usize, cell: Cell) {
-        let idx = (self.width * y) + x;
+    pub fn set(&mut self, pos: Pos, cell: Cell) {
+        let idx = (self.width * pos.y) + pos.x;
 
         if idx >= self.grid.len() {
             return;

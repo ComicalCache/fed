@@ -1,7 +1,7 @@
 use crate::{
     newtype::newtype,
     render::{Renderer, Screen, Viewport, workspace::Tile::Dummy},
-    types::{Direction, Rect, RectSplit},
+    types::{Direction, Pos, Rect, RectSplit},
 };
 
 newtype!(WindowId, u64);
@@ -130,7 +130,7 @@ impl Workspace {
     }
 
     pub fn resize(&mut self, width: usize, height: usize) {
-        self.rect = Rect::new(0, 0, width, height);
+        self.rect = Rect::new(Pos::default(), width, height);
     }
 
     /// Collects all tiled window IDs.
@@ -240,10 +240,9 @@ impl Workspace {
         }
     }
 
-    pub fn reposition_floating(&mut self, id: WindowId, x: usize, y: usize) {
+    pub fn reposition_floating(&mut self, id: WindowId, pos: Pos) {
         if let Some(idx) = self.floating.iter().position(|floating| floating.id == id) {
-            self.floating[idx].rect.x = x;
-            self.floating[idx].rect.y = y;
+            self.floating[idx].rect.pos = pos;
         }
     }
 
@@ -260,7 +259,29 @@ impl Workspace {
             let mut layout = Vec::new();
             root.layout(self.rect, &mut layout);
 
-            return layout.into_iter().find(|(w_id, _)| *w_id == id).map(|(_, rect)| rect);
+            return layout.into_iter().find(|(window, _)| *window == id).map(|(_, rect)| rect);
+        }
+
+        None
+    }
+
+    /// Returns the `WindowId` at the given physical screen coordinates, if any.
+    pub fn get_window(&self, pos: Pos) -> Option<WindowId> {
+        for floating in self.floating.iter().rev() {
+            if floating.rect.contains(pos) {
+                return Some(floating.id);
+            }
+        }
+
+        if let Some(root) = &self.root {
+            let mut layout = Vec::new();
+            root.layout(self.rect, &mut layout);
+
+            for (id, rect) in layout {
+                if rect.contains(pos) {
+                    return Some(id);
+                }
+            }
         }
 
         None
@@ -290,10 +311,10 @@ impl Workspace {
 
             let (x, y) = rect.intersects(active_rect);
             let valid = match direction {
-                Direction::Left => rect.x < active_rect.x && y,
-                Direction::Right => rect.x > active_rect.x && y,
-                Direction::Up => rect.y < active_rect.y && x,
-                Direction::Down => rect.y > active_rect.y && x,
+                Direction::Left => rect.pos.x < active_rect.pos.x && y,
+                Direction::Right => rect.pos.x > active_rect.pos.x && y,
+                Direction::Up => rect.pos.y < active_rect.pos.y && x,
+                Direction::Down => rect.pos.y > active_rect.pos.y && x,
             };
 
             if valid {

@@ -1,5 +1,5 @@
 mod input;
 mod protocol;
 
-pub use input::ScreenInput;
+pub use input::ScreenResizeInput;
 pub use protocol::{ScreenCommand, ScreenProtocol};

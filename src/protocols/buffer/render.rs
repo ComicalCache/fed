@@ -8,7 +8,7 @@ use crate::{
     protocols::buffer::store::BufferStore,
     render::{Cell, Renderer, Viewport, WindowId},
     state::{State, ViewId, ViewStoreTypes},
-    types::Face,
+    types::{Face, Pos},
 };
 
 pub struct BufferRenderer {
@@ -40,14 +40,14 @@ impl Renderer for BufferRenderer {
         let Some(entry) = store.get(&self.view) else {
             for y in 0..viewport_height {
                 for x in 0..viewport_width {
-                    viewport.set(x, y, Cell::default());
+                    viewport.set(Pos::new(x, y), Cell::default());
                 }
             }
 
             return;
         };
 
-        let (tab_width, cursors) = {
+        let (tab_width, cursors, scroll) = {
             let view_store = self.state.view_store.read().unwrap();
             let view = view_store.get(&self.view);
 
@@ -56,17 +56,21 @@ impl Renderer for BufferRenderer {
                 .map(|&width| *width)
                 .unwrap_or(4);
             let cursors = view.and_then(|view| view.get::<ViewStoreTypes::Cursors>()).cloned();
+            let scroll = view
+                .and_then(|view| view.get::<ViewStoreTypes::Scroll>())
+                .map(|&scroll| scroll)
+                .unwrap_or_default();
 
-            (tab_width, cursors)
+            (tab_width, cursors, scroll)
         };
 
         let mut lines_drawn = 0;
-        for (y, line) in entry.lines.iter().enumerate() {
+        for (y, line) in entry.iter().enumerate() {
             if y >= viewport_height {
                 break;
             }
 
-            let doc_y = y + entry.scroll.y;
+            let doc_y = y + scroll.y;
 
             let mut x = 0;
             let mut visual_x = 0;
@@ -91,18 +95,21 @@ impl Renderer for BufferRenderer {
                 let start_col = visual_x;
 
                 visual_x += ch_width;
-                if visual_x <= entry.scroll.x {
+                if visual_x <= scroll.x {
                     continue;
                 }
 
                 if ch == "\t" {
-                    let visible_spaces = visual_x.saturating_sub(entry.scroll.x.max(start_col));
+                    let visible_spaces = visual_x.saturating_sub(scroll.x.max(start_col));
                     for _ in 0..visible_spaces {
                         if x >= viewport_width {
                             break;
                         }
 
-                        viewport.set(x, y, Cell::new(" ".to_string(), false, Face::default()));
+                        viewport.set(
+                            Pos::new(x, y),
+                            Cell::new(" ".to_string(), false, Face::default()),
+                        );
                         x += 1;
                     }
 
@@ -110,8 +117,9 @@ impl Renderer for BufferRenderer {
                 }
 
                 // A wide char's first byte is off-screen.
-                if start_col < entry.scroll.x {
-                    viewport.set(x, y, Cell::new(" ".to_string(), false, Face::default()));
+                if start_col < scroll.x {
+                    viewport
+                        .set(Pos::new(x, y), Cell::new(" ".to_string(), false, Face::default()));
                     x += 1;
 
                     continue;
@@ -119,12 +127,15 @@ impl Renderer for BufferRenderer {
 
                 let mut face = Face::default();
                 if let Some(cursors) = &cursors
-                    && cursors.list.iter().any(|cursor| cursor.y == doc_y && cursor.x == start_col)
+                    && cursors
+                        .list
+                        .iter()
+                        .any(|cursor| cursor.pos.y == doc_y && cursor.pos.x == start_col)
                 {
                     face.reverse = Some(true);
                 }
 
-                viewport.set(x, y, Cell::new(ch.to_string(), false, face));
+                viewport.set(Pos::new(x, y), Cell::new(ch.to_string(), false, face));
                 x += 1;
 
                 // Trailing wide cells.
@@ -133,7 +144,7 @@ impl Renderer for BufferRenderer {
                         break;
                     }
 
-                    viewport.set(x, y, Cell::new(String::new(), true, face));
+                    viewport.set(Pos::new(x, y), Cell::new(String::new(), true, face));
                     x += 1;
                 }
             }
@@ -142,12 +153,15 @@ impl Renderer for BufferRenderer {
             for x in x..viewport_width {
                 let mut face = Face::default();
                 if let Some(cursors) = &cursors
-                    && cursors.list.iter().any(|cursor| cursor.y == doc_y && cursor.x == visual_x)
+                    && cursors
+                        .list
+                        .iter()
+                        .any(|cursor| cursor.pos.y == doc_y && cursor.pos.x == visual_x)
                 {
                     face.reverse = Some(true);
                 }
 
-                viewport.set(x, y, Cell::new(" ".to_string(), false, face));
+                viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, face));
                 visual_x += 1;
             }
 
@@ -157,7 +171,7 @@ impl Renderer for BufferRenderer {
         // Undrawn trailing lines.
         for y in lines_drawn..viewport_height {
             for x in 0..viewport_width {
-                viewport.set(x, y, Cell::new(" ".to_string(), false, Face::default()));
+                viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, Face::default()));
             }
         }
     }

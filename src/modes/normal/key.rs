@@ -1,21 +1,20 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::{
-    input::InputHandler,
-    modes::ModeInputPriority,
+    input::{KeyInputHandler, priorities::KeyInputPriority},
     protocols::cursor::CursorCommand,
     state::{State, ViewStoreTypes},
     types::Direction,
 };
 
-pub struct NormalInput {
+pub struct NormalKeyInput {
     state: State,
 
     cursor_tx: flume::Sender<CursorCommand>,
     quit_tx: flume::Sender<()>,
 }
 
-impl NormalInput {
+impl NormalKeyInput {
     pub fn new(
         state: State, cursor_tx: flume::Sender<CursorCommand>, quit_tx: flume::Sender<()>,
     ) -> Self {
@@ -23,8 +22,8 @@ impl NormalInput {
     }
 }
 
-impl InputHandler for NormalInput {
-    fn priority(&self) -> usize { ModeInputPriority::Normal as usize }
+impl KeyInputHandler for NormalKeyInput {
+    fn priority(&self) -> KeyInputPriority { KeyInputPriority::NormalMode }
 
     fn key(&mut self, event: &KeyEvent) -> bool {
         let view = {
