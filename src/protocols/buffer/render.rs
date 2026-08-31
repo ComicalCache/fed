@@ -99,32 +99,6 @@ impl Renderer for BufferRenderer {
                     continue;
                 }
 
-                if ch == "\t" {
-                    let visible_spaces = visual_x.saturating_sub(scroll.x.max(start_col));
-                    for _ in 0..visible_spaces {
-                        if x >= viewport_width {
-                            break;
-                        }
-
-                        viewport.set(
-                            Pos::new(x, y),
-                            Cell::new(" ".to_string(), false, Face::default()),
-                        );
-                        x += 1;
-                    }
-
-                    continue;
-                }
-
-                // A wide char's first byte is off-screen.
-                if start_col < scroll.x {
-                    viewport
-                        .set(Pos::new(x, y), Cell::new(" ".to_string(), false, Face::default()));
-                    x += 1;
-
-                    continue;
-                }
-
                 let mut face = Face::default();
                 if let Some(cursors) = &cursors
                     && cursors
@@ -133,6 +107,38 @@ impl Renderer for BufferRenderer {
                         .any(|cursor| cursor.pos.y == doc_y && cursor.pos.x == start_col)
                 {
                     face.reverse = Some(true);
+                }
+
+                if ch == "\t" {
+                    let visible_spaces = visual_x.saturating_sub(scroll.x.max(start_col));
+                    for _ in 0..visible_spaces {
+                        if x >= viewport_width {
+                            break;
+                        }
+
+                        viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, face));
+                        x += 1;
+                    }
+
+                    continue;
+                }
+
+                // A wide char's first section is off-screen.
+                if start_col < scroll.x {
+                    viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, face));
+                    x += 1;
+
+                    continue;
+                }
+
+                // A wide char's trailing section is off-screen.
+                if x + ch_width > viewport_width {
+                    while x < viewport_width {
+                        viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, face));
+                        x += 1;
+                    }
+
+                    break;
                 }
 
                 viewport.set(Pos::new(x, y), Cell::new(ch.to_string(), false, face));
