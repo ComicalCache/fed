@@ -4,6 +4,7 @@ use std::{
 };
 
 use fed_core::{CoreCommandSender, DocumentId};
+use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::{
     protocols::buffer::store::{BufferData, BufferStore},
@@ -23,13 +24,13 @@ pub struct BufferProtocol {
     store: Arc<RwLock<BufferStore>>,
     state: State,
 
-    rx: flume::Receiver<BufferCommand>,
+    rx: UnboundedReceiver<BufferCommand>,
     core_tx: CoreCommandSender,
 }
 
 impl BufferProtocol {
     pub fn new(
-        state: State, rx: flume::Receiver<BufferCommand>, core_tx: CoreCommandSender,
+        state: State, rx: UnboundedReceiver<BufferCommand>, core_tx: CoreCommandSender,
     ) -> Self {
         Self { store: Arc::new(RwLock::new(HashMap::new())), state, rx, core_tx }
     }
@@ -37,7 +38,7 @@ impl BufferProtocol {
     pub fn store(&self) -> Arc<RwLock<BufferStore>> { self.store.clone() }
 
     pub async fn run(&mut self) {
-        while let Ok(cmd) = self.rx.recv_async().await {
+        while let Some(cmd) = self.rx.recv().await {
             match cmd {
                 BufferCommand::Init { window, view, doc } => self.init(window, view, doc).await,
                 BufferCommand::ScrollTo { view, pos } => self.scroll_to(view, pos).await,

@@ -22,6 +22,7 @@ use crossterm::{
 };
 use fed_core::Core;
 use futures::StreamExt;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 use crate::{
     fed::Fed,
@@ -38,11 +39,11 @@ use crate::{
 };
 
 /// Broadcasts input `Event`s into the application.
-async fn input_events(tx: flume::Sender<Event>) -> std::io::Result<()> {
+async fn input_events(tx: UnboundedSender<Event>) -> std::io::Result<()> {
     let mut reader = EventStream::new();
 
     while let Some(Ok(event)) = reader.next().await {
-        if tx.send_async(event).await.is_err() {
+        if tx.send(event).is_err() {
             break;
         }
     }
@@ -51,8 +52,8 @@ async fn input_events(tx: flume::Sender<Event>) -> std::io::Result<()> {
 }
 
 async fn setup(
-    input_rx: flume::Receiver<Event>, width: usize, height: usize,
-) -> (Fed, flume::Receiver<()>) {
+    input_rx: UnboundedReceiver<Event>, width: usize, height: usize,
+) -> (Fed, UnboundedReceiver<()>) {
     let mut core = Core::new();
     let core_tx = core.tx();
 
@@ -78,13 +79,13 @@ async fn setup(
     let view = state::create_view(&state, doc);
 
     // Channels.
-    let (buffer_tx, buffer_rx) = flume::unbounded();
-    let (cursor_tx, cursor_rx) = flume::unbounded();
-    let (screen_tx, screen_rx) = flume::unbounded();
-    let (quit_tx, quit_rx) = flume::unbounded();
+    let (buffer_tx, buffer_rx) = unbounded_channel();
+    let (cursor_tx, cursor_rx) = unbounded_channel();
+    let (screen_tx, screen_rx) = unbounded_channel();
+    let (quit_tx, quit_rx) = unbounded_channel();
 
     // Protocols.
-    let buffer = BufferProtocol::new(state.clone(), buffer_rx.clone(), core_tx.clone());
+    let buffer = BufferProtocol::new(state.clone(), buffer_rx, core_tx.clone());
     let cursor = CursorProtocol::new(state.clone(), cursor_rx, buffer_tx.clone(), core_tx);
     let screen = ScreenProtocol::new(state.clone(), width, height, screen_rx);
 
@@ -122,16 +123,16 @@ async fn main() -> std::io::Result<()> {
     execute!(stdout, Hide)?;
 
     // Channels to propagate input `Event`s.
-    let (input_tx, input_rx) = flume::unbounded();
+    let (input_tx, input_rx) = unbounded_channel();
 
     let (width, height) = crossterm::terminal::size()?;
-    let (mut fed, quit_rx) = setup(input_rx, width as usize, height as usize).await;
+    let (mut fed, mut quit_rx) = setup(input_rx, width as usize, height as usize).await;
 
     // Main loop.
     tokio::select! {
         _ = input_events(input_tx) => {}
         _ = fed.run() => {}
-        _ = quit_rx.recv_async() => {} // TODO: proper quit protocol.
+        _ = quit_rx.recv() => {} // TODO: proper quit protocol.
     }
 
     execute!(stdout, Show)?;

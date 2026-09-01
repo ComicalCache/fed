@@ -1,4 +1,5 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     input::{KeyInputHandler, priorities::KeyInputPriority},
@@ -10,13 +11,13 @@ use crate::{
 pub struct NormalKeyInput {
     state: State,
 
-    cursor_tx: flume::Sender<CursorCommand>,
-    quit_tx: flume::Sender<()>,
+    cursor_tx: UnboundedSender<CursorCommand>,
+    quit_tx: UnboundedSender<()>,
 }
 
 impl NormalKeyInput {
     pub fn new(
-        state: State, cursor_tx: flume::Sender<CursorCommand>, quit_tx: flume::Sender<()>,
+        state: State, cursor_tx: UnboundedSender<CursorCommand>, quit_tx: UnboundedSender<()>,
     ) -> Self {
         Self { state, cursor_tx, quit_tx }
     }

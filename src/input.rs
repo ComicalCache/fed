@@ -1,6 +1,7 @@
 pub mod priorities;
 
 use crossterm::event::{Event, KeyEvent, MouseEvent};
+use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::input::priorities::{
     KeyInputPriority, MouseInputPriority, PasteInputPriority, ResizeInputPriority,
@@ -72,11 +73,11 @@ pub struct InputRouter {
     paste_handlers: Vec<Box<dyn PasteInputHandler>>,
     resize_handlers: Vec<Box<dyn ResizeInputHandler>>,
 
-    rx: flume::Receiver<Event>,
+    rx: UnboundedReceiver<Event>,
 }
 
 impl InputRouter {
-    pub fn new(rx: flume::Receiver<Event>) -> Self {
+    pub fn new(rx: UnboundedReceiver<Event>) -> Self {
         Self {
             key_handlers: Vec::new(),
             mouse_handlers: Vec::new(),
@@ -110,7 +111,7 @@ impl InputRouter {
         self.paste_handlers.sort_by(|a, b| b.priority().cmp(&a.priority()));
         self.resize_handlers.sort_by(|a, b| b.priority().cmp(&a.priority()));
 
-        while let Ok(event) = self.rx.recv_async().await {
+        while let Some(event) = self.rx.recv().await {
             match event {
                 Event::Key(key) => {
                     for handler in &mut self.key_handlers {

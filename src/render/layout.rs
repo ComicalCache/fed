@@ -2,7 +2,6 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::{
-    render::Cell,
     state::{
         DocumentStoreTypes::Decorations as DocDecorations,
         ViewStoreTypes::Decorations as ViewDecorations,

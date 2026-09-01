@@ -1,3 +1,5 @@
+use tokio::sync::mpsc::UnboundedSender;
+
 use crate::{
     input::{ResizeInputHandler, priorities::ResizeInputPriority},
     protocols::screen::ScreenCommand,
@@ -7,11 +9,11 @@ use crate::{
 pub struct ScreenResizeInput {
     state: State,
 
-    tx: flume::Sender<ScreenCommand>,
+    tx: UnboundedSender<ScreenCommand>,
 }
 
 impl ScreenResizeInput {
-    pub fn new(state: State, tx: flume::Sender<ScreenCommand>) -> Self { Self { state, tx } }
+    pub fn new(state: State, tx: UnboundedSender<ScreenCommand>) -> Self { Self { state, tx } }
 }
 
 impl ResizeInputHandler for ScreenResizeInput {

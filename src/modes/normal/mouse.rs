@@ -1,4 +1,5 @@
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     input::{MouseInputHandler, priorities::MouseInputPriority},
@@ -10,11 +11,11 @@ use crate::{
 pub struct NormalMouseInput {
     state: State,
 
-    cursor_tx: flume::Sender<CursorCommand>,
+    cursor_tx: UnboundedSender<CursorCommand>,
 }
 
 impl NormalMouseInput {
-    pub fn new(state: State, cursor_tx: flume::Sender<CursorCommand>) -> Self {
+    pub fn new(state: State, cursor_tx: UnboundedSender<CursorCommand>) -> Self {
         Self { state, cursor_tx }
     }
 }

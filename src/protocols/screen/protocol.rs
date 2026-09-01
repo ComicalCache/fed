@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use tokio::sync::mpsc::UnboundedReceiver;
+
 use crate::{render::Screen, state::State};
 
 pub enum ScreenCommand {
@@ -10,12 +12,12 @@ pub struct ScreenProtocol {
     screen: Screen,
     state: State,
 
-    rx: flume::Receiver<ScreenCommand>,
+    rx: UnboundedReceiver<ScreenCommand>,
 }
 
 impl ScreenProtocol {
     pub fn new(
-        state: State, width: usize, height: usize, rx: flume::Receiver<ScreenCommand>,
+        state: State, width: usize, height: usize, rx: UnboundedReceiver<ScreenCommand>,
     ) -> Self {
         Self { screen: Screen::new(width, height), state, rx }
     }
@@ -25,8 +27,8 @@ impl ScreenProtocol {
 
         loop {
             tokio::select! {
-                res = self.rx.recv_async() => {
-                    let Ok(res) = res else { break; };
+                res = self.rx.recv() => {
+                    let Some(res) = res else { break; };
 
                     match res {
                         ScreenCommand::Resize(width, height) => {
@@ -38,6 +40,7 @@ impl ScreenProtocol {
                 _ = interval.tick() => {
                     let mut workspace = self.state.workspace.write().unwrap();
                     workspace.render(&mut self.screen);
+                    drop(workspace);
 
                     self.screen.render();
                 }

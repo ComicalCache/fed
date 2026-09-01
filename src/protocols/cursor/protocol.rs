@@ -1,4 +1,5 @@
 use fed_core::{CoreCommandSender, DocumentId};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{
     protocols::buffer::BufferCommand,
@@ -19,21 +20,21 @@ pub enum CursorCommand {
 pub struct CursorProtocol {
     state: State,
 
-    rx: flume::Receiver<CursorCommand>,
-    buffer_tx: flume::Sender<BufferCommand>,
+    rx: UnboundedReceiver<CursorCommand>,
+    buffer_tx: UnboundedSender<BufferCommand>,
     core_tx: CoreCommandSender,
 }
 
 impl CursorProtocol {
     pub fn new(
-        state: State, rx: flume::Receiver<CursorCommand>, buffer_tx: flume::Sender<BufferCommand>,
-        core_tx: CoreCommandSender,
+        state: State, rx: UnboundedReceiver<CursorCommand>,
+        buffer_tx: UnboundedSender<BufferCommand>, core_tx: CoreCommandSender,
     ) -> Self {
         Self { state, rx, buffer_tx, core_tx }
     }
 
     pub async fn run(&mut self) {
-        while let Ok(cmd) = self.rx.recv_async().await {
+        while let Some(cmd) = self.rx.recv().await {
             match cmd {
                 CursorCommand::Move { view, direction } => self.r#move(view, direction).await,
                 CursorCommand::MoveTo { view, pos } => self.move_to(view, pos).await,
