@@ -3,21 +3,24 @@ use std::{
     path::PathBuf,
 };
 
-use tokio::sync::oneshot;
+use tokio::sync::{
+    mpsc::{UnboundedSender, error::SendError},
+    oneshot,
+};
 
 use crate::document::DocumentId;
 
 /// A wrapper for protocols to send `CoreCommand`s to the core.
 #[derive(Clone)]
 pub struct CoreCommandSender {
-    pub(crate) tx: flume::Sender<CoreCommandFacade>,
+    pub(crate) tx: UnboundedSender<CoreCommandFacade>,
 }
 
 impl CoreCommandSender {
-    pub async fn send_async(&self, cmd: CoreCommand) -> Result<(), flume::SendError<CoreCommand>> {
-        self.tx.send_async(CoreCommandFacade::Public(cmd)).await.map_err(|err| {
-            let CoreCommandFacade::Public(cmd) = err.into_inner() else { unreachable!() };
-            flume::SendError(cmd)
+    pub async fn send(&self, cmd: CoreCommand) -> Result<(), SendError<CoreCommand>> {
+        self.tx.send(CoreCommandFacade::Public(cmd)).map_err(|err| {
+            let CoreCommandFacade::Public(cmd) = err.0 else { unreachable!() };
+            SendError(cmd)
         })
     }
 
@@ -27,7 +30,7 @@ impl CoreCommandSender {
         let (tx, rx) = oneshot::channel();
 
         let cmd = CoreCommand::Create { path, reply: tx };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -40,7 +43,7 @@ impl CoreCommandSender {
         let (tx, rx) = oneshot::channel();
 
         let cmd = CoreCommand::Destroy { id, force, reply: tx };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -53,7 +56,7 @@ impl CoreCommandSender {
         let (tx, rx) = oneshot::channel();
 
         let cmd = CoreCommand::GetPath { id, reply: tx };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -68,7 +71,7 @@ impl CoreCommandSender {
         let (tx, rx) = oneshot::channel();
 
         let cmd = CoreCommand::SetPath { id, path, reply: tx };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -79,7 +82,7 @@ impl CoreCommandSender {
     /// `CoreCommand::StartCommit` for more details.
     pub async fn start_commit(&self, id: DocumentId) -> Result<(), CoreCommandError> {
         let cmd = CoreCommand::StartCommit { id };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -90,7 +93,7 @@ impl CoreCommandSender {
     /// `CoreCommand::EndCommit` for more details.
     pub async fn end_commit(&self, id: DocumentId) -> Result<(), CoreCommandError> {
         let cmd = CoreCommand::EndCommit { id };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -101,7 +104,7 @@ impl CoreCommandSender {
     /// `CoreCommand::Undo` for more details.
     pub async fn undo(&self, id: DocumentId) -> Result<(), CoreCommandError> {
         let cmd = CoreCommand::Undo { id };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -112,7 +115,7 @@ impl CoreCommandSender {
     /// `CoreCommand::HotRedo` for more details.
     pub async fn hot_redo(&self, id: DocumentId) -> Result<(), CoreCommandError> {
         let cmd = CoreCommand::HotRedo { id };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -125,7 +128,7 @@ impl CoreCommandSender {
         &self, id: DocumentId, pos: usize, str: String,
     ) -> Result<(), CoreCommandError> {
         let cmd = CoreCommand::Insert { id, pos, str };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -136,7 +139,7 @@ impl CoreCommandSender {
     /// `CoreCommand::Append` for more details.
     pub async fn append(&self, id: DocumentId, str: String) -> Result<(), CoreCommandError> {
         let cmd = CoreCommand::Append { id, str };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -149,7 +152,7 @@ impl CoreCommandSender {
         &self, id: DocumentId, pos: usize, n: usize,
     ) -> Result<(), CoreCommandError> {
         let cmd = CoreCommand::Remove { id, pos, n };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -163,7 +166,7 @@ impl CoreCommandSender {
         let (tx, rx) = oneshot::channel();
 
         let cmd = CoreCommand::GetLineStartByte { id, n, reply: tx };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -178,7 +181,7 @@ impl CoreCommandSender {
         let (tx, rx) = oneshot::channel();
 
         let cmd = CoreCommand::GetLineEndByte { id, n, reply: tx };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -207,7 +210,7 @@ impl CoreCommandSender {
         let (tx, rx) = oneshot::channel();
 
         let cmd = CoreCommand::IsModified { id, reply: tx };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -220,7 +223,7 @@ impl CoreCommandSender {
         let (tx, rx) = oneshot::channel();
 
         let cmd = CoreCommand::Save { id, reply: tx };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -236,7 +239,7 @@ impl CoreCommandSender {
 
         let range = (range.start_bound().cloned(), range.end_bound().cloned());
         let cmd = CoreCommand::GetSlice { id, range, reply: tx };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -249,7 +252,7 @@ impl CoreCommandSender {
         let (tx, rx) = oneshot::channel();
 
         let cmd = CoreCommand::Lines { id, reply: tx };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 
@@ -262,7 +265,7 @@ impl CoreCommandSender {
         let (tx, rx) = oneshot::channel();
 
         let cmd = CoreCommand::Len { id, reply: tx };
-        if self.tx.send_async(CoreCommandFacade::Public(cmd)).await.is_err() {
+        if self.tx.send(CoreCommandFacade::Public(cmd)).is_err() {
             return Err(CoreCommandError::Offline);
         }
 

@@ -4,6 +4,7 @@ mod process_internal;
 use std::{collections::HashMap, path::PathBuf};
 
 use piece_table::PieceTable;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 use crate::{
     CoreCommandSender,
@@ -17,13 +18,13 @@ pub struct Core {
 
     event_mappers: Vec<Box<dyn CoreEventMapper>>,
 
-    rx: flume::Receiver<CoreCommandFacade>,
-    tx: flume::Sender<CoreCommandFacade>,
+    rx: UnboundedReceiver<CoreCommandFacade>,
+    tx: UnboundedSender<CoreCommandFacade>,
 }
 
 impl Core {
     pub fn new() -> Self {
-        let (tx, rx) = flume::unbounded();
+        let (tx, rx) = unbounded_channel();
 
         Self { documents: HashMap::new(), next_document_id: 0, event_mappers: Vec::new(), rx, tx }
     }
@@ -41,7 +42,7 @@ impl Core {
     pub async fn run(&mut self) {
         use CoreCommandFacade::*;
 
-        while let Ok(cmd) = self.rx.recv_async().await {
+        while let Some(cmd) = self.rx.recv().await {
             match cmd {
                 Public(cmd) => self.process_command(cmd),
                 Internal(cmd) => self.process_internal_command(cmd),

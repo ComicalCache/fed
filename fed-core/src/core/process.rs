@@ -22,7 +22,7 @@ impl Core {
                 // TODO: chunked reading.
                 let content = tokio::fs::read_to_string(&path).await.map_err(|err| err.to_string());
 
-                let _ = tx.send_async(Internal(FinalizeCreate { path, content, reply })).await;
+                let _ = tx.send(Internal(FinalizeCreate { path, content, reply }));
             });
 
             return;
@@ -233,7 +233,7 @@ impl Core {
         tokio::spawn(async move {
             let res = tokio::fs::write(&path, data).await.map_err(|err| err.to_string());
 
-            let _ = tx.send_async(Internal(FinalizeSave { id, path, len, res, reply })).await;
+            let _ = tx.send(Internal(FinalizeSave { id, path, len, res, reply }));
         });
     }
 
