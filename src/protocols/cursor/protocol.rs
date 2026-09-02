@@ -2,7 +2,7 @@ use fed_core::{CoreCommandSender, DocumentId};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{
-    protocols::buffer::BufferCommand,
+    protocols::view::ViewCommand,
     render,
     state::{
         DocumentStoreTypes::{self, Decorations as DocDecorations},
@@ -21,14 +21,14 @@ pub struct CursorProtocol {
     state: State,
 
     rx: UnboundedReceiver<CursorCommand>,
-    buffer_tx: UnboundedSender<BufferCommand>,
+    buffer_tx: UnboundedSender<ViewCommand>,
     core_tx: CoreCommandSender,
 }
 
 impl CursorProtocol {
     pub fn new(
         state: State, rx: UnboundedReceiver<CursorCommand>,
-        buffer_tx: UnboundedSender<BufferCommand>, core_tx: CoreCommandSender,
+        buffer_tx: UnboundedSender<ViewCommand>, core_tx: CoreCommandSender,
     ) -> Self {
         Self { state, rx, buffer_tx, core_tx }
     }
@@ -116,7 +116,7 @@ impl CursorProtocol {
         drop(view_store);
 
         if let Some(cursor) = cursors.list.first() {
-            let _ = self.buffer_tx.send(BufferCommand::ScrollIfNeeded { view, pos: cursor.pos });
+            let _ = self.buffer_tx.send(ViewCommand::ScrollIfNeeded { view, pos: cursor.pos });
         }
     }
 
@@ -166,7 +166,7 @@ impl CursorProtocol {
         drop(view_store);
 
         if let Some(cursor) = cursors.list.first() {
-            let _ = self.buffer_tx.send(BufferCommand::ScrollIfNeeded { view, pos: cursor.pos });
+            let _ = self.buffer_tx.send(ViewCommand::ScrollIfNeeded { view, pos: cursor.pos });
         }
     }
 

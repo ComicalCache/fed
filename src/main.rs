@@ -29,9 +29,10 @@ use crate::{
     input::InputRouter,
     modes::normal::{NormalKeyInput, NormalMouseInput},
     protocols::{
-        buffer::{BufferCommand, BufferProtocol, BufferRenderer, BufferResizeInput},
         cursor::CursorProtocol,
         screen::{ScreenProtocol, ScreenResizeInput},
+        view::{ViewCommand, ViewProtocol, ViewRenderer, ViewResizeInput},
+        view_decorator::ViewDecoratorRenderer,
     },
     render::Workspace,
     state::State,
@@ -73,10 +74,10 @@ async fn setup(
     let path = args.get(1).map(PathBuf::from);
 
     // Initial document.
-    let doc = state::create_document(&state, core_tx.clone(), path)
+    let doc_id = state::create_document(&state, core_tx.clone(), path)
         .await
         .expect("Failed to create document");
-    let view = state::create_view(&state, doc);
+    let view_id = state::create_view(&state, doc_id);
 
     // Channels.
     let (buffer_tx, buffer_rx) = unbounded_channel();
@@ -85,17 +86,20 @@ async fn setup(
     let (quit_tx, quit_rx) = unbounded_channel();
 
     // Protocols.
-    let buffer = BufferProtocol::new(state.clone(), buffer_rx, core_tx.clone());
+    let view = ViewProtocol::new(state.clone(), buffer_rx, core_tx.clone());
     let cursor = CursorProtocol::new(state.clone(), cursor_rx, buffer_tx.clone(), core_tx);
     let screen = ScreenProtocol::new(state.clone(), width, height, screen_rx);
 
     // Initial renderer.
-    let renderer = Box::new(BufferRenderer::new(doc, view, buffer.store(), state.clone()));
-    let window = state.workspace.write().unwrap().create_tile(renderer, RectSplit::Vertical);
+    let view_renderer = ViewRenderer::new(doc_id, view_id, view.store(), state.clone());
+    let view_decorator_renderer =
+        Box::new(ViewDecoratorRenderer::new(view_id, view_renderer, state.clone()));
+    let window =
+        state.workspace.write().unwrap().create_tile(view_decorator_renderer, RectSplit::Vertical);
 
-    state.window_view_map.write().unwrap().insert(window, view);
+    state.window_view_map.write().unwrap().insert(window, view_id);
 
-    let _ = buffer_tx.send(BufferCommand::Init { window, view, doc });
+    let _ = buffer_tx.send(ViewCommand::Init { window, view: view_id, doc: doc_id });
 
     // Setup input handlers.
     let mut input_router = InputRouter::new(input_rx);
@@ -107,10 +111,10 @@ async fn setup(
 
     input_router.add_mouse_handler(Box::new(NormalMouseInput::new(state.clone(), cursor_tx)));
 
-    input_router.add_resize_handler(Box::new(BufferResizeInput::new(buffer_tx)));
+    input_router.add_resize_handler(Box::new(ViewResizeInput::new(buffer_tx)));
     input_router.add_resize_handler(Box::new(ScreenResizeInput::new(state, screen_tx)));
 
-    (Fed::new(input_router, buffer, cursor, screen), quit_rx)
+    (Fed::new(input_router, view, cursor, screen), quit_rx)
 }
 
 #[tokio::main]

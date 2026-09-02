@@ -7,61 +7,67 @@ use fed_core::{CoreCommandSender, DocumentId};
 use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::{
-    protocols::buffer::store::{BufferData, BufferStore},
+    protocols::view::store::{LocalViewData, LocalViewStore},
     render::WindowId,
     state::{State, ViewId, ViewStoreTypes},
     types::Pos,
 };
 
-pub enum BufferCommand {
+pub enum ViewCommand {
     Init { window: WindowId, view: ViewId, doc: DocumentId },
     ScrollTo { view: ViewId, pos: Pos },
     ScrollIfNeeded { view: ViewId, pos: Pos },
     Resize,
 }
 
-pub struct BufferProtocol {
-    store: Arc<RwLock<BufferStore>>,
+pub struct ViewProtocol {
+    local_store: Arc<RwLock<LocalViewStore>>,
     state: State,
 
-    rx: UnboundedReceiver<BufferCommand>,
+    rx: UnboundedReceiver<ViewCommand>,
     core_tx: CoreCommandSender,
 }
 
-impl BufferProtocol {
+impl ViewProtocol {
     pub fn new(
-        state: State, rx: UnboundedReceiver<BufferCommand>, core_tx: CoreCommandSender,
+        state: State, rx: UnboundedReceiver<ViewCommand>, core_tx: CoreCommandSender,
     ) -> Self {
-        Self { store: Arc::new(RwLock::new(HashMap::new())), state, rx, core_tx }
+        Self { local_store: Arc::new(RwLock::new(HashMap::new())), state, rx, core_tx }
     }
 
-    pub fn store(&self) -> Arc<RwLock<BufferStore>> { self.store.clone() }
+    pub fn store(&self) -> Arc<RwLock<LocalViewStore>> { self.local_store.clone() }
 
     pub async fn run(&mut self) {
         while let Some(cmd) = self.rx.recv().await {
             match cmd {
-                BufferCommand::Init { window, view, doc } => self.init(window, view, doc).await,
-                BufferCommand::ScrollTo { view, pos } => self.scroll_to(view, pos).await,
-                BufferCommand::ScrollIfNeeded { view, pos } => {
-                    self.scroll_if_needed(view, pos).await
-                }
-                BufferCommand::Resize => self.resize().await,
+                ViewCommand::Init { window, view, doc } => self.init(window, view, doc).await,
+                ViewCommand::ScrollTo { view, pos } => self.scroll_to(view, pos).await,
+                ViewCommand::ScrollIfNeeded { view, pos } => self.scroll_if_needed(view, pos).await,
+                ViewCommand::Resize => self.resize().await,
             }
         }
     }
 
     async fn init(&mut self, window: WindowId, view: ViewId, doc: DocumentId) {
-        let height = {
+        let (height, layout) = {
             let workspace = self.state.workspace.read().unwrap();
+            let view_store = self.state.view_store.read().unwrap();
+
             let Some(height) = workspace.get_rect(window).map(|rect| rect.height) else {
                 return;
             };
+            let layout = view_store
+                .get(&view)
+                .and_then(|view| view.get::<ViewStoreTypes::Layout>())
+                .copied()
+                .unwrap_or_default();
 
-            height
+            (height, layout)
         };
 
-        if height > 0 {
-            self.fetch(view, doc, ViewStoreTypes::Scroll(Pos::default()), height).await;
+        let buffer_height = height.saturating_sub(layout.mode_line);
+        if buffer_height > 0 {
+            self.fetch(view, doc, ViewStoreTypes::Scroll(Pos::default()), buffer_height).await;
         }
     }
 
@@ -77,21 +83,26 @@ impl BufferProtocol {
         let Some(rect) = self.state.workspace.read().unwrap().get_rect(window) else {
             return;
         };
-        if rect.height == 0 {
-            return;
-        }
 
-        let doc = {
+        let (doc, layout) = {
             let view_store = self.state.view_store.read().unwrap();
             let Some(view) = view_store.get(&view) else {
                 return;
             };
 
-            view.get::<DocumentId>().cloned()
+            let doc = view.get::<DocumentId>().cloned();
+            let layout = view.get::<ViewStoreTypes::Layout>().copied().unwrap_or_default();
+
+            (doc, layout)
         };
         let Some(doc) = doc else {
             return;
         };
+
+        let buffer_height = rect.height.saturating_sub(layout.mode_line);
+        if buffer_height == 0 {
+            return;
+        }
 
         let scroll = ViewStoreTypes::Scroll(pos);
 
@@ -101,7 +112,7 @@ impl BufferProtocol {
         }
         drop(view_store);
 
-        self.fetch(view, doc, scroll, rect.height).await;
+        self.fetch(view, doc, scroll, buffer_height).await;
     }
 
     async fn scroll_if_needed(&mut self, view: ViewId, pos: Pos) {
@@ -116,57 +127,55 @@ impl BufferProtocol {
         let Some(rect) = self.state.workspace.read().unwrap().get_rect(window) else {
             return;
         };
-        if rect.height == 0 {
-            return;
-        }
 
-        let doc = {
+        let (doc, mut scroll, layout) = {
             let view_store = self.state.view_store.read().unwrap();
             let Some(view) = view_store.get(&view) else {
                 return;
             };
 
-            view.get::<DocumentId>().cloned()
+            let doc = view.get::<DocumentId>().cloned();
+            let scroll = view.get::<ViewStoreTypes::Scroll>().copied().unwrap_or_default();
+            let layout = view.get::<ViewStoreTypes::Layout>().copied().unwrap_or_default();
+
+            (doc, scroll, layout)
         };
         let Some(doc) = doc else {
             return;
         };
 
-        let mut scroll = {
-            let view_store = self.state.view_store.read().unwrap();
-            view_store
-                .get(&view)
-                .and_then(|view| view.get::<ViewStoreTypes::Scroll>())
-                .map(|&scroll| scroll)
-                .unwrap_or_default()
-        };
+        let buffer_width = rect.width.saturating_sub(layout.gutter);
+        let buffer_height = rect.height.saturating_sub(layout.mode_line);
+        if buffer_width == 0 || buffer_height == 0 {
+            return;
+        }
 
         let mut needed = false;
 
         if pos.y < scroll.y {
             scroll.y = pos.y;
             needed = true;
-        } else if pos.y >= scroll.y + rect.height {
-            scroll.y = pos.y.saturating_sub(rect.height).saturating_add(1);
+        } else if pos.y >= scroll.y + buffer_height {
+            scroll.y = pos.y.saturating_sub(buffer_height).saturating_add(1);
             needed = true;
         }
 
         if pos.x < scroll.x {
             scroll.x = pos.x;
             needed = true;
-        } else if pos.x >= scroll.x + rect.width {
-            scroll.x = pos.x.saturating_sub(rect.width).saturating_add(1);
+        } else if pos.x >= scroll.x + buffer_width {
+            scroll.x = pos.x.saturating_sub(buffer_width).saturating_add(1);
             needed = true;
         }
 
         if needed {
             let mut view_store = self.state.view_store.write().unwrap();
-            if let Some(v) = view_store.get_mut(&view) {
-                v.insert(scroll);
+            if let Some(view) = view_store.get_mut(&view) {
+                view.insert(scroll);
             }
             drop(view_store);
 
-            self.fetch(view, doc, scroll, rect.height).await;
+            self.fetch(view, doc, scroll, buffer_height).await;
         }
     }
 
@@ -179,36 +188,47 @@ impl BufferProtocol {
             window_view_map
                 .iter()
                 .filter_map(|(&window, &view)| {
-                    let scroll = view_store
-                        .get(&view)
-                        .and_then(|view| view.get::<ViewStoreTypes::Scroll>())
-                        .map(|&scroll| scroll)
-                        .unwrap_or_default();
-
-                    let doc = {
-                        let Some(view) = view_store.get(&view) else {
-                            return None;
-                        };
-
-                        view.get::<DocumentId>()
-                    };
-                    let Some(&doc) = doc else {
+                    let Some(view_data) = view_store.get(&view) else {
                         return None;
                     };
 
-                    workspace.get_rect(window).map(|rect| (view, doc, scroll, rect.height))
+                    let doc = view_data.get::<DocumentId>().copied()?;
+                    let scroll =
+                        view_data.get::<ViewStoreTypes::Scroll>().copied().unwrap_or_default();
+                    let layout =
+                        view_data.get::<ViewStoreTypes::Layout>().copied().unwrap_or_default();
+                    let buffer_height =
+                        workspace.get_rect(window)?.height.saturating_sub(layout.mode_line);
+
+                    Some((view, doc, scroll, buffer_height))
                 })
                 .collect()
         };
 
         for (view, doc, scroll, height) in entries {
-            self.fetch(view, doc, scroll, height).await;
+            if height > 0 {
+                self.fetch(view, doc, scroll, height).await;
+            }
         }
     }
 
     async fn fetch(
         &self, view: ViewId, doc: DocumentId, scroll: ViewStoreTypes::Scroll, height: usize,
     ) {
+        if let Ok(lines_count) = self.core_tx.lines(doc).await {
+            let digits = lines_count.checked_ilog10().unwrap_or(0) as usize + 1;
+            let gutter = digits + 2;
+
+            let mut view_store = self.state.view_store.write().unwrap();
+            if let Some(view) = view_store.get_mut(&view) {
+                let mut layout = view.get::<ViewStoreTypes::Layout>().copied().unwrap_or_default();
+                if layout.gutter != gutter {
+                    layout.gutter = gutter;
+                    view.insert(layout);
+                }
+            }
+        }
+
         let Ok(start) = self.core_tx.get_line_start_byte(doc, scroll.y).await else {
             return;
         };
@@ -224,6 +244,6 @@ impl BufferProtocol {
             lines.push(String::new());
         }
 
-        self.store.write().unwrap().insert(view, BufferData { offset: start, lines });
+        self.local_store.write().unwrap().insert(view, LocalViewData { offset: start, lines });
     }
 }

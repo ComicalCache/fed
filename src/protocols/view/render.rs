@@ -3,30 +3,30 @@ use std::sync::{Arc, RwLock};
 use fed_core::DocumentId;
 
 use crate::{
-    protocols::buffer::store::BufferStore,
+    protocols::view::store::LocalViewStore,
     render::{Cell, Renderer, Viewport, WindowId},
     state::{DocumentStoreTypes, State, ViewId, ViewStoreTypes},
     types::{Face, Pos},
 };
 
-pub struct BufferRenderer {
+pub struct ViewRenderer {
     doc: DocumentId,
     view: ViewId,
 
-    store: Arc<RwLock<BufferStore>>,
+    store: Arc<RwLock<LocalViewStore>>,
 
     state: State,
 }
 
-impl BufferRenderer {
+impl ViewRenderer {
     pub fn new(
-        doc: DocumentId, view: ViewId, store: Arc<RwLock<BufferStore>>, state: State,
+        doc: DocumentId, view: ViewId, store: Arc<RwLock<LocalViewStore>>, state: State,
     ) -> Self {
         Self { doc, view, store, state }
     }
 }
 
-impl Renderer for BufferRenderer {
+impl Renderer for ViewRenderer {
     fn render(&self, viewport: &mut Viewport, _: WindowId) {
         let viewport_width = viewport.width();
         let viewport_height = viewport.height();

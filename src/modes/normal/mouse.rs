@@ -24,7 +24,7 @@ impl MouseInputHandler for NormalMouseInput {
     fn priority(&self) -> MouseInputPriority { MouseInputPriority::NormalMode }
 
     fn mouse(&mut self, event: &MouseEvent) -> bool {
-        let pos = (event.column, event.row).into();
+        let mut pos = (event.column, event.row).into();
 
         let (window, rect) = {
             let mut workspace = self.state.workspace.write().unwrap();
@@ -58,12 +58,16 @@ impl MouseInputHandler for NormalMouseInput {
             return false;
         }
 
-        let scroll = {
+        let (scroll, layout) = {
             let view_store = self.state.view_store.read().unwrap();
             if let Some(view) = view_store.get(&view) {
-                view.get::<ViewStoreTypes::Scroll>().map(|&scroll| scroll).unwrap_or_default()
+                let scroll =
+                    view.get::<ViewStoreTypes::Scroll>().map(|&scroll| scroll).unwrap_or_default();
+                let layout = view.get::<ViewStoreTypes::Layout>().copied().unwrap_or_default();
+
+                (scroll, layout)
             } else {
-                ViewStoreTypes::Scroll(Pos::default())
+                (ViewStoreTypes::Scroll(Pos::default()), ViewStoreTypes::Layout::default())
             }
         };
 
@@ -71,9 +75,16 @@ impl MouseInputHandler for NormalMouseInput {
             return false;
         }
 
-        let _ = self
-            .cursor_tx
-            .send(CursorCommand::MoveTo { view, pos: pos.saturating_sub(rect.pos) + *scroll });
+        pos = pos.saturating_sub(rect.pos);
+
+        if pos.x < layout.gutter || pos.y >= rect.height.saturating_sub(layout.mode_line) {
+            return false;
+        }
+
+        // Offset the physical x by the gutter width to get the actual text column!
+        pos = Pos::new(pos.x - layout.gutter, pos.y) + *scroll;
+
+        let _ = self.cursor_tx.send(CursorCommand::MoveTo { view, pos });
 
         true
     }

@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use crate::state::ViewId;
 
-pub type BufferStore = HashMap<ViewId, BufferData>;
+pub type LocalViewStore = HashMap<ViewId, LocalViewData>;
 
-pub struct BufferData {
+pub struct LocalViewData {
     pub offset: usize,
     pub lines: Vec<String>,
 }

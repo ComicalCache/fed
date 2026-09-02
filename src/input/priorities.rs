@@ -13,7 +13,7 @@ pub enum PasteInputPriority {}
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum ResizeInputPriority {
-    BufferProtocol,
+    ViewProtocol,
     // Needs the highest priority.
     ScreenProtocol,
 }

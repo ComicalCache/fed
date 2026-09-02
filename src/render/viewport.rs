@@ -16,6 +16,13 @@ impl<'a> Viewport<'a> {
 
     pub fn height(&self) -> usize { self.rect.height }
 
+    pub fn sub_view(&mut self, rect: Rect) -> Viewport<'_> {
+        let width = rect.width.min(self.rect.width.saturating_sub(rect.pos.x));
+        let height = rect.height.min(self.rect.height.saturating_sub(rect.pos.y));
+
+        Viewport { data: self.data, rect: Rect::new(self.rect.pos + rect.pos, width, height) }
+    }
+
     pub fn get(&mut self, pos: Pos) -> Option<&Cell> {
         if pos.x >= self.rect.width || pos.y >= self.rect.height {
             return None;
