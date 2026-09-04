@@ -191,25 +191,17 @@ dependencies = [
 
 [[package]]
 name = "fed"
-version = "1.3.0"
+version = "2.0.0"
 dependencies = [
  "arboard",
  "crossterm",
  "fancy-regex",
- "fed-core",
  "futures",
+ "piece-table",
  "rust-lapper",
  "tokio",
  "unicode-segmentation",
  "unicode-width",
-]
-
-[[package]]
-name = "fed-core"
-version = "1.3.0"
-dependencies = [
- "piece-table",
- "tokio",
 ]
 
 [[package]]

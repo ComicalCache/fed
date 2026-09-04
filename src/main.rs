@@ -20,9 +20,11 @@ use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use fed_core::Core;
 use futures::StreamExt;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use tokio::sync::{
+    broadcast,
+    mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
+};
 
 use crate::{
     fed::Fed,
@@ -30,9 +32,9 @@ use crate::{
     modes::normal::{NormalKeyInput, NormalMouseInput},
     protocols::{
         cursor::CursorProtocol,
+        io::IoProtocol,
         screen::{ScreenProtocol, ScreenResizeInput},
-        view::{ViewCommand, ViewProtocol, ViewRenderer, ViewResizeInput},
-        view_decorator::ViewDecoratorRenderer,
+        view::{ViewCommand, ViewProtocol, ViewResizeInput},
     },
     render::Workspace,
     state::State,
@@ -55,53 +57,27 @@ async fn input_events(tx: UnboundedSender<Event>) -> std::io::Result<()> {
 async fn setup(
     input_rx: UnboundedReceiver<Event>, width: usize, height: usize,
 ) -> (Fed, UnboundedReceiver<()>) {
-    let mut core = Core::new();
-    let core_tx = core.tx();
+    // Channels.
+    // let (doc_event_tx, doc_event_rx) = broadcast::channel(32);
 
-    // The core lives in the background since it is not "owned" by any part of the
-    // editor and needed for setup.
-    tokio::spawn(async move {
-        core.run().await;
-    });
+    let (buffer_tx, buffer_rx) = unbounded_channel();
+    let (io_tx, io_rx) = unbounded_channel();
+    let (cursor_tx, cursor_rx) = unbounded_channel();
+    let (screen_tx, screen_rx) = unbounded_channel();
+    let (quit_tx, quit_rx) = unbounded_channel();
 
     let state = State {
         workspace: Arc::new(RwLock::new(Workspace::new(Rect::new(Pos::default(), width, height)))),
         ..Default::default()
     };
 
-    // Get path of initial document.
-    let args: Vec<String> = std::env::args().collect();
-    let path = args.get(1).map(PathBuf::from);
-
-    // Initial document.
-    let doc_id = state::create_document(&state, core_tx.clone(), path)
-        .await
-        .expect("Failed to create document");
-    let view_id = state::create_view(&state, doc_id);
-
-    // Channels.
-    let (buffer_tx, buffer_rx) = unbounded_channel();
-    let (cursor_tx, cursor_rx) = unbounded_channel();
-    let (screen_tx, screen_rx) = unbounded_channel();
-    let (quit_tx, quit_rx) = unbounded_channel();
-
     // Protocols.
-    let view = ViewProtocol::new(state.clone(), buffer_rx, core_tx.clone());
-    let cursor = CursorProtocol::new(state.clone(), cursor_rx, buffer_tx.clone(), core_tx);
+    let io = IoProtocol::new(io_rx);
+    let view = ViewProtocol::new(state.clone(), buffer_rx);
+    let cursor = CursorProtocol::new(state.clone(), cursor_rx, buffer_tx.clone());
     let screen = ScreenProtocol::new(state.clone(), width, height, screen_rx);
 
-    // Initial renderer.
-    let view_renderer = ViewRenderer::new(doc_id, view_id, view.store(), state.clone());
-    let view_decorator_renderer =
-        Box::new(ViewDecoratorRenderer::new(view_id, view_renderer, state.clone()));
-    let window =
-        state.workspace.write().unwrap().create_tile(view_decorator_renderer, RectSplit::Vertical);
-
-    state.window_view_map.write().unwrap().insert(window, view_id);
-
-    let _ = buffer_tx.send(ViewCommand::Init { window, view: view_id, doc: doc_id });
-
-    // Setup input handlers.
+    // Input handlers.
     let mut input_router = InputRouter::new(input_rx);
     input_router.add_key_handler(Box::new(NormalKeyInput::new(
         state.clone(),
@@ -111,10 +87,22 @@ async fn setup(
 
     input_router.add_mouse_handler(Box::new(NormalMouseInput::new(state.clone(), cursor_tx)));
 
-    input_router.add_resize_handler(Box::new(ViewResizeInput::new(buffer_tx)));
-    input_router.add_resize_handler(Box::new(ScreenResizeInput::new(state, screen_tx)));
+    input_router.add_resize_handler(Box::new(ViewResizeInput::new(buffer_tx.clone())));
+    input_router.add_resize_handler(Box::new(ScreenResizeInput::new(state.clone(), screen_tx)));
 
-    (Fed::new(input_router, view, cursor, screen), quit_rx)
+    // Initial document creation.
+    tokio::spawn(async move {
+        let args: Vec<String> = std::env::args().collect();
+        let path = args.get(1).map(PathBuf::from);
+
+        let Ok(doc) = state.create_document(path, io_tx).await else {
+            todo!("Exit with error");
+        };
+
+        let _ = buffer_tx.send(ViewCommand::SpawnWindow { doc, split: RectSplit::Vertical });
+    });
+
+    (Fed::new(input_router, io, view, cursor, screen), quit_rx)
 }
 
 #[tokio::main]

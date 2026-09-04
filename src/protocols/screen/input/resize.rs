@@ -22,7 +22,7 @@ impl ResizeInputHandler for ScreenResizeInput {
     fn resize(&mut self, size: (u16, u16)) {
         let (width, height) = (size.0 as usize, size.1 as usize);
 
-        self.state.workspace.write().unwrap().resize(width, height);
+        self.state.with_workspace_mut(|w| w.resize(width, height));
         let _ = self.tx.send(ScreenCommand::Resize(width, height));
     }
 }

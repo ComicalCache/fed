@@ -27,14 +27,11 @@ impl Renderer for ViewDecoratorRenderer {
             return;
         }
 
-        let layout = {
-            let view_store = self.state.view_store.read().unwrap();
-            view_store
-                .get(&self.view)
-                .and_then(|view| view.get::<ViewStoreTypes::Layout>())
-                .copied()
-                .unwrap_or_default()
-        };
+        let layout = self
+            .state
+            .with_view(self.view, |vm| vm.get::<ViewStoreTypes::Layout>().cloned())
+            .flatten()
+            .unwrap_or_default();
 
         let buffer_height = height.saturating_sub(layout.mode_line);
         let buffer_width = width.saturating_sub(layout.gutter);
@@ -54,14 +51,11 @@ impl Renderer for ViewDecoratorRenderer {
 
 impl ViewDecoratorRenderer {
     fn render_gutter(&self, viewport: &mut Viewport, width: usize) {
-        let scroll = {
-            let view_store = self.state.view_store.read().unwrap();
-            view_store
-                .get(&self.view)
-                .and_then(|view| view.get::<ViewStoreTypes::Scroll>())
-                .copied()
-                .unwrap_or_default()
-        };
+        let scroll = self
+            .state
+            .with_view(self.view, |vm| vm.get::<ViewStoreTypes::Scroll>().cloned())
+            .flatten()
+            .unwrap_or_default();
 
         let face = Face::default();
         for y in 0..viewport.height() {
@@ -78,14 +72,11 @@ impl ViewDecoratorRenderer {
     }
 
     fn render_mode_line(&self, viewport: &mut Viewport) {
-        let mode = {
-            let view_store = self.state.view_store.read().unwrap();
-            view_store
-                .get(&self.view)
-                .and_then(|view| view.get::<ViewStoreTypes::Mode>())
-                .copied()
-                .unwrap_or_default()
-        };
+        let mode = self
+            .state
+            .with_view(self.view, |vm| vm.get::<ViewStoreTypes::Mode>().cloned())
+            .flatten()
+            .unwrap_or_default();
 
         let mode = match mode {
             ViewStoreTypes::Mode::Normal => " NORMAL ",

@@ -329,7 +329,7 @@ impl Workspace {
         res
     }
 
-    pub fn render(&mut self, screen: &mut Screen) {
+    pub fn render(&self, screen: &mut Screen) {
         if let Some(root) = &self.root {
             root.render(screen, self.rect);
         }

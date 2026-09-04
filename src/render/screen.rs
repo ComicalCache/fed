@@ -5,6 +5,7 @@ use crossterm::{
     queue,
     style::{Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor},
 };
+use unicode_width::UnicodeWidthStr;
 
 use crate::{
     render::Cell,
@@ -40,6 +41,8 @@ impl Screen {
 
         self.grid.resize(width * height, Cell::default());
         self.dirty.resize(width * height, true);
+        // Redraw everything since resize destroyes the 2D -> 1D mapping.
+        self.dirty.fill(true);
     }
 
     pub fn get(&mut self, pos: Pos) -> Option<&Cell> {
@@ -100,7 +103,7 @@ impl Screen {
 
                 queue!(stdout, Print(&cell.ch)).unwrap();
 
-                cursor.x = x + 1;
+                cursor.x = x + cell.ch.width();
                 cursor.y = y;
             }
         }

@@ -3,20 +3,27 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use fed_core::{CoreCommandSender, DocumentId};
+use piece_table::Slice;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::{
-    protocols::view::store::{LocalViewData, LocalViewStore},
+    protocols::{
+        view::{
+            ViewRenderer,
+            store::{LocalViewData, LocalViewStore},
+        },
+        view_decorator::ViewDecoratorRenderer,
+    },
     render::WindowId,
-    state::{State, ViewId, ViewStoreTypes},
-    types::Pos,
+    state::{DocumentId, DocumentStoreTypes, State, ViewId, ViewStoreTypes},
+    types::{Pos, RectSplit},
 };
 
 pub enum ViewCommand {
     Init { window: WindowId, view: ViewId, doc: DocumentId },
     ScrollTo { view: ViewId, pos: Pos },
     ScrollIfNeeded { view: ViewId, pos: Pos },
+    SpawnWindow { doc: DocumentId, split: RectSplit },
     Resize,
 }
 
@@ -25,17 +32,12 @@ pub struct ViewProtocol {
     state: State,
 
     rx: UnboundedReceiver<ViewCommand>,
-    core_tx: CoreCommandSender,
 }
 
 impl ViewProtocol {
-    pub fn new(
-        state: State, rx: UnboundedReceiver<ViewCommand>, core_tx: CoreCommandSender,
-    ) -> Self {
-        Self { local_store: Arc::new(RwLock::new(HashMap::new())), state, rx, core_tx }
+    pub fn new(state: State, rx: UnboundedReceiver<ViewCommand>) -> Self {
+        Self { local_store: Arc::new(RwLock::new(HashMap::new())), state, rx }
     }
-
-    pub fn store(&self) -> Arc<RwLock<LocalViewStore>> { self.local_store.clone() }
 
     pub async fn run(&mut self) {
         while let Some(cmd) = self.rx.recv().await {
@@ -43,27 +45,22 @@ impl ViewProtocol {
                 ViewCommand::Init { window, view, doc } => self.init(window, view, doc).await,
                 ViewCommand::ScrollTo { view, pos } => self.scroll_to(view, pos).await,
                 ViewCommand::ScrollIfNeeded { view, pos } => self.scroll_if_needed(view, pos).await,
+                ViewCommand::SpawnWindow { doc, split } => self.spawn_window(doc, split).await,
                 ViewCommand::Resize => self.resize().await,
             }
         }
     }
 
     async fn init(&mut self, window: WindowId, view: ViewId, doc: DocumentId) {
-        let (height, layout) = {
-            let workspace = self.state.workspace.read().unwrap();
-            let view_store = self.state.view_store.read().unwrap();
-
-            let Some(height) = workspace.get_rect(window).map(|rect| rect.height) else {
-                return;
-            };
-            let layout = view_store
-                .get(&view)
-                .and_then(|view| view.get::<ViewStoreTypes::Layout>())
-                .copied()
-                .unwrap_or_default();
-
-            (height, layout)
+        let Some(height) = self.state.with_workspace(|w| w.get_rect(window).map(|r| r.height))
+        else {
+            return;
         };
+        let layout = self
+            .state
+            .with_view(view, |vm| vm.get::<ViewStoreTypes::Layout>().cloned())
+            .flatten()
+            .unwrap_or_default();
 
         let buffer_height = height.saturating_sub(layout.mode_line);
         if buffer_height > 0 {
@@ -72,30 +69,20 @@ impl ViewProtocol {
     }
 
     async fn scroll_to(&mut self, view: ViewId, pos: Pos) {
-        let window = {
-            let window_view_map = self.state.window_view_map.read().unwrap();
-            window_view_map.iter().find(|&(_, &v)| v == view).map(|(&w, _)| w)
-        };
-        let Some(window) = window else {
+        let Some(rect) = self
+            .state
+            .with_window_view_map(|wv| wv.iter().find(|&(_, &v)| v == view).map(|(&win, _)| win))
+            .flatten()
+            .and_then(|win| self.state.with_workspace(|w| w.get_rect(win)))
+        else {
             return;
         };
-
-        let Some(rect) = self.state.workspace.read().unwrap().get_rect(window) else {
-            return;
-        };
-
-        let (doc, layout) = {
-            let view_store = self.state.view_store.read().unwrap();
-            let Some(view) = view_store.get(&view) else {
-                return;
-            };
-
-            let doc = view.get::<DocumentId>().cloned();
-            let layout = view.get::<ViewStoreTypes::Layout>().copied().unwrap_or_default();
+        let Some((Some(doc), layout)) = self.state.with_view(view, |vm| {
+            let doc = vm.get::<DocumentId>().cloned();
+            let layout = vm.get::<ViewStoreTypes::Layout>().cloned().unwrap_or_default();
 
             (doc, layout)
-        };
-        let Some(doc) = doc else {
+        }) else {
             return;
         };
 
@@ -106,41 +93,26 @@ impl ViewProtocol {
 
         let scroll = ViewStoreTypes::Scroll(pos);
 
-        let mut view_store = self.state.view_store.write().unwrap();
-        if let Some(view) = view_store.get_mut(&view) {
-            view.insert(scroll);
-        }
-        drop(view_store);
-
+        self.state.with_view_mut(view, |vm| vm.insert(scroll));
         self.fetch(view, doc, scroll, buffer_height).await;
     }
 
     async fn scroll_if_needed(&mut self, view: ViewId, pos: Pos) {
-        let window = {
-            let window_view_map = self.state.window_view_map.read().unwrap();
-            window_view_map.iter().find(|&(_, &v)| v == view).map(|(&w, _)| w)
-        };
-        let Some(window) = window else {
+        let Some(rect) = self
+            .state
+            .with_window_view_map(|wv| wv.iter().find(|&(_, &v)| v == view).map(|(&win, _)| win))
+            .flatten()
+            .and_then(|win| self.state.with_workspace(|w| w.get_rect(win)))
+        else {
             return;
         };
-
-        let Some(rect) = self.state.workspace.read().unwrap().get_rect(window) else {
-            return;
-        };
-
-        let (doc, mut scroll, layout) = {
-            let view_store = self.state.view_store.read().unwrap();
-            let Some(view) = view_store.get(&view) else {
-                return;
-            };
-
-            let doc = view.get::<DocumentId>().cloned();
-            let scroll = view.get::<ViewStoreTypes::Scroll>().copied().unwrap_or_default();
-            let layout = view.get::<ViewStoreTypes::Layout>().copied().unwrap_or_default();
+        let Some((Some(doc), mut scroll, layout)) = self.state.with_view(view, |vm| {
+            let doc = vm.get::<DocumentId>().cloned();
+            let scroll = vm.get::<ViewStoreTypes::Scroll>().cloned().unwrap_or_default();
+            let layout = vm.get::<ViewStoreTypes::Layout>().cloned().unwrap_or_default();
 
             (doc, scroll, layout)
-        };
-        let Some(doc) = doc else {
+        }) else {
             return;
         };
 
@@ -169,41 +141,51 @@ impl ViewProtocol {
         }
 
         if needed {
-            let mut view_store = self.state.view_store.write().unwrap();
-            if let Some(view) = view_store.get_mut(&view) {
-                view.insert(scroll);
-            }
-            drop(view_store);
+            self.state.with_view_mut(view, |vm| vm.insert(scroll));
 
             self.fetch(view, doc, scroll, buffer_height).await;
         }
     }
 
+    async fn spawn_window(&mut self, doc: DocumentId, split: RectSplit) {
+        let view = self.state.create_view(doc);
+
+        let view_renderer =
+            ViewRenderer::new(doc, view, self.local_store.clone(), self.state.clone());
+        let view_decorator_renderer =
+            Box::new(ViewDecoratorRenderer::new(view, view_renderer, self.state.clone()));
+
+        let window =
+            self.state.with_workspace_mut(|w| w.create_tile(view_decorator_renderer, split));
+        self.state.with_window_view_map_mut(|mut wv| wv.insert(window, view));
+
+        self.init(window, view, doc).await;
+    }
+
     async fn resize(&mut self) {
-        let entries: Vec<_> = {
-            let workspace = self.state.workspace.read().unwrap();
-            let view_store = self.state.view_store.read().unwrap();
-            let window_view_map = self.state.window_view_map.read().unwrap();
+        let mut entries = Vec::new();
 
-            window_view_map
-                .iter()
-                .filter_map(|(&window, &view)| {
-                    let Some(view_data) = view_store.get(&view) else {
-                        return None;
-                    };
+        let mappings = self
+            .state
+            .with_window_view_map(|wv| wv.iter().map(|(&w, &v)| (w, v)).collect::<Vec<_>>())
+            .unwrap_or_default();
+        for (window, view) in mappings {
+            let Some((Some(doc), scroll, layout)) = self.state.with_view(view, |vm| {
+                let doc = vm.get::<DocumentId>().cloned();
+                let scroll = vm.get::<ViewStoreTypes::Scroll>().cloned().unwrap_or_default();
+                let layout = vm.get::<ViewStoreTypes::Layout>().cloned().unwrap_or_default();
 
-                    let doc = view_data.get::<DocumentId>().copied()?;
-                    let scroll =
-                        view_data.get::<ViewStoreTypes::Scroll>().copied().unwrap_or_default();
-                    let layout =
-                        view_data.get::<ViewStoreTypes::Layout>().copied().unwrap_or_default();
-                    let buffer_height =
-                        workspace.get_rect(window)?.height.saturating_sub(layout.mode_line);
+                (doc, scroll, layout)
+            }) else {
+                continue;
+            };
+            let Some(rect) = self.state.with_workspace(|w| w.get_rect(window)) else {
+                continue;
+            };
+            let buffer_height = rect.height.saturating_sub(layout.mode_line);
 
-                    Some((view, doc, scroll, buffer_height))
-                })
-                .collect()
-        };
+            entries.push((view, doc, scroll, buffer_height));
+        }
 
         for (view, doc, scroll, height) in entries {
             if height > 0 {
@@ -215,35 +197,47 @@ impl ViewProtocol {
     async fn fetch(
         &self, view: ViewId, doc: DocumentId, scroll: ViewStoreTypes::Scroll, height: usize,
     ) {
-        if let Ok(lines_count) = self.core_tx.lines(doc).await {
-            let digits = lines_count.checked_ilog10().unwrap_or(0) as usize + 1;
-            let gutter = digits + 2;
+        let Some(lines) = self
+            .state
+            .with_doc(doc, |dm| {
+                dm.get::<DocumentStoreTypes::Document>().and_then(|d| Some(d.data.lines()))
+            })
+            .flatten()
+        else {
+            return;
+        };
 
-            let mut view_store = self.state.view_store.write().unwrap();
-            if let Some(view) = view_store.get_mut(&view) {
-                let mut layout = view.get::<ViewStoreTypes::Layout>().copied().unwrap_or_default();
-                if layout.gutter != gutter {
-                    layout.gutter = gutter;
-                    view.insert(layout);
-                }
+        let digits = lines.checked_ilog10().unwrap_or(0) as usize + 1;
+        let gutter = digits + 2;
+
+        self.state.with_view_mut(view, |vm| {
+            let mut layout = vm.get::<ViewStoreTypes::Layout>().cloned().unwrap_or_default();
+            if layout.gutter != gutter {
+                layout.gutter = gutter;
+                vm.insert(layout);
             }
-        }
+        });
 
-        let Ok(start) = self.core_tx.get_line_start_byte(doc, scroll.y).await else {
-            return;
-        };
-        let Ok(end) = self.core_tx.get_line_end_byte(doc, scroll.y + height).await else {
+        let Some((offset, data)) = self
+            .state
+            .with_doc(doc, |dm| {
+                dm.get::<DocumentStoreTypes::Document>().and_then(|d| {
+                    let start = d.data.get_line_start_byte(scroll.y);
+                    let end = d.data.get_line_end_byte(scroll.y + height);
+
+                    Some((start, d.data.slice(start..end)))
+                })
+            })
+            .flatten()
+        else {
             return;
         };
 
-        let Ok(data) = self.core_tx.get_slice(doc, start..end).await else {
-            return;
-        };
         let mut lines = data.split_inclusive('\n').map(String::from).collect::<Vec<_>>();
         if data.ends_with('\n') {
             lines.push(String::new());
         }
 
-        self.local_store.write().unwrap().insert(view, LocalViewData { offset: start, lines });
+        self.local_store.write().unwrap().insert(view, LocalViewData { offset, lines });
     }
 }

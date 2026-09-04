@@ -38,9 +38,7 @@ impl ScreenProtocol {
                 }
 
                 _ = interval.tick() => {
-                    let mut workspace = self.state.workspace.write().unwrap();
-                    workspace.render(&mut self.screen);
-                    drop(workspace);
+                    self.state.with_workspace(|w| w.render(&mut self.screen));
 
                     self.screen.render();
                 }

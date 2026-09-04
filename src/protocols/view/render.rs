@@ -1,11 +1,9 @@
 use std::sync::{Arc, RwLock};
 
-use fed_core::DocumentId;
-
 use crate::{
     protocols::view::store::LocalViewStore,
     render::{Cell, Renderer, Viewport, WindowId},
-    state::{DocumentStoreTypes, State, ViewId, ViewStoreTypes},
+    state::{DocumentId, DocumentStoreTypes, State, ViewId, ViewStoreTypes},
     types::{Face, Pos},
 };
 
@@ -43,30 +41,25 @@ impl Renderer for ViewRenderer {
             return;
         };
 
-        let (cursors, scroll, tab_width, doc_decorations, view_decorations) = {
-            let view_store = self.state.view_store.read().unwrap();
-            let doc_store = self.state.document_store.read().unwrap();
+        let Some((cursors, scroll, tab_width, view_decs)) = self.state.with_view(self.view, |vm| {
+            let cursors = vm.get::<ViewStoreTypes::Cursors>().cloned();
+            let scroll =
+                vm.get::<ViewStoreTypes::Scroll>().map(|&scroll| scroll).unwrap_or_default();
+            let tab_width =
+                vm.get::<ViewStoreTypes::TabWidth>().map(|&tab_width| *tab_width).unwrap_or(4);
+            let view_decs = vm.get::<ViewStoreTypes::Decorations>().cloned();
 
-            let view = view_store.get(&self.view);
-            let doc = doc_store.get(&self.doc);
-
-            let cursors = view.and_then(|view| view.get::<ViewStoreTypes::Cursors>()).cloned();
-            let scroll = view
-                .and_then(|view| view.get::<ViewStoreTypes::Scroll>())
-                .map(|&scroll| scroll)
-                .unwrap_or_default();
-            let tab_width = view
-                .and_then(|view| view.get::<ViewStoreTypes::TabWidth>())
-                .map(|&tab_width| *tab_width)
-                .unwrap_or(4);
-            let doc_decs =
-                doc.and_then(|doc| doc.get::<DocumentStoreTypes::Decorations>()).cloned();
-            let view_decs =
-                view.and_then(|view| view.get::<ViewStoreTypes::Decorations>()).cloned();
-
-            (cursors, scroll, tab_width, doc_decs, view_decs)
+            (cursors, scroll, tab_width, view_decs)
+        }) else {
+            return;
         };
-        let (doc_decs, view_decs) = (doc_decorations.as_ref(), view_decorations.as_ref());
+        let Some(doc_decs) = self
+            .state
+            .with_doc(self.doc, |dm| dm.get::<DocumentStoreTypes::Decorations>().cloned())
+        else {
+            return;
+        };
+        let (doc_decs, view_decs) = (doc_decs.as_ref(), view_decs.as_ref());
 
         let mut lines_drawn = 0;
         let mut offset = entry.offset;

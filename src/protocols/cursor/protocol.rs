@@ -1,10 +1,11 @@
-use fed_core::{CoreCommandSender, DocumentId};
+use piece_table::Slice;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{
     protocols::view::ViewCommand,
     render,
     state::{
+        DocumentId,
         DocumentStoreTypes::{self, Decorations as DocDecorations},
         State, ViewId,
         ViewStoreTypes::{self, Decorations as ViewDecorations},
@@ -22,15 +23,13 @@ pub struct CursorProtocol {
 
     rx: UnboundedReceiver<CursorCommand>,
     buffer_tx: UnboundedSender<ViewCommand>,
-    core_tx: CoreCommandSender,
 }
 
 impl CursorProtocol {
     pub fn new(
-        state: State, rx: UnboundedReceiver<CursorCommand>,
-        buffer_tx: UnboundedSender<ViewCommand>, core_tx: CoreCommandSender,
+        state: State, rx: UnboundedReceiver<CursorCommand>, buffer_tx: UnboundedSender<ViewCommand>,
     ) -> Self {
-        Self { state, rx, buffer_tx, core_tx }
+        Self { state, rx, buffer_tx }
     }
 
     pub async fn run(&mut self) {
@@ -43,29 +42,22 @@ impl CursorProtocol {
     }
 
     async fn r#move(&self, view: ViewId, direction: Direction) {
-        let (doc, mut cursors, tab_width, doc_decs, view_decs) = {
-            let view_store = self.state.view_store.read().unwrap();
-            let doc_store = self.state.document_store.read().unwrap();
+        let Some((Some(doc), mut cursors, tab_width, view_decs)) =
+            self.state.with_view(view, |vm| {
+                let doc = vm.get::<DocumentId>().cloned();
+                let cursors = vm.get::<ViewStoreTypes::Cursors>().cloned().unwrap_or_default();
+                let tab_width = vm.get::<ViewStoreTypes::TabWidth>().map(|&tw| *tw).unwrap_or(4);
+                let view_decs = vm.get::<ViewStoreTypes::Decorations>().cloned();
 
-            let Some(view) = view_store.get(&view) else {
-                return;
-            };
-
-            let Some(&doc_id) = view.get::<DocumentId>() else {
-                return;
-            };
-            let Some(doc) = doc_store.get(&doc_id) else {
-                return;
-            };
-
-            let cursors = view.get::<ViewStoreTypes::Cursors>().cloned().unwrap_or_default();
-            let tab_width =
-                view.get::<ViewStoreTypes::TabWidth>().map(|&tab_width| *tab_width).unwrap_or(4);
-
-            let doc_decs = doc.get::<DocumentStoreTypes::Decorations>().cloned();
-            let view_decs = view.get::<ViewStoreTypes::Decorations>().cloned();
-
-            (doc_id, cursors, tab_width, doc_decs, view_decs)
+                (doc, cursors, tab_width, view_decs)
+            })
+        else {
+            return;
+        };
+        let Some(doc_decs) =
+            self.state.with_doc(doc, |dm| dm.get::<DocumentStoreTypes::Decorations>().cloned())
+        else {
+            return;
         };
         let (doc_decs, view_decs) = (doc_decs.as_ref(), view_decs.as_ref());
 
@@ -80,10 +72,19 @@ impl CursorProtocol {
                         stops.into_iter().rev().find(|&x| x <= cursor.pref_x).unwrap_or(0);
                 }
                 Direction::Down => {
-                    if let Ok(lines) = self.core_tx.lines(doc).await {
-                        if cursor.pos.y < lines.saturating_sub(1) {
-                            cursor.pos.y += 1;
-                        }
+                    let Some(lines) = self
+                        .state
+                        .with_doc(doc, |dm| {
+                            dm.get::<DocumentStoreTypes::Document>()
+                                .and_then(|d| Some(d.data.lines()))
+                        })
+                        .flatten()
+                    else {
+                        return;
+                    };
+
+                    if cursor.pos.y < lines.saturating_sub(1) {
+                        cursor.pos.y += 1;
                     }
 
                     let stops =
@@ -109,46 +110,42 @@ impl CursorProtocol {
             }
         }
 
-        let mut view_store = self.state.view_store.write().unwrap();
-        if let Some(view) = view_store.get_mut(&view) {
-            view.insert(cursors.clone());
-        }
-        drop(view_store);
-
+        self.state.with_view_mut(view, |vm| vm.insert(cursors.clone()));
         if let Some(cursor) = cursors.list.first() {
             let _ = self.buffer_tx.send(ViewCommand::ScrollIfNeeded { view, pos: cursor.pos });
         }
     }
 
     async fn move_to(&self, view: ViewId, pos: Pos) {
-        let (doc, mut cursors, tab_width, doc_decs, view_decs) = {
-            let view_store = self.state.view_store.read().unwrap();
-            let doc_store = self.state.document_store.read().unwrap();
+        let Some((Some(doc), mut cursors, tab_width, view_decs)) =
+            self.state.with_view(view, |vm| {
+                let doc = vm.get::<DocumentId>().cloned();
+                let cursors = vm.get::<ViewStoreTypes::Cursors>().cloned().unwrap_or_default();
+                let tab_width = vm.get::<ViewStoreTypes::TabWidth>().map(|&tw| *tw).unwrap_or(4);
+                let view_decs = vm.get::<ViewStoreTypes::Decorations>().cloned();
 
-            let Some(view) = view_store.get(&view) else {
-                return;
-            };
-
-            let Some(&doc_id) = view.get::<DocumentId>() else {
-                return;
-            };
-            let Some(doc) = doc_store.get(&doc_id) else {
-                return;
-            };
-
-            let cursors = view.get::<ViewStoreTypes::Cursors>().cloned().unwrap_or_default();
-            let tab_width =
-                view.get::<ViewStoreTypes::TabWidth>().map(|&tab_width| *tab_width).unwrap_or(4);
-            let doc_decs = doc.get::<DocumentStoreTypes::Decorations>().cloned();
-            let view_decs = view.get::<ViewStoreTypes::Decorations>().cloned();
-
-            (doc_id, cursors, tab_width, doc_decs, view_decs)
+                (doc, cursors, tab_width, view_decs)
+            })
+        else {
+            return;
+        };
+        let Some(doc_decs) =
+            self.state.with_doc(doc, |dm| dm.get::<DocumentStoreTypes::Decorations>().cloned())
+        else {
+            return;
         };
         let (doc_decs, view_decs) = (doc_decs.as_ref(), view_decs.as_ref());
 
-        let Ok(lines) = self.core_tx.lines(doc).await else {
+        let Some(lines) = self
+            .state
+            .with_doc(doc, |dm| {
+                dm.get::<DocumentStoreTypes::Document>().and_then(|d| Some(d.data.lines()))
+            })
+            .flatten()
+        else {
             return;
         };
+
         // lines are one indexed.
         let y = pos.y.min(lines - 1);
 
@@ -159,12 +156,7 @@ impl CursorProtocol {
         cursors.list.drain(1..);
         cursors.list[0] = Cursor::new(Pos::new(x, y), x);
 
-        let mut view_store = self.state.view_store.write().unwrap();
-        if let Some(view) = view_store.get_mut(&view) {
-            view.insert(cursors.clone());
-        }
-        drop(view_store);
-
+        self.state.with_view_mut(view, |vm| vm.insert(cursors.clone()));
         if let Some(cursor) = cursors.list.first() {
             let _ = self.buffer_tx.send(ViewCommand::ScrollIfNeeded { view, pos: cursor.pos });
         }
@@ -174,14 +166,22 @@ impl CursorProtocol {
         &self, doc: DocumentId, y: usize, tab_width: usize, doc_decs: Option<&DocDecorations>,
         view_decs: Option<&ViewDecorations>,
     ) -> Vec<usize> {
-        let Ok(line) = self.core_tx.get_line(doc, y).await else {
-            return vec![0];
-        };
-        let Ok(start) = self.core_tx.get_line_start_byte(doc, y).await else {
+        let Some((offset, line)) = self
+            .state
+            .with_doc(doc, |dm| {
+                dm.get::<DocumentStoreTypes::Document>().and_then(|d| {
+                    let start = d.data.get_line_start_byte(y);
+                    let end = d.data.get_line_end_byte(y);
+
+                    Some((start, d.data.slice(start..end)))
+                })
+            })
+            .flatten()
+        else {
             return vec![0];
         };
 
-        let (layout, _) = render::layout(&line, start, tab_width, doc_decs, view_decs);
+        let (layout, _) = render::layout(&line, offset, tab_width, doc_decs, view_decs);
 
         if layout.cursor_stops.is_empty() { vec![0] } else { layout.cursor_stops }
     }

@@ -27,25 +27,17 @@ impl KeyInputHandler for NormalKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::NormalMode }
 
     fn key(&mut self, event: &KeyEvent) -> bool {
-        let view = {
-            let workspace = self.state.workspace.read().unwrap();
-            let window_view_map = self.state.window_view_map.read().unwrap();
-
-            workspace.active_window.and_then(|window| window_view_map.get(&window).copied())
-        };
-        let Some(view) = view else {
+        let Some(view) = self
+            .state
+            .with_workspace(|w| w.active_window)
+            .and_then(|window| self.state.with_window_view_map(|wv| wv.get(&window).cloned())?)
+        else {
             return false;
         };
 
-        let is_normal = {
-            let view_store = self.state.view_store.read().unwrap();
-            if let Some(view) = view_store.get(&view) {
-                view.get::<ViewStoreTypes::Mode>().copied() == Some(ViewStoreTypes::Mode::Normal)
-            } else {
-                false
-            }
-        };
-        if !is_normal {
+        if self.state.with_view(view, |vm| vm.get::<ViewStoreTypes::Mode>().cloned()).flatten()
+            != Some(ViewStoreTypes::Mode::Normal)
+        {
             return false;
         }
 

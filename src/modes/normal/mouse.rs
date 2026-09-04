@@ -26,50 +26,35 @@ impl MouseInputHandler for NormalMouseInput {
     fn mouse(&mut self, event: &MouseEvent) -> bool {
         let mut pos = (event.column, event.row).into();
 
-        let (window, rect) = {
-            let mut workspace = self.state.workspace.write().unwrap();
+        let Some((view, rect)) =
+            self.state.with_workspace(|w| w.get_window(pos)).and_then(|window| {
+                self.state.with_workspace_mut(|w| w.active_window = Some(window));
 
-            let Some(window) = workspace.get_window(pos) else {
-                return false;
-            };
-
-            workspace.active_window = Some(window);
-
-            (window, workspace.get_rect(window).unwrap())
-        };
-
-        let view = {
-            let window_view_map = self.state.window_view_map.read().unwrap();
-            window_view_map.get(&window).copied()
-        };
-        let Some(view) = view else {
+                let view = self.state.with_window_view_map(|wv| wv.get(&window).cloned())??;
+                let rect = self.state.with_workspace(|w| w.get_rect(window).unwrap());
+                Some((view, rect))
+            })
+        else {
             return false;
         };
 
-        let is_normal = {
-            let view_store = self.state.view_store.read().unwrap();
-            if let Some(view) = view_store.get(&view) {
-                view.get::<ViewStoreTypes::Mode>().copied() == Some(ViewStoreTypes::Mode::Normal)
-            } else {
-                false
-            }
-        };
-        if !is_normal {
+        if self.state.with_view(view, |vm| vm.get::<ViewStoreTypes::Mode>().cloned()).flatten()
+            != Some(ViewStoreTypes::Mode::Normal)
+        {
             return false;
         }
 
-        let (scroll, layout) = {
-            let view_store = self.state.view_store.read().unwrap();
-            if let Some(view) = view_store.get(&view) {
-                let scroll =
-                    view.get::<ViewStoreTypes::Scroll>().map(|&scroll| scroll).unwrap_or_default();
-                let layout = view.get::<ViewStoreTypes::Layout>().copied().unwrap_or_default();
+        let (scroll, layout) = self
+            .state
+            .with_view(view, |vm| {
+                let scroll = vm.get::<ViewStoreTypes::Scroll>().map(|&s| s).unwrap_or_default();
+                let layout = vm.get::<ViewStoreTypes::Layout>().cloned().unwrap_or_default();
 
                 (scroll, layout)
-            } else {
+            })
+            .unwrap_or_else(|| {
                 (ViewStoreTypes::Scroll(Pos::default()), ViewStoreTypes::Layout::default())
-            }
-        };
+            });
 
         if event.kind != MouseEventKind::Down(MouseButton::Left) {
             return false;

@@ -1,17 +1,39 @@
 use std::collections::HashMap;
 
-use fed_core::DocumentId;
+use crate::{newtype::newtype, type_map::TypeMap};
 
-use crate::type_map::TypeMap;
+newtype!(DocumentId, u64);
 
 pub type DocumentStore = HashMap<DocumentId, TypeMap>;
 
 pub mod types {
-    use std::sync::Arc;
+    use std::{path::PathBuf, sync::Arc};
 
+    use piece_table::PieceTable;
     use rust_lapper::Lapper;
 
-    use crate::types::Decoration;
+    use crate::{state::document::DocumentId, types::Decoration};
+
+    pub struct Document {
+        pub path: Option<PathBuf>,
+
+        pub data: PieceTable,
+        pub modified: bool,
+    }
+
+    impl Document {
+        pub fn new(path: Option<PathBuf>, data: PieceTable) -> Self {
+            Self { path, data, modified: false }
+        }
+    }
+
+    pub enum DocumentEvent {
+        Created { id: DocumentId },
+        Destroyed { id: DocumentId },
+        Inserted { id: DocumentId, pos: usize, n: usize, str: String },
+        Removed { id: DocumentId, pos: usize, n: usize, str: String },
+        Saved { id: DocumentId, path: PathBuf, bytes_written: usize },
+    }
 
     #[derive(Clone)]
     pub struct Decorations {

@@ -1,7 +1,7 @@
 # Protocols
 
 Protocols are the asynchronous background jobs of `fed`. Protocols execute logic, synchronize state,
-and communicated with each other/the core.
+and communicated with each other.
 
 ## File Structure
 
