@@ -1,4 +1,4 @@
-pub mod cursor;
+pub mod action;
 pub mod io;
 pub mod screen;
 pub mod view;

@@ -21,6 +21,7 @@ use crate::{
 
 pub enum ViewCommand {
     Init { window: WindowId, view: ViewId, doc: DocumentId },
+    Update { view: ViewId },
     ScrollTo { view: ViewId, pos: Pos },
     ScrollIfNeeded { view: ViewId, pos: Pos },
     SpawnWindow { doc: DocumentId, split: RectSplit },
@@ -43,6 +44,7 @@ impl ViewProtocol {
         while let Some(cmd) = self.rx.recv().await {
             match cmd {
                 ViewCommand::Init { window, view, doc } => self.init(window, view, doc).await,
+                ViewCommand::Update { view } => self.update(view).await,
                 ViewCommand::ScrollTo { view, pos } => self.scroll_to(view, pos).await,
                 ViewCommand::ScrollIfNeeded { view, pos } => self.scroll_if_needed(view, pos).await,
                 ViewCommand::SpawnWindow { doc, split } => self.spawn_window(doc, split).await,
@@ -65,6 +67,32 @@ impl ViewProtocol {
         let buffer_height = height.saturating_sub(layout.mode_line);
         if buffer_height > 0 {
             self.fetch(view, doc, ViewStoreTypes::Scroll(Pos::default()), buffer_height).await;
+        }
+    }
+
+    async fn update(&mut self, view: ViewId) {
+        let Some((Some(doc), scroll, layout)) = self.state.with_view(view, |vm| {
+            let doc = vm.get::<DocumentId>().cloned();
+            let scroll = vm.get::<ViewStoreTypes::Scroll>().cloned().unwrap_or_default();
+            let layout = vm.get::<ViewStoreTypes::Layout>().cloned().unwrap_or_default();
+
+            (doc, scroll, layout)
+        }) else {
+            return;
+        };
+
+        let Some(rect) = self
+            .state
+            .with_window_view_map(|wv| wv.iter().find(|&(_, &v)| v == view).map(|(&win, _)| win))
+            .flatten()
+            .and_then(|win| self.state.with_workspace(|w| w.get_rect(win)))
+        else {
+            return;
+        };
+
+        let buffer_height = rect.height.saturating_sub(layout.mode_line);
+        if buffer_height > 0 {
+            self.fetch(view, doc, scroll, buffer_height).await;
         }
     }
 

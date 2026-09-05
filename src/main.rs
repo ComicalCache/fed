@@ -29,9 +29,12 @@ use tokio::sync::{
 use crate::{
     fed::Fed,
     input::InputRouter,
-    modes::normal::{NormalKeyInput, NormalMouseInput},
+    modes::{
+        insert::{InsertKeyInput, InsertMouseInput},
+        normal::{NormalKeyInput, NormalMouseInput},
+    },
     protocols::{
-        cursor::CursorProtocol,
+        action::ActionProtocol,
         io::IoProtocol,
         screen::{ScreenProtocol, ScreenResizeInput},
         view::{ViewCommand, ViewProtocol, ViewResizeInput},
@@ -60,9 +63,9 @@ async fn setup(
     // Channels.
     // let (doc_event_tx, doc_event_rx) = broadcast::channel(32);
 
-    let (buffer_tx, buffer_rx) = unbounded_channel();
+    let (view_tx, view_rx) = unbounded_channel();
     let (io_tx, io_rx) = unbounded_channel();
-    let (cursor_tx, cursor_rx) = unbounded_channel();
+    let (action_tx, action_rx) = unbounded_channel();
     let (screen_tx, screen_rx) = unbounded_channel();
     let (quit_tx, quit_rx) = unbounded_channel();
 
@@ -73,21 +76,24 @@ async fn setup(
 
     // Protocols.
     let io = IoProtocol::new(io_rx);
-    let view = ViewProtocol::new(state.clone(), buffer_rx);
-    let cursor = CursorProtocol::new(state.clone(), cursor_rx, buffer_tx.clone());
+    let view = ViewProtocol::new(state.clone(), view_rx);
+    let action = ActionProtocol::new(state.clone(), action_rx, view_tx.clone());
     let screen = ScreenProtocol::new(state.clone(), width, height, screen_rx);
 
     // Input handlers.
     let mut input_router = InputRouter::new(input_rx);
     input_router.add_key_handler(Box::new(NormalKeyInput::new(
         state.clone(),
-        cursor_tx.clone(),
+        action_tx.clone(),
         quit_tx.clone(),
     )));
+    input_router.add_key_handler(Box::new(InsertKeyInput::new(state.clone(), action_tx.clone())));
 
-    input_router.add_mouse_handler(Box::new(NormalMouseInput::new(state.clone(), cursor_tx)));
+    input_router
+        .add_mouse_handler(Box::new(NormalMouseInput::new(state.clone(), action_tx.clone())));
+    input_router.add_mouse_handler(Box::new(InsertMouseInput::new(state.clone(), action_tx)));
 
-    input_router.add_resize_handler(Box::new(ViewResizeInput::new(buffer_tx.clone())));
+    input_router.add_resize_handler(Box::new(ViewResizeInput::new(view_tx.clone())));
     input_router.add_resize_handler(Box::new(ScreenResizeInput::new(state.clone(), screen_tx)));
 
     // Initial document creation.
@@ -99,10 +105,10 @@ async fn setup(
             todo!("Exit with error");
         };
 
-        let _ = buffer_tx.send(ViewCommand::SpawnWindow { doc, split: RectSplit::Vertical });
+        let _ = view_tx.send(ViewCommand::SpawnWindow { doc, split: RectSplit::Vertical });
     });
 
-    (Fed::new(input_router, io, view, cursor, screen), quit_rx)
+    (Fed::new(input_router, io, view, action, screen), quit_rx)
 }
 
 #[tokio::main]

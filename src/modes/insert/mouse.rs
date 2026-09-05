@@ -8,20 +8,20 @@ use crate::{
     types::Pos,
 };
 
-pub struct NormalMouseInput {
+pub struct InsertMouseInput {
     state: State,
 
-    action_tx: UnboundedSender<ActionCommand>,
+    cursor_tx: UnboundedSender<ActionCommand>,
 }
 
-impl NormalMouseInput {
-    pub fn new(state: State, action_tx: UnboundedSender<ActionCommand>) -> Self {
-        Self { state, action_tx }
+impl InsertMouseInput {
+    pub fn new(state: State, cursor_tx: UnboundedSender<ActionCommand>) -> Self {
+        Self { state, cursor_tx }
     }
 }
 
-impl MouseInputHandler for NormalMouseInput {
-    fn priority(&self) -> MouseInputPriority { MouseInputPriority::NormalMode }
+impl MouseInputHandler for InsertMouseInput {
+    fn priority(&self) -> MouseInputPriority { MouseInputPriority::InsertMode }
 
     fn mouse(&mut self, event: &MouseEvent) -> bool {
         let mut pos = (event.column, event.row).into();
@@ -39,7 +39,7 @@ impl MouseInputHandler for NormalMouseInput {
         };
 
         if self.state.with_view(view, |vm| vm.get::<ViewStoreTypes::Mode>().cloned()).flatten()
-            != Some(ViewStoreTypes::Mode::Normal)
+            != Some(ViewStoreTypes::Mode::Insert)
         {
             return false;
         }
@@ -70,9 +70,9 @@ impl MouseInputHandler for NormalMouseInput {
         pos = Pos::new(pos.x - layout.gutter, pos.y) + *scroll;
 
         if event.modifiers.contains(KeyModifiers::ALT) {
-            let _ = self.action_tx.send(ActionCommand::CreateCursor { view, pos });
+            let _ = self.cursor_tx.send(ActionCommand::CreateCursor { view, pos });
         } else {
-            let _ = self.action_tx.send(ActionCommand::MoveCursorTo { view, pos });
+            let _ = self.cursor_tx.send(ActionCommand::MoveCursorTo { view, pos });
         }
 
         true

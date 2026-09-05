@@ -96,6 +96,7 @@ impl ViewDecoratorRenderer {
 
         let mode = match mode {
             ViewStoreTypes::Mode::Normal => " NORMAL ",
+            ViewStoreTypes::Mode::Insert => " INSERT ",
         };
 
         let mut face = Face::default();

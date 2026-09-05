@@ -9,16 +9,21 @@ use crate::{
     types::{Decoration, Face},
 };
 
-#[derive(Clone)]
 pub struct LayoutCell {
     pub ch: String,
     pub width: usize,
     pub face: Face,
 }
 
+pub struct VisualOffsetMapping {
+    pub visual_x: usize,
+    pub offset: usize,
+}
+
 pub struct Layout {
     pub cells: Vec<LayoutCell>,
-    pub cursor_stops: Vec<usize>,
+    pub visual_cursor_stops: Vec<usize>,
+    pub visual_offset_mapping: Vec<VisualOffsetMapping>,
 }
 
 pub fn layout(
@@ -26,7 +31,8 @@ pub fn layout(
     view_decs: Option<&ViewDecorations>,
 ) -> (Layout, usize) {
     let mut cells = Vec::new();
-    let mut cursor_stops = Vec::new();
+    let mut visual_cursor_stops = Vec::new();
+    let mut visual_offset_mapping = Vec::new();
 
     let mut visual_x = 0;
     for ch in line.graphemes(true) {
@@ -77,7 +83,8 @@ pub fn layout(
         }
 
         if !replace || replacement.is_some() {
-            cursor_stops.push(visual_x);
+            visual_cursor_stops.push(visual_x);
+            visual_offset_mapping.push(VisualOffsetMapping { visual_x, offset });
         }
 
         if replace {
@@ -134,9 +141,10 @@ pub fn layout(
     }
 
     if !line.ends_with('\n') {
-        cursor_stops.push(visual_x);
+        visual_cursor_stops.push(visual_x);
+        visual_offset_mapping.push(VisualOffsetMapping { visual_x, offset });
     }
-    cursor_stops.dedup();
+    visual_cursor_stops.dedup();
 
-    (Layout { cells, cursor_stops }, offset)
+    (Layout { cells, visual_cursor_stops, visual_offset_mapping }, offset)
 }

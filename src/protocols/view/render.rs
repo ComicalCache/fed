@@ -2,7 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::{
     protocols::view::store::LocalViewStore,
-    render::{Cell, Renderer, Viewport, WindowId},
+    render::{self, Cell, Renderer, Viewport, WindowId},
     state::{DocumentId, DocumentStoreTypes, State, ViewId, ViewStoreTypes},
     types::{Face, Pos},
 };
@@ -69,7 +69,7 @@ impl Renderer for ViewRenderer {
             }
 
             let (layout, next_offset) =
-                crate::render::layout(line, offset, tab_width, doc_decs, view_decs);
+                render::layout(line, offset, tab_width, doc_decs, view_decs);
             offset = next_offset;
 
             let mut x = 0;

@@ -29,6 +29,7 @@ pub mod types {
     pub enum Mode {
         #[default]
         Normal,
+        Insert,
     }
 
     #[derive(Clone, Copy, PartialEq, Eq)]

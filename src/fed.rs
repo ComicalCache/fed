@@ -1,7 +1,7 @@
 use crate::{
     input::InputRouter,
     protocols::{
-        cursor::CursorProtocol, io::IoProtocol, screen::ScreenProtocol, view::ViewProtocol,
+        action::ActionProtocol, io::IoProtocol, screen::ScreenProtocol, view::ViewProtocol,
     },
 };
 
@@ -11,16 +11,16 @@ pub struct Fed {
 
     io: IoProtocol,
     view: ViewProtocol,
-    cursor: CursorProtocol,
+    action: ActionProtocol,
     screen: ScreenProtocol,
 }
 
 impl Fed {
     pub fn new(
-        input_router: InputRouter, io: IoProtocol, view: ViewProtocol, cursor: CursorProtocol,
+        input_router: InputRouter, io: IoProtocol, view: ViewProtocol, action: ActionProtocol,
         screen: ScreenProtocol,
     ) -> Self {
-        Self { input_router, io, view, cursor, screen }
+        Self { input_router, io, view, action, screen }
     }
 
     /// Runs applications main event loop.
@@ -29,7 +29,7 @@ impl Fed {
             self.input_router.run(),
             self.io.run(),
             self.view.run(),
-            self.cursor.run(),
+            self.action.run(),
             self.screen.run()
         );
     }

@@ -3,23 +3,23 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     input::{KeyInputHandler, priorities::KeyInputPriority},
-    protocols::cursor::CursorCommand,
-    state::{State, ViewStoreTypes},
+    protocols::action::ActionCommand,
+    state::{DocumentId, DocumentStoreTypes::Document, State, ViewStoreTypes},
     types::Direction,
 };
 
 pub struct NormalKeyInput {
     state: State,
 
-    cursor_tx: UnboundedSender<CursorCommand>,
+    action_tx: UnboundedSender<ActionCommand>,
     quit_tx: UnboundedSender<()>,
 }
 
 impl NormalKeyInput {
     pub fn new(
-        state: State, cursor_tx: UnboundedSender<CursorCommand>, quit_tx: UnboundedSender<()>,
+        state: State, action_tx: UnboundedSender<ActionCommand>, quit_tx: UnboundedSender<()>,
     ) -> Self {
-        Self { state, cursor_tx, quit_tx }
+        Self { state, action_tx, quit_tx }
     }
 }
 
@@ -47,15 +47,49 @@ impl KeyInputHandler for NormalKeyInput {
             return true;
         }
 
-        let direction = match event.code {
-            KeyCode::Char('h') => Direction::Left,
-            KeyCode::Char('j') => Direction::Down,
-            KeyCode::Char('k') => Direction::Up,
-            KeyCode::Char('l') => Direction::Right,
+        match event.code {
+            KeyCode::Char('h') => {
+                let _ = self
+                    .action_tx
+                    .send(ActionCommand::MoveCursors { view, direction: Direction::Left });
+            }
+            KeyCode::Char('j') => {
+                let _ = self
+                    .action_tx
+                    .send(ActionCommand::MoveCursors { view, direction: Direction::Down });
+            }
+            KeyCode::Char('k') => {
+                let _ = self
+                    .action_tx
+                    .send(ActionCommand::MoveCursors { view, direction: Direction::Up });
+            }
+            KeyCode::Char('l') => {
+                let _ = self
+                    .action_tx
+                    .send(ActionCommand::MoveCursors { view, direction: Direction::Right });
+            }
+            KeyCode::Char('i') => {
+                self.state
+                    .with_view(view, |vm| Some(vm.get::<DocumentId>().cloned()?))
+                    .flatten()
+                    .and_then(|d| {
+                        self.state.with_doc_mut(d, |d| {
+                            d.get_mut::<Document>().and_then(|d| {
+                                d.data.start_commit();
+
+                                Some(())
+                            })
+                        })
+                    });
+
+                self.state.with_view_mut(view, |vm| {
+                    if let Some(m) = vm.get_mut::<ViewStoreTypes::Mode>() {
+                        *m = ViewStoreTypes::Mode::Insert;
+                    }
+                });
+            }
             _ => return false,
         };
-
-        let _ = self.cursor_tx.send(CursorCommand::Move { view, direction });
 
         true
     }
