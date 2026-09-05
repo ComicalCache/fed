@@ -126,6 +126,8 @@ impl PieceTable {
         let str = str.as_ref();
         assert!(!str.is_empty(), "Inserted string must not be empty");
 
+        let update_pos = pos;
+
         let mut idx = 0;
         let eof = pos == self.total_length;
 
@@ -161,7 +163,7 @@ impl PieceTable {
                 }
 
                 self.total_length += str.len();
-                self.update_lines_insert(pos, str);
+                self.update_lines_insert(update_pos, str);
                 self.addition.push_str(str);
 
                 return;
@@ -203,7 +205,7 @@ impl PieceTable {
         }
 
         self.total_length += str.len();
-        self.update_lines_insert(pos, str);
+        self.update_lines_insert(update_pos, str);
         self.addition.push_str(str);
     }
 
