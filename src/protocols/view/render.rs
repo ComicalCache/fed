@@ -131,7 +131,17 @@ impl Renderer for ViewRenderer {
         // Undrawn trailing lines.
         for y in lines_drawn..viewport_height {
             for x in 0..viewport_width {
-                viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, Face::default()));
+                let mut face = Face::default();
+                if let Some(cursors) = &cursors
+                    && cursors
+                        .list
+                        .iter()
+                        .any(|cursor| cursor.pos.y == y + scroll.y && cursor.pos.x == x + scroll.x)
+                {
+                    face.reverse = Some(true);
+                }
+
+                viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, face));
             }
         }
     }
