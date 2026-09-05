@@ -1,7 +1,7 @@
 use crate::{
     protocols::view::ViewRenderer,
     render::{Cell, Renderer, Viewport, WindowId},
-    state::{State, ViewId, ViewStoreTypes},
+    state::{DocumentId, DocumentStoreTypes, State, ViewId, ViewStoreTypes},
     types::{Face, Pos, Rect},
 };
 
@@ -51,6 +51,17 @@ impl Renderer for ViewDecoratorRenderer {
 
 impl ViewDecoratorRenderer {
     fn render_gutter(&self, viewport: &mut Viewport, width: usize) {
+        let lines = self
+            .state
+            .with_view(self.view, |vm| vm.get::<DocumentId>().cloned())
+            .flatten()
+            .and_then(|d| {
+                self.state.with_doc(d, |dm| {
+                    dm.get::<DocumentStoreTypes::Document>().and_then(|d| Some(d.data.lines()))
+                })
+            })
+            .flatten()
+            .unwrap_or_default();
         let scroll = self
             .state
             .with_view(self.view, |vm| vm.get::<ViewStoreTypes::Scroll>().cloned())
@@ -60,7 +71,12 @@ impl ViewDecoratorRenderer {
         let face = Face::default();
         for y in 0..viewport.height() {
             let num = y + scroll.y + 1;
-            let num = format!("{num:>width$} ", width = width.saturating_sub(1));
+            let num = if num <= lines {
+                format!("{num:>width$} ", width = width.saturating_sub(1))
+            } else {
+                " ".repeat(width)
+            };
+
             for (x, ch) in num.chars().enumerate() {
                 if x >= viewport.width() {
                     break;
