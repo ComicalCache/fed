@@ -4,7 +4,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     input::{KeyInputHandler, priorities::KeyInputPriority},
     protocols::action::ActionCommand,
-    state::{DocumentId, DocumentStoreTypes::Document, State, ViewStoreTypes},
+    state::{State, ViewStoreTypes},
     types::Direction,
 };
 
@@ -32,9 +32,7 @@ impl KeyInputHandler for InsertKeyInput {
             return false;
         };
 
-        if self.state.with_view(view, |vm| vm.get::<ViewStoreTypes::Mode>().cloned()).flatten()
-            != Some(ViewStoreTypes::Mode::Insert)
-        {
+        if self.state.with_view(view, |vm| vm.mode) != Some(ViewStoreTypes::Mode::Insert) {
             return false;
         }
 
@@ -98,24 +96,13 @@ impl KeyInputHandler for InsertKeyInput {
                 let _ = self.action_tx.send(ActionCommand::InsertTab { view });
             }
             KeyCode::Esc => {
-                self.state
-                    .with_view(view, |view| view.get::<DocumentId>().cloned())
-                    .flatten()
-                    .and_then(|doc| {
-                        self.state.with_doc_mut(doc, |d| {
-                            d.get_mut::<Document>().and_then(|d| {
-                                d.data.end_commit();
-
-                                Some(())
-                            })
-                        })
-                    });
-
-                self.state.with_view_mut(view, |vm| {
-                    if let Some(m) = vm.get_mut::<ViewStoreTypes::Mode>() {
-                        *m = ViewStoreTypes::Mode::Normal;
-                    }
+                self.state.with_view(view, |view| view.doc).and_then(|doc| {
+                    self.state.with_doc_mut(doc, |d| {
+                        d.doc.data.end_commit();
+                    })
                 });
+
+                self.state.with_view_mut(view, |vm| vm.mode = ViewStoreTypes::Mode::Normal);
 
                 return true;
             }

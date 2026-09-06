@@ -4,7 +4,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::{
     state::{
         DocumentStoreTypes::Decorations as DocDecorations,
-        ViewStoreTypes::Decorations as ViewDecorations,
+        ViewStoreTypes::{Decorations as ViewDecorations, TabWidth},
     },
     types::{Decoration, Face},
 };
@@ -27,8 +27,8 @@ pub struct Layout {
 }
 
 pub fn layout(
-    line: &str, mut offset: usize, tab_width: usize, doc_decs: Option<&DocDecorations>,
-    view_decs: Option<&ViewDecorations>,
+    line: &str, mut offset: usize, tab_width: TabWidth, doc_decs: &DocDecorations,
+    view_decs: &ViewDecorations,
 ) -> (Layout, usize) {
     let mut cells = Vec::new();
     let mut visual_cursor_stops = Vec::new();
@@ -42,10 +42,8 @@ pub fn layout(
         let mut replacement = None;
         let mut virtual_texts = Vec::new();
 
-        let doc_decs =
-            doc_decs.map(|decs| decs.tree.find(offset, offset + ch_len)).into_iter().flatten();
-        let view_decs =
-            view_decs.map(|decs| decs.tree.find(offset, offset + ch_len)).into_iter().flatten();
+        let doc_decs = doc_decs.tree.find(offset, offset + ch_len).into_iter();
+        let view_decs = view_decs.tree.find(offset, offset + ch_len).into_iter();
 
         for interval in doc_decs.chain(view_decs) {
             match &interval.val {
@@ -113,7 +111,7 @@ pub fn layout(
         }
 
         let ch_width = if ch == "\t" {
-            tab_width - (visual_x % tab_width)
+            *tab_width - (visual_x % *tab_width)
         } else if ch == "\n" {
             // "\n".width() == 1!
             0

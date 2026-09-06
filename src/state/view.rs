@@ -1,10 +1,21 @@
 use std::collections::HashMap;
 
-use crate::{newtype::newtype, type_map::TypeMap};
+use crate::{newtype::newtype, state::document::DocumentId};
 
 newtype!(ViewId, u64);
 
-pub type ViewStore = HashMap<ViewId, TypeMap>;
+pub type ViewStore = HashMap<ViewId, ViewStoreEntry>;
+
+#[derive(Default)]
+pub struct ViewStoreEntry {
+    pub doc: DocumentId,
+    pub tab_width: types::TabWidth,
+    pub scroll: types::Scroll,
+    pub cursors: types::Cursors,
+    pub mode: types::Mode,
+    pub layout: types::Layout,
+    pub decs: types::Decorations,
+}
 
 pub mod types {
     use std::sync::Arc;
@@ -20,9 +31,13 @@ pub mod types {
 
     newtype!(Scroll, Pos);
 
-    #[derive(Default, Clone)]
+    #[derive(Clone)]
     pub struct Cursors {
         pub list: Vec<Cursor>,
+    }
+
+    impl Default for Cursors {
+        fn default() -> Self { Self { list: vec![Cursor::default()] } }
     }
 
     #[derive(Default, Clone, Copy, PartialEq, Eq)]

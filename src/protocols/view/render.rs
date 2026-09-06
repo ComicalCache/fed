@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 use crate::{
     protocols::view::store::LocalViewStore,
     render::{self, Cell, Renderer, Viewport, WindowId},
-    state::{DocumentId, DocumentStoreTypes, State, ViewId, ViewStoreTypes},
+    state::{DocumentId, State, ViewId},
     types::{Face, Pos},
 };
 
@@ -42,24 +42,11 @@ impl Renderer for ViewRenderer {
         };
 
         let Some((cursors, scroll, tab_width, view_decs)) = self.state.with_view(self.view, |vm| {
-            let cursors = vm.get::<ViewStoreTypes::Cursors>().cloned();
-            let scroll =
-                vm.get::<ViewStoreTypes::Scroll>().map(|&scroll| scroll).unwrap_or_default();
-            let tab_width =
-                vm.get::<ViewStoreTypes::TabWidth>().map(|&tab_width| *tab_width).unwrap_or(4);
-            let view_decs = vm.get::<ViewStoreTypes::Decorations>().cloned();
-
-            (cursors, scroll, tab_width, view_decs)
+            (vm.cursors.clone(), vm.scroll, vm.tab_width, vm.decs.clone())
         }) else {
             return;
         };
-        let Some(doc_decs) = self
-            .state
-            .with_doc(self.doc, |dm| dm.get::<DocumentStoreTypes::Decorations>().cloned())
-        else {
-            return;
-        };
-        let (doc_decs, view_decs) = (doc_decs.as_ref(), view_decs.as_ref());
+        let Some(doc_decs) = self.state.with_doc(self.doc, |dm| dm.decs.clone()) else { return };
 
         let mut lines_drawn = 0;
         let mut offset = entry.offset;
@@ -69,7 +56,7 @@ impl Renderer for ViewRenderer {
             }
 
             let (layout, next_offset) =
-                render::layout(line, offset, tab_width, doc_decs, view_decs);
+                render::layout(line, offset, tab_width, &doc_decs, &view_decs);
             offset = next_offset;
 
             let mut x = 0;
@@ -85,11 +72,10 @@ impl Renderer for ViewRenderer {
                 }
 
                 let mut face = cell.face;
-                if let Some(cursors) = &cursors
-                    && cursors
-                        .list
-                        .iter()
-                        .any(|cursor| cursor.pos.y == y + scroll.y && cursor.pos.x == visual_x)
+                if cursors
+                    .list
+                    .iter()
+                    .any(|cursor| cursor.pos.y == y + scroll.y && cursor.pos.x == visual_x)
                 {
                     face.reverse = Some(true);
                 }
@@ -111,11 +97,10 @@ impl Renderer for ViewRenderer {
             // Undrawn tail of line.
             while x < viewport_width {
                 let mut face = Face::default();
-                if let Some(cursors) = &cursors
-                    && cursors
-                        .list
-                        .iter()
-                        .any(|cursor| cursor.pos.y == y + scroll.y && cursor.pos.x == visual_x)
+                if cursors
+                    .list
+                    .iter()
+                    .any(|cursor| cursor.pos.y == y + scroll.y && cursor.pos.x == visual_x)
                 {
                     face.reverse = Some(true);
                 }
@@ -132,11 +117,10 @@ impl Renderer for ViewRenderer {
         for y in lines_drawn..viewport_height {
             for x in 0..viewport_width {
                 let mut face = Face::default();
-                if let Some(cursors) = &cursors
-                    && cursors
-                        .list
-                        .iter()
-                        .any(|cursor| cursor.pos.y == y + scroll.y && cursor.pos.x == x + scroll.x)
+                if cursors
+                    .list
+                    .iter()
+                    .any(|cursor| cursor.pos.y == y + scroll.y && cursor.pos.x == x + scroll.x)
                 {
                     face.reverse = Some(true);
                 }

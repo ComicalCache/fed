@@ -32,29 +32,19 @@ impl MouseInputHandler for InsertMouseInput {
 
                 let view = self.state.with_window_view_map(|wv| wv.get(&window).cloned())??;
                 let rect = self.state.with_workspace(|w| w.get_rect(window).unwrap());
+
                 Some((view, rect))
             })
         else {
             return false;
         };
 
-        if self.state.with_view(view, |vm| vm.get::<ViewStoreTypes::Mode>().cloned()).flatten()
-            != Some(ViewStoreTypes::Mode::Insert)
-        {
+        if self.state.with_view(view, |vm| vm.mode) != Some(ViewStoreTypes::Mode::Insert) {
             return false;
         }
 
-        let (scroll, layout) = self
-            .state
-            .with_view(view, |vm| {
-                let scroll = vm.get::<ViewStoreTypes::Scroll>().map(|&s| s).unwrap_or_default();
-                let layout = vm.get::<ViewStoreTypes::Layout>().cloned().unwrap_or_default();
-
-                (scroll, layout)
-            })
-            .unwrap_or_else(|| {
-                (ViewStoreTypes::Scroll(Pos::default()), ViewStoreTypes::Layout::default())
-            });
+        let (scroll, layout) =
+            self.state.with_view(view, |vm| (vm.scroll, vm.layout)).unwrap_or_default();
 
         if event.kind != MouseEventKind::Down(MouseButton::Left) {
             return false;

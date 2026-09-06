@@ -13,15 +13,12 @@ use std::{
 pub use document::{DocumentId, DocumentStore, types as DocumentStoreTypes};
 use piece_table::PieceTable;
 use tokio::sync::{mpsc::UnboundedSender, oneshot};
-use view::types::{Cursors, Scroll};
-pub use view::{ViewId, ViewStore, types as ViewStoreTypes};
+pub use view::{ViewId, ViewStore, ViewStoreEntry, types as ViewStoreTypes};
 
 use crate::{
     protocols::io::IoCommand,
     render::{WindowId, Workspace},
-    state::DocumentStoreTypes::Document,
-    type_map::TypeMap,
-    types::{Cursor, Pos},
+    state::{DocumentStoreTypes::Document, document::DocumentStoreEntry},
 };
 
 #[derive(Default, Clone)]
@@ -50,11 +47,8 @@ impl State {
         };
         let doc = Document::new(path, PieceTable::from(data));
 
-        let mut map = TypeMap::new();
-        map.insert(doc);
-        map.insert(DocumentStoreTypes::Decorations::default());
-
-        self.document_store.write().unwrap().insert(id, map);
+        let entry = DocumentStoreEntry { doc, ..Default::default() };
+        self.document_store.write().unwrap().insert(id, entry);
 
         Ok(id)
     }
@@ -63,15 +57,9 @@ impl State {
         static NEXT_ID: AtomicU64 = AtomicU64::new(1);
         let id = ViewId(NEXT_ID.fetch_add(1, Ordering::Relaxed));
 
-        let mut map = TypeMap::new();
-        map.insert(doc);
-        map.insert(Cursors { list: vec![Cursor::default()] });
-        map.insert(ViewStoreTypes::Mode::Normal);
-        map.insert(Scroll(Pos::default()));
-        map.insert(ViewStoreTypes::Layout::default());
-        map.insert(ViewStoreTypes::Decorations::default());
-
-        self.view_store.write().unwrap().insert(id, map);
+        let entry =
+            ViewStoreEntry { doc, tab_width: ViewStoreTypes::TabWidth(4), ..Default::default() };
+        self.view_store.write().unwrap().insert(id, entry);
 
         id
     }
@@ -86,25 +74,31 @@ impl State {
         f(&mut workspace)
     }
 
-    pub fn with_view<R>(&self, view: ViewId, f: impl FnOnce(&TypeMap) -> R) -> Option<R> {
+    pub fn with_view<R>(&self, view: ViewId, f: impl FnOnce(&ViewStoreEntry) -> R) -> Option<R> {
         let store = self.view_store.read().unwrap();
         let view_map = store.get(&view)?;
         Some(f(view_map))
     }
 
-    pub fn with_view_mut<R>(&self, view: ViewId, f: impl FnOnce(&mut TypeMap) -> R) -> Option<R> {
+    pub fn with_view_mut<R>(
+        &self, view: ViewId, f: impl FnOnce(&mut ViewStoreEntry) -> R,
+    ) -> Option<R> {
         let mut store = self.view_store.write().unwrap();
         let view_map = store.get_mut(&view)?;
         Some(f(view_map))
     }
 
-    pub fn with_doc<R>(&self, doc: DocumentId, f: impl FnOnce(&TypeMap) -> R) -> Option<R> {
+    pub fn with_doc<R>(
+        &self, doc: DocumentId, f: impl FnOnce(&DocumentStoreEntry) -> R,
+    ) -> Option<R> {
         let store = self.document_store.read().unwrap();
         let doc_map = store.get(&doc)?;
         Some(f(doc_map))
     }
 
-    pub fn with_doc_mut<R>(&self, doc: DocumentId, f: impl FnOnce(&mut TypeMap) -> R) -> Option<R> {
+    pub fn with_doc_mut<R>(
+        &self, doc: DocumentId, f: impl FnOnce(&mut DocumentStoreEntry) -> R,
+    ) -> Option<R> {
         let mut store = self.document_store.write().unwrap();
         let doc_map = store.get_mut(&doc)?;
         Some(f(doc_map))

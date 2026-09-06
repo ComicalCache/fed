@@ -15,7 +15,7 @@ use crate::{
         view_decorator::ViewDecoratorRenderer,
     },
     render::WindowId,
-    state::{DocumentId, DocumentStoreTypes, State, ViewId, ViewStoreTypes},
+    state::{DocumentId, State, ViewId, ViewStoreTypes},
     types::{Pos, RectSplit},
 };
 
@@ -58,11 +58,7 @@ impl ViewProtocol {
         else {
             return;
         };
-        let layout = self
-            .state
-            .with_view(view, |vm| vm.get::<ViewStoreTypes::Layout>().cloned())
-            .flatten()
-            .unwrap_or_default();
+        let layout = self.state.with_view(view, |vm| vm.layout).unwrap_or_default();
 
         let buffer_height = height.saturating_sub(layout.mode_line);
         if buffer_height > 0 {
@@ -71,21 +67,16 @@ impl ViewProtocol {
     }
 
     async fn update(&mut self, view: ViewId) {
-        let Some((Some(doc), scroll, layout)) = self.state.with_view(view, |vm| {
-            let doc = vm.get::<DocumentId>().cloned();
-            let scroll = vm.get::<ViewStoreTypes::Scroll>().cloned().unwrap_or_default();
-            let layout = vm.get::<ViewStoreTypes::Layout>().cloned().unwrap_or_default();
-
-            (doc, scroll, layout)
-        }) else {
-            return;
-        };
-
         let Some(rect) = self
             .state
             .with_window_view_map(|wv| wv.iter().find(|&(_, &v)| v == view).map(|(&win, _)| win))
             .flatten()
             .and_then(|win| self.state.with_workspace(|w| w.get_rect(win)))
+        else {
+            return;
+        };
+        let Some((doc, scroll, layout)) =
+            self.state.with_view(view, |vm| (vm.doc, vm.scroll, vm.layout))
         else {
             return;
         };
@@ -105,12 +96,7 @@ impl ViewProtocol {
         else {
             return;
         };
-        let Some((Some(doc), layout)) = self.state.with_view(view, |vm| {
-            let doc = vm.get::<DocumentId>().cloned();
-            let layout = vm.get::<ViewStoreTypes::Layout>().cloned().unwrap_or_default();
-
-            (doc, layout)
-        }) else {
+        let Some((doc, layout)) = self.state.with_view(view, |vm| (vm.doc, vm.layout)) else {
             return;
         };
 
@@ -121,7 +107,8 @@ impl ViewProtocol {
 
         let scroll = ViewStoreTypes::Scroll(pos);
 
-        self.state.with_view_mut(view, |vm| vm.insert(scroll));
+        self.state.with_view_mut(view, |vm| vm.scroll = scroll);
+
         self.fetch(view, doc, scroll, buffer_height).await;
     }
 
@@ -134,13 +121,9 @@ impl ViewProtocol {
         else {
             return;
         };
-        let Some((Some(doc), mut scroll, layout)) = self.state.with_view(view, |vm| {
-            let doc = vm.get::<DocumentId>().cloned();
-            let scroll = vm.get::<ViewStoreTypes::Scroll>().cloned().unwrap_or_default();
-            let layout = vm.get::<ViewStoreTypes::Layout>().cloned().unwrap_or_default();
-
-            (doc, scroll, layout)
-        }) else {
+        let Some((doc, mut scroll, layout)) =
+            self.state.with_view(view, |vm| (vm.doc, vm.scroll, vm.layout))
+        else {
             return;
         };
 
@@ -169,7 +152,7 @@ impl ViewProtocol {
         }
 
         if needed {
-            self.state.with_view_mut(view, |vm| vm.insert(scroll));
+            self.state.with_view_mut(view, |vm| vm.scroll = scroll);
 
             self.fetch(view, doc, scroll, buffer_height).await;
         }
@@ -198,18 +181,15 @@ impl ViewProtocol {
             .with_window_view_map(|wv| wv.iter().map(|(&w, &v)| (w, v)).collect::<Vec<_>>())
             .unwrap_or_default();
         for (window, view) in mappings {
-            let Some((Some(doc), scroll, layout)) = self.state.with_view(view, |vm| {
-                let doc = vm.get::<DocumentId>().cloned();
-                let scroll = vm.get::<ViewStoreTypes::Scroll>().cloned().unwrap_or_default();
-                let layout = vm.get::<ViewStoreTypes::Layout>().cloned().unwrap_or_default();
-
-                (doc, scroll, layout)
-            }) else {
-                continue;
-            };
             let Some(rect) = self.state.with_workspace(|w| w.get_rect(window)) else {
                 continue;
             };
+            let Some((doc, scroll, layout)) =
+                self.state.with_view(view, |vm| (vm.doc, vm.scroll, vm.layout))
+            else {
+                return;
+            };
+
             let buffer_height = rect.height.saturating_sub(layout.mode_line);
 
             entries.push((view, doc, scroll, buffer_height));
@@ -225,13 +205,7 @@ impl ViewProtocol {
     async fn fetch(
         &self, view: ViewId, doc: DocumentId, scroll: ViewStoreTypes::Scroll, height: usize,
     ) {
-        let Some(lines) = self
-            .state
-            .with_doc(doc, |dm| {
-                dm.get::<DocumentStoreTypes::Document>().and_then(|d| Some(d.data.lines()))
-            })
-            .flatten()
-        else {
+        let Some(lines) = self.state.with_doc(doc, |dm| dm.doc.data.lines()) else {
             return;
         };
 
@@ -239,25 +213,17 @@ impl ViewProtocol {
         let gutter = digits + 2;
 
         self.state.with_view_mut(view, |vm| {
-            let mut layout = vm.get::<ViewStoreTypes::Layout>().cloned().unwrap_or_default();
-            if layout.gutter != gutter {
-                layout.gutter = gutter;
-                vm.insert(layout);
+            if vm.layout.gutter != gutter {
+                vm.layout.gutter = gutter;
             }
         });
 
-        let Some((offset, data)) = self
-            .state
-            .with_doc(doc, |dm| {
-                dm.get::<DocumentStoreTypes::Document>().and_then(|d| {
-                    let start = d.data.get_line_start_byte(scroll.y);
-                    let end = d.data.get_line_end_byte(scroll.y + height);
+        let Some((offset, data)) = self.state.with_doc(doc, |dm| {
+            let start = dm.doc.data.get_line_start_byte(scroll.y);
+            let end = dm.doc.data.get_line_end_byte(scroll.y + height);
 
-                    Some((start, d.data.slice(start..end)))
-                })
-            })
-            .flatten()
-        else {
+            (start, dm.doc.data.slice(start..end))
+        }) else {
             return;
         };
 

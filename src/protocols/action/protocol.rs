@@ -7,9 +7,9 @@ use crate::{
     render,
     state::{
         DocumentId,
-        DocumentStoreTypes::{self, Decorations as DocDecorations},
+        DocumentStoreTypes::Decorations as DocDecorations,
         State, ViewId,
-        ViewStoreTypes::{self, Decorations as ViewDecorations},
+        ViewStoreTypes::{Decorations as ViewDecorations, TabWidth},
     },
     types::{Cursor, Direction, Pos},
 };
@@ -65,24 +65,13 @@ impl ActionProtocol {
     }
 
     async fn move_cursors(&self, view: ViewId, direction: Direction) {
-        let Some((Some(doc), mut cursors, tab_width, view_decs)) =
-            self.state.with_view(view, |vm| {
-                let doc = vm.get::<DocumentId>().cloned();
-                let cursors = vm.get::<ViewStoreTypes::Cursors>().cloned().unwrap_or_default();
-                let tab_width = vm.get::<ViewStoreTypes::TabWidth>().map(|&tw| *tw).unwrap_or(4);
-                let view_decs = vm.get::<ViewStoreTypes::Decorations>().cloned();
-
-                (doc, cursors, tab_width, view_decs)
-            })
+        let Some((doc, mut cursors, tab_width, view_decs)) = self
+            .state
+            .with_view(view, |vm| (vm.doc, vm.cursors.clone(), vm.tab_width, vm.decs.clone()))
         else {
             return;
         };
-        let Some(doc_decs) =
-            self.state.with_doc(doc, |dm| dm.get::<DocumentStoreTypes::Decorations>().cloned())
-        else {
-            return;
-        };
-        let (doc_decs, view_decs) = (doc_decs.as_ref(), view_decs.as_ref());
+        let Some(doc_decs) = self.state.with_doc(doc, |dm| dm.decs.clone()) else { return };
 
         for cursor in &mut cursors.list {
             match direction {
@@ -90,20 +79,13 @@ impl ActionProtocol {
                     cursor.pos.y = cursor.pos.y.saturating_sub(1);
 
                     let stops = self
-                        .visual_cursor_stops(doc, cursor.pos.y, tab_width, doc_decs, view_decs)
+                        .visual_cursor_stops(doc, cursor.pos.y, tab_width, &doc_decs, &view_decs)
                         .await;
                     cursor.pos.x =
                         stops.into_iter().rev().find(|&x| x <= cursor.pref_x).unwrap_or(0);
                 }
                 Direction::Down => {
-                    let Some(lines) = self
-                        .state
-                        .with_doc(doc, |dm| {
-                            dm.get::<DocumentStoreTypes::Document>()
-                                .and_then(|d| Some(d.data.lines()))
-                        })
-                        .flatten()
-                    else {
+                    let Some(lines) = self.state.with_doc(doc, |dm| dm.doc.data.lines()) else {
                         return;
                     };
 
@@ -112,21 +94,21 @@ impl ActionProtocol {
                     }
 
                     let stops = self
-                        .visual_cursor_stops(doc, cursor.pos.y, tab_width, doc_decs, view_decs)
+                        .visual_cursor_stops(doc, cursor.pos.y, tab_width, &doc_decs, &view_decs)
                         .await;
                     cursor.pos.x =
                         stops.into_iter().rev().find(|&x| x <= cursor.pref_x).unwrap_or(0);
                 }
                 Direction::Left => {
                     let stops = self
-                        .visual_cursor_stops(doc, cursor.pos.y, tab_width, doc_decs, view_decs)
+                        .visual_cursor_stops(doc, cursor.pos.y, tab_width, &doc_decs, &view_decs)
                         .await;
                     cursor.pos.x = stops.into_iter().rev().find(|&x| x < cursor.pos.x).unwrap_or(0);
                     cursor.pref_x = cursor.pos.x;
                 }
                 Direction::Right => {
                     let stops = self
-                        .visual_cursor_stops(doc, cursor.pos.y, tab_width, doc_decs, view_decs)
+                        .visual_cursor_stops(doc, cursor.pos.y, tab_width, &doc_decs, &view_decs)
                         .await;
 
                     if let Some(x) = stops.into_iter().find(|&x| x > cursor.pos.x) {
@@ -137,144 +119,107 @@ impl ActionProtocol {
             }
         }
 
-        self.state.with_view_mut(view, |vm| vm.insert(cursors.clone()));
+        self.state.with_view_mut(view, |vm| vm.cursors = cursors.clone());
         if let Some(cursor) = cursors.list.first() {
             let _ = self.view_tx.send(ViewCommand::ScrollIfNeeded { view, pos: cursor.pos });
         }
     }
 
     async fn move_cursor_to(&self, view: ViewId, pos: Pos) {
-        let Some((Some(doc), mut cursors, tab_width, view_decs)) =
-            self.state.with_view(view, |vm| {
-                let doc = vm.get::<DocumentId>().cloned();
-                let cursors = vm.get::<ViewStoreTypes::Cursors>().cloned().unwrap_or_default();
-                let tab_width = vm.get::<ViewStoreTypes::TabWidth>().map(|&tw| *tw).unwrap_or(4);
-                let view_decs = vm.get::<ViewStoreTypes::Decorations>().cloned();
-
-                (doc, cursors, tab_width, view_decs)
-            })
-        else {
-            return;
-        };
-        let Some(doc_decs) =
-            self.state.with_doc(doc, |dm| dm.get::<DocumentStoreTypes::Decorations>().cloned())
-        else {
-            return;
-        };
-        let (doc_decs, view_decs) = (doc_decs.as_ref(), view_decs.as_ref());
-
-        let Some(lines) = self
+        let Some((doc, mut cursors, tab_width, view_decs)) = self
             .state
-            .with_doc(doc, |dm| {
-                dm.get::<DocumentStoreTypes::Document>().and_then(|d| Some(d.data.lines()))
-            })
-            .flatten()
+            .with_view(view, |vm| (vm.doc, vm.cursors.clone(), vm.tab_width, vm.decs.clone()))
         else {
+            return;
+        };
+        let Some(doc_decs) = self.state.with_doc(doc, |dm| dm.decs.clone()) else { return };
+
+        let Some(lines) = self.state.with_doc(doc, |dm| dm.doc.data.lines()) else {
             return;
         };
 
         // lines are one indexed.
         let y = pos.y.min(lines - 1);
 
-        let stops = self.visual_cursor_stops(doc, y, tab_width, doc_decs, view_decs).await;
+        let stops = self.visual_cursor_stops(doc, y, tab_width, &doc_decs, &view_decs).await;
         let x = stops.into_iter().rev().find(|&x| x <= pos.x).unwrap_or(0);
 
         // Moving to a specific location collapses all cursors.
         cursors.list.drain(1..);
         cursors.list[0] = Cursor::new(Pos::new(x, y), x);
 
-        self.state.with_view_mut(view, |vm| vm.insert(cursors.clone()));
+        self.state.with_view_mut(view, |vm| vm.cursors = cursors.clone());
         if let Some(cursor) = cursors.list.first() {
             let _ = self.view_tx.send(ViewCommand::ScrollIfNeeded { view, pos: cursor.pos });
         }
     }
 
     async fn create_cursor(&self, view: ViewId, pos: Pos) {
-        let Some((Some(doc), mut cursors, tab_width, view_decs)) =
-            self.state.with_view(view, |vm| {
-                let doc = vm.get::<DocumentId>().cloned();
-                let cursors = vm.get::<ViewStoreTypes::Cursors>().cloned().unwrap_or_default();
-                let tab_width = vm.get::<ViewStoreTypes::TabWidth>().map(|&tw| *tw).unwrap_or(4);
-                let view_decs = vm.get::<ViewStoreTypes::Decorations>().cloned();
-
-                (doc, cursors, tab_width, view_decs)
-            })
-        else {
-            return;
-        };
-        let Some(doc_decs) =
-            self.state.with_doc(doc, |dm| dm.get::<DocumentStoreTypes::Decorations>().cloned())
-        else {
-            return;
-        };
-        let (doc_decs, view_decs) = (doc_decs.as_ref(), view_decs.as_ref());
-
-        let Some(lines) = self
+        let Some((doc, mut cursors, tab_width, view_decs)) = self
             .state
-            .with_doc(doc, |dm| {
-                dm.get::<DocumentStoreTypes::Document>().and_then(|d| Some(d.data.lines()))
-            })
-            .flatten()
+            .with_view(view, |vm| (vm.doc, vm.cursors.clone(), vm.tab_width, vm.decs.clone()))
         else {
+            return;
+        };
+        let Some(doc_decs) = self.state.with_doc(doc, |dm| dm.decs.clone()) else { return };
+
+        let Some(lines) = self.state.with_doc(doc, |dm| dm.doc.data.lines()) else {
             return;
         };
 
         // lines are one indexed.
         let y = pos.y.min(lines.saturating_sub(1));
 
-        let stops = self.visual_cursor_stops(doc, y, tab_width, doc_decs, view_decs).await;
+        let stops = self.visual_cursor_stops(doc, y, tab_width, &doc_decs, &view_decs).await;
         let x = stops.into_iter().rev().find(|&x| x <= pos.x).unwrap_or(0);
 
         cursors.list.push(Cursor::new(Pos::new(x, y), x));
         cursors.list.sort_by(|a, b| a.pos.y.cmp(&b.pos.y).then(a.pos.x.cmp(&b.pos.x)));
         cursors.list.dedup_by_key(|c| c.pos);
 
-        self.state.with_view_mut(view, |vm| vm.insert(cursors));
+        self.state.with_view_mut(view, |vm| vm.cursors = cursors);
     }
 
     async fn insert_text(&self, view: ViewId, ch: String) {
         if ch == " " {
-            let doc = self.state.with_view(view, |vm| vm.get::<DocumentId>().cloned()).flatten();
-            if let Some(doc_id) = doc {
-                self.state.with_doc_mut(doc_id, |dm| {
-                    if let Some(d) = dm.get_mut::<DocumentStoreTypes::Document>() {
-                        d.data.end_commit();
-                        d.data.start_commit();
-                    }
+            self.state.with_view(view, |vm| vm.doc).and_then(|d| {
+                self.state.with_doc_mut(d, |dm| {
+                    dm.doc.data.end_commit();
+                    dm.doc.data.start_commit();
                 });
-            }
+
+                Some(())
+            });
         }
 
         self.execute_insert(view, |_, _| ch.clone()).await;
     }
 
     async fn insert_newline(&self, view: ViewId) {
-        let doc = self.state.with_view(view, |vm| vm.get::<DocumentId>().cloned()).flatten();
-        if let Some(doc_id) = doc {
-            self.state.with_doc_mut(doc_id, |dm| {
-                if let Some(d) = dm.get_mut::<DocumentStoreTypes::Document>() {
-                    d.data.end_commit();
-                    d.data.start_commit();
-                }
+        self.state.with_view(view, |vm| vm.doc).and_then(|d| {
+            self.state.with_doc_mut(d, |dm| {
+                dm.doc.data.end_commit();
+                dm.doc.data.start_commit();
             });
-        }
+
+            Some(())
+        });
 
         self.execute_insert(view, |_, _| "\n".to_string()).await;
     }
 
     async fn insert_tab(&self, view: ViewId) {
-        let doc = self.state.with_view(view, |vm| vm.get::<DocumentId>().cloned()).flatten();
-        if let Some(doc_id) = doc {
-            self.state.with_doc_mut(doc_id, |dm| {
-                if let Some(d) = dm.get_mut::<DocumentStoreTypes::Document>() {
-                    d.data.end_commit();
-                    d.data.start_commit();
-                }
+        self.state.with_view(view, |vm| vm.doc).and_then(|d| {
+            self.state.with_doc_mut(d, |dm| {
+                dm.doc.data.end_commit();
+                dm.doc.data.start_commit();
             });
-        }
+
+            Some(())
+        });
 
         self.execute_insert(view, |cursor, tab_width| {
-            " ".repeat(tab_width - (cursor.pos.x % tab_width))
+            " ".repeat(*tab_width - (cursor.pos.x % *tab_width))
         })
         .await;
     }
@@ -284,21 +229,15 @@ impl ActionProtocol {
     async fn delete(&self, view: ViewId) { self.execute_remove(view, false).await; }
 
     async fn visual_cursor_stops(
-        &self, doc: DocumentId, y: usize, tab_width: usize, doc_decs: Option<&DocDecorations>,
-        view_decs: Option<&ViewDecorations>,
+        &self, doc: DocumentId, y: usize, tab_width: TabWidth, doc_decs: &DocDecorations,
+        view_decs: &ViewDecorations,
     ) -> Vec<usize> {
-        let Some((offset, line)) = self
-            .state
-            .with_doc(doc, |dm| {
-                dm.get::<DocumentStoreTypes::Document>().and_then(|d| {
-                    let start = d.data.get_line_start_byte(y);
-                    let end = d.data.get_line_end_byte(y);
+        let Some((offset, line)) = self.state.with_doc(doc, |dm| {
+            let start = dm.doc.data.get_line_start_byte(y);
+            let end = dm.doc.data.get_line_end_byte(y);
 
-                    Some((start, d.data.slice(start..end)))
-                })
-            })
-            .flatten()
-        else {
+            (start, dm.doc.data.slice(start..end))
+        }) else {
             return vec![0];
         };
 
@@ -307,7 +246,7 @@ impl ActionProtocol {
         if layout.visual_cursor_stops.is_empty() { vec![0] } else { layout.visual_cursor_stops }
     }
 
-    async fn execute_insert<F: Fn(&Cursor, usize) -> String>(&self, view: ViewId, text: F) {
+    async fn execute_insert<F: Fn(&Cursor, TabWidth) -> String>(&self, view: ViewId, text: F) {
         self.execute_transaction(view, |_, cursors, tab_width| {
             cursors
                 .iter()
@@ -364,42 +303,28 @@ impl ActionProtocol {
 
     async fn execute_transaction(
         &self, view: ViewId,
-        edits: impl FnOnce(&mut PieceTable, &Vec<(Cursor, usize)>, usize) -> Vec<Edit>,
+        edits: impl FnOnce(&mut PieceTable, &Vec<(Cursor, usize)>, TabWidth) -> Vec<Edit>,
     ) {
-        let Some((Some(doc), mut cursors, tab_width, view_decs)) =
-            self.state.with_view(view, |vm| {
-                let doc = vm.get::<DocumentId>().cloned();
-                let cursors = vm.get::<ViewStoreTypes::Cursors>().cloned().unwrap_or_default();
-                let tab_width = vm.get::<ViewStoreTypes::TabWidth>().map(|&tw| *tw).unwrap_or(4);
-                let view_decs = vm.get::<ViewStoreTypes::Decorations>().cloned();
-
-                (doc, cursors, tab_width, view_decs)
-            })
+        let Some((doc, mut cursors, tab_width, view_decs)) = self
+            .state
+            .with_view(view, |vm| (vm.doc, vm.cursors.clone(), vm.tab_width, vm.decs.clone()))
         else {
             return;
         };
-        let Some(doc_decs) =
-            self.state.with_doc(doc, |dm| dm.get::<DocumentStoreTypes::Decorations>().cloned())
-        else {
-            return;
-        };
-        let (doc_decs, view_decs) = (doc_decs.as_ref(), view_decs.as_ref());
+        let Some(doc_decs) = self.state.with_doc(doc, |dm| dm.decs.clone()) else { return };
 
         self.state.with_doc_mut(doc, |dm| {
-            let Some(doc) = dm.get_mut::<DocumentStoreTypes::Document>() else {
-                return;
-            };
-
             // Map 2D cursors to 1D.
-            let mut cursors: Vec<_> = cursors
+            let mut cursors_1d: Vec<_> = cursors
                 .list
                 .iter()
                 .cloned()
                 .map(|c| {
-                    let start = doc.data.get_line_start_byte(c.pos.y);
-                    let end = doc.data.get_line_end_byte(c.pos.y);
-                    let line = doc.data.slice(start..end).to_string();
-                    let (layout, _) = render::layout(&line, start, tab_width, doc_decs, view_decs);
+                    let start = dm.doc.data.get_line_start_byte(c.pos.y);
+                    let end = dm.doc.data.get_line_end_byte(c.pos.y);
+                    let line = dm.doc.data.slice(start..end).to_string();
+                    let (layout, _) =
+                        render::layout(&line, start, tab_width, &doc_decs, &view_decs);
 
                     let offset = layout
                         .visual_offset_mapping
@@ -413,25 +338,25 @@ impl ActionProtocol {
                 })
                 .collect();
 
-            let mut edits = edits(&mut doc.data, &cursors, tab_width);
+            let mut edits = edits(&mut dm.doc.data, &cursors_1d, tab_width);
             edits.sort_by_key(|e| std::cmp::Reverse(e.offset));
             edits.dedup_by_key(|e| e.offset);
 
             // Apply `Edits`.
             for edit in &edits {
                 if edit.remove > 0 {
-                    doc.data.remove(edit.offset, edit.remove);
-                    doc.modified = true;
+                    dm.doc.data.remove(edit.offset, edit.remove);
+                    dm.doc.modified = true;
                 }
 
                 if !edit.insert.is_empty() {
-                    doc.data.insert(edit.offset, &edit.insert);
-                    doc.modified = true;
+                    dm.doc.data.insert(edit.offset, &edit.insert);
+                    dm.doc.modified = true;
                 }
             }
 
             // Shift cursors in 1D space.
-            for (cursor, offset) in &mut cursors {
+            for (cursor, offset) in &mut cursors_1d {
                 for edit in &edits {
                     if edit.offset < *offset {
                         // Before cursor.
@@ -447,11 +372,11 @@ impl ActionProtocol {
                 }
 
                 // Map 1D cursors to 2D.
-                let lines = doc.data.lines();
+                let lines = dm.doc.data.lines();
                 let mut target_line = lines.saturating_sub(1);
                 for y in 0..lines {
-                    let start = doc.data.get_line_start_byte(y);
-                    let end = doc.data.get_line_end_byte(y);
+                    let start = dm.doc.data.get_line_start_byte(y);
+                    let end = dm.doc.data.get_line_end_byte(y);
 
                     if *offset >= start && (*offset < end || y == lines - 1) {
                         target_line = y;
@@ -459,10 +384,10 @@ impl ActionProtocol {
                     }
                 }
 
-                let start = doc.data.get_line_start_byte(target_line);
-                let end = doc.data.get_line_end_byte(target_line);
-                let line = doc.data.slice(start..end).to_string();
-                let (layout, _) = render::layout(&line, start, tab_width, doc_decs, view_decs);
+                let start = dm.doc.data.get_line_start_byte(target_line);
+                let end = dm.doc.data.get_line_end_byte(target_line);
+                let line = dm.doc.data.slice(start..end).to_string();
+                let (layout, _) = render::layout(&line, start, tab_width, &doc_decs, &view_decs);
 
                 cursor.pos.y = target_line;
                 cursor.pos.x = layout
@@ -473,12 +398,14 @@ impl ActionProtocol {
                     .unwrap_or_else(|| layout.visual_cursor_stops.last().copied().unwrap_or(0));
                 cursor.pref_x = cursor.pos.x;
             }
+
+            cursors.list = cursors_1d.into_iter().map(|(c, _)| c).collect();
         });
 
         cursors.list.sort_by(|a, b| a.pos.y.cmp(&b.pos.y).then(a.pos.x.cmp(&b.pos.x)));
         cursors.list.dedup_by_key(|c| c.pos);
 
-        self.state.with_view_mut(view, |vm| vm.insert(cursors.clone()));
+        self.state.with_view_mut(view, |vm| vm.cursors = cursors.clone());
 
         let _ = self.view_tx.send(ViewCommand::Update { view });
         if let Some(cursor) = cursors.list.first() {

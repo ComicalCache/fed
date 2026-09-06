@@ -5,7 +5,6 @@ mod newtype;
 mod protocols;
 mod render;
 mod state;
-mod type_map;
 mod types;
 
 use std::{

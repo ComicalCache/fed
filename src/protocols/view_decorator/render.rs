@@ -1,7 +1,7 @@
 use crate::{
     protocols::view::ViewRenderer,
     render::{Cell, Renderer, Viewport, WindowId},
-    state::{DocumentId, DocumentStoreTypes, State, ViewId, ViewStoreTypes},
+    state::{State, ViewId, ViewStoreTypes},
     types::{Face, Pos, Rect},
 };
 
@@ -27,11 +27,7 @@ impl Renderer for ViewDecoratorRenderer {
             return;
         }
 
-        let layout = self
-            .state
-            .with_view(self.view, |vm| vm.get::<ViewStoreTypes::Layout>().cloned())
-            .flatten()
-            .unwrap_or_default();
+        let layout = self.state.with_view(self.view, |vm| vm.layout).unwrap_or_default();
 
         let buffer_height = height.saturating_sub(layout.mode_line);
         let buffer_width = width.saturating_sub(layout.gutter);
@@ -53,20 +49,10 @@ impl ViewDecoratorRenderer {
     fn render_gutter(&self, viewport: &mut Viewport, width: usize) {
         let lines = self
             .state
-            .with_view(self.view, |vm| vm.get::<DocumentId>().cloned())
-            .flatten()
-            .and_then(|d| {
-                self.state.with_doc(d, |dm| {
-                    dm.get::<DocumentStoreTypes::Document>().and_then(|d| Some(d.data.lines()))
-                })
-            })
-            .flatten()
+            .with_view(self.view, |vm| vm.doc)
+            .and_then(|d| self.state.with_doc(d, |dm| dm.doc.data.lines()))
             .unwrap_or_default();
-        let scroll = self
-            .state
-            .with_view(self.view, |vm| vm.get::<ViewStoreTypes::Scroll>().cloned())
-            .flatten()
-            .unwrap_or_default();
+        let scroll = self.state.with_view(self.view, |vm| vm.scroll).unwrap_or_default();
 
         let face = Face::default();
         for y in 0..viewport.height() {
@@ -88,11 +74,7 @@ impl ViewDecoratorRenderer {
     }
 
     fn render_mode_line(&self, viewport: &mut Viewport) {
-        let mode = self
-            .state
-            .with_view(self.view, |vm| vm.get::<ViewStoreTypes::Mode>().cloned())
-            .flatten()
-            .unwrap_or_default();
+        let mode = self.state.with_view(self.view, |vm| vm.mode).unwrap_or_default();
 
         let mode = match mode {
             ViewStoreTypes::Mode::Normal => " NORMAL ",

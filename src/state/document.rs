@@ -1,10 +1,16 @@
 use std::collections::HashMap;
 
-use crate::{newtype::newtype, type_map::TypeMap};
+use crate::newtype::newtype;
 
 newtype!(DocumentId, u64);
 
-pub type DocumentStore = HashMap<DocumentId, TypeMap>;
+pub type DocumentStore = HashMap<DocumentId, DocumentStoreEntry>;
+
+#[derive(Default)]
+pub struct DocumentStoreEntry {
+    pub doc: types::Document,
+    pub decs: types::Decorations,
+}
 
 pub mod types {
     use std::{path::PathBuf, sync::Arc};
@@ -14,6 +20,7 @@ pub mod types {
 
     use crate::{state::document::DocumentId, types::Decoration};
 
+    #[derive(Default)]
     pub struct Document {
         pub path: Option<PathBuf>,
 

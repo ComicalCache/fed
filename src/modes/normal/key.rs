@@ -4,7 +4,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     input::{KeyInputHandler, priorities::KeyInputPriority},
     protocols::action::ActionCommand,
-    state::{DocumentId, DocumentStoreTypes::Document, State, ViewStoreTypes},
+    state::{State, ViewStoreTypes},
     types::Direction,
 };
 
@@ -30,14 +30,12 @@ impl KeyInputHandler for NormalKeyInput {
         let Some(view) = self
             .state
             .with_workspace(|w| w.active_window)
-            .and_then(|window| self.state.with_window_view_map(|wv| wv.get(&window).cloned())?)
+            .and_then(|w| self.state.with_window_view_map(|wv| wv.get(&w).cloned())?)
         else {
             return false;
         };
 
-        if self.state.with_view(view, |vm| vm.get::<ViewStoreTypes::Mode>().cloned()).flatten()
-            != Some(ViewStoreTypes::Mode::Normal)
-        {
+        if self.state.with_view(view, |vm| vm.mode) != Some(ViewStoreTypes::Mode::Normal) {
             return false;
         }
 
@@ -70,23 +68,10 @@ impl KeyInputHandler for NormalKeyInput {
             }
             KeyCode::Char('i') => {
                 self.state
-                    .with_view(view, |vm| Some(vm.get::<DocumentId>().cloned()?))
-                    .flatten()
-                    .and_then(|d| {
-                        self.state.with_doc_mut(d, |d| {
-                            d.get_mut::<Document>().and_then(|d| {
-                                d.data.start_commit();
+                    .with_view(view, |vm| vm.doc)
+                    .and_then(|d| self.state.with_doc_mut(d, |d| d.doc.data.start_commit()));
 
-                                Some(())
-                            })
-                        })
-                    });
-
-                self.state.with_view_mut(view, |vm| {
-                    if let Some(m) = vm.get_mut::<ViewStoreTypes::Mode>() {
-                        *m = ViewStoreTypes::Mode::Insert;
-                    }
-                });
+                self.state.with_view_mut(view, |vm| vm.mode = ViewStoreTypes::Mode::Insert);
             }
             _ => return false,
         };
