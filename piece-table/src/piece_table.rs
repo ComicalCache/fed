@@ -48,57 +48,6 @@ pub struct PieceTable {
     active_commit: Option<Commit>,
 }
 
-impl From<&str> for PieceTable {
-    fn from(str: &str) -> Self {
-        let mut lines = vec![0];
-        for (idx, byte) in str.bytes().enumerate() {
-            if byte == b'\n' {
-                lines.push(idx + 1);
-            }
-        }
-
-        let string = String::from(str);
-        let len = string.len();
-        let pieces =
-            if string.is_empty() { vec![] } else { vec![Piece::new(Source::Original, 0, len)] };
-
-        Self {
-            original: string,
-            addition: String::new(),
-            pieces,
-            lines,
-            total_length: len,
-            history: History::new(Commit::new()),
-            active_commit: None,
-        }
-    }
-}
-
-impl From<String> for PieceTable {
-    fn from(str: String) -> Self {
-        let mut lines = vec![0];
-        for (idx, byte) in str.bytes().enumerate() {
-            if byte == b'\n' {
-                lines.push(idx + 1);
-            }
-        }
-
-        let len = str.len();
-        let pieces =
-            if str.is_empty() { vec![] } else { vec![Piece::new(Source::Original, 0, len)] };
-
-        Self {
-            original: str,
-            addition: String::new(),
-            pieces,
-            lines,
-            total_length: len,
-            history: History::new(Commit::new()),
-            active_commit: None,
-        }
-    }
-}
-
 impl PieceTable {
     /// Starts a new commit transaction.
     pub fn start_commit(&mut self) {
@@ -473,6 +422,61 @@ impl PieceTable {
 
         self.lines = lines;
     }
+}
+
+impl From<&str> for PieceTable {
+    fn from(str: &str) -> Self {
+        let mut lines = vec![0];
+        for (idx, byte) in str.bytes().enumerate() {
+            if byte == b'\n' {
+                lines.push(idx + 1);
+            }
+        }
+
+        let string = String::from(str);
+        let len = string.len();
+        let pieces =
+            if string.is_empty() { vec![] } else { vec![Piece::new(Source::Original, 0, len)] };
+
+        Self {
+            original: string,
+            addition: String::new(),
+            pieces,
+            lines,
+            total_length: len,
+            history: History::new(Commit::new()),
+            active_commit: None,
+        }
+    }
+}
+
+impl From<String> for PieceTable {
+    fn from(str: String) -> Self {
+        let mut lines = vec![0];
+        for (idx, byte) in str.bytes().enumerate() {
+            if byte == b'\n' {
+                lines.push(idx + 1);
+            }
+        }
+
+        let len = str.len();
+        let pieces =
+            if str.is_empty() { vec![] } else { vec![Piece::new(Source::Original, 0, len)] };
+
+        Self {
+            original: str,
+            addition: String::new(),
+            pieces,
+            lines,
+            total_length: len,
+            history: History::new(Commit::new()),
+            active_commit: None,
+        }
+    }
+}
+
+impl Default for PieceTable {
+    fn default() -> Self { PieceTable::from("") }
 }
 
 impl Display for PieceTable {
