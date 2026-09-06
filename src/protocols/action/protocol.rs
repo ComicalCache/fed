@@ -3,12 +3,12 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
-    protocols::view::ViewCommand,
+    protocols::{screen::ScreenCommand, view::ViewCommand},
     render,
     state::{
         DocumentId,
         DocumentStoreTypes::Decorations as DocDecorations,
-        State, ViewId,
+        StateLock, ViewId,
         ViewStoreTypes::{Decorations as ViewDecorations, TabWidth},
     },
     types::{Cursor, Direction, Pos},
@@ -33,17 +33,19 @@ pub enum ActionCommand {
 }
 
 pub struct ActionProtocol {
-    state: State,
+    state_lock: StateLock,
 
     rx: UnboundedReceiver<ActionCommand>,
     view_tx: UnboundedSender<ViewCommand>,
+    screen_tx: UnboundedSender<ScreenCommand>,
 }
 
 impl ActionProtocol {
     pub fn new(
-        state: State, rx: UnboundedReceiver<ActionCommand>, view_tx: UnboundedSender<ViewCommand>,
+        state_lock: StateLock, rx: UnboundedReceiver<ActionCommand>,
+        view_tx: UnboundedSender<ViewCommand>, screen_tx: UnboundedSender<ScreenCommand>,
     ) -> Self {
-        Self { state, rx, view_tx }
+        Self { state_lock, rx, view_tx, screen_tx }
     }
 
     pub async fn run(&mut self) {
@@ -65,13 +67,16 @@ impl ActionProtocol {
     }
 
     async fn move_cursors(&self, view: ViewId, direction: Direction) {
-        let Some((doc, mut cursors, tab_width, view_decs)) = self
-            .state
-            .with_view(view, |vm| (vm.doc, vm.cursors.clone(), vm.tab_width, vm.decs.clone()))
-        else {
-            return;
-        };
-        let Some(doc_decs) = self.state.with_doc(doc, |dm| dm.decs.clone()) else { return };
+        let state = self.state_lock.read();
+
+        let Some((vse, dse)) = state.view_and_doc(view) else { return };
+        let doc = vse.doc;
+        let mut cursors = vse.cursors.clone();
+        let tab_width = vse.tab_width;
+        let view_decs = vse.decs.clone();
+        let doc_decs = dse.decs.clone();
+
+        drop(state);
 
         for cursor in &mut cursors.list {
             match direction {
@@ -85,9 +90,12 @@ impl ActionProtocol {
                         stops.into_iter().rev().find(|&x| x <= cursor.pref_x).unwrap_or(0);
                 }
                 Direction::Down => {
-                    let Some(lines) = self.state.with_doc(doc, |dm| dm.doc.data.lines()) else {
-                        return;
-                    };
+                    let state = self.state_lock.read();
+
+                    let Some(dse) = state.document_store.get(&doc) else { return };
+                    let lines = dse.doc.data.lines();
+
+                    drop(state);
 
                     if cursor.pos.y < lines.saturating_sub(1) {
                         cursor.pos.y += 1;
@@ -119,24 +127,31 @@ impl ActionProtocol {
             }
         }
 
-        self.state.with_view_mut(view, |vm| vm.cursors = cursors.clone());
+        let mut state = self.state_lock.write();
+
+        let Some(vse) = state.view_store.get_mut(&view) else { return };
+
+        vse.cursors = cursors.clone();
+
+        drop(state);
+
         if let Some(cursor) = cursors.list.first() {
             let _ = self.view_tx.send(ViewCommand::ScrollIfNeeded { view, pos: cursor.pos });
         }
     }
 
     async fn move_cursor_to(&self, view: ViewId, pos: Pos) {
-        let Some((doc, mut cursors, tab_width, view_decs)) = self
-            .state
-            .with_view(view, |vm| (vm.doc, vm.cursors.clone(), vm.tab_width, vm.decs.clone()))
-        else {
-            return;
-        };
-        let Some(doc_decs) = self.state.with_doc(doc, |dm| dm.decs.clone()) else { return };
+        let state = self.state_lock.read();
 
-        let Some(lines) = self.state.with_doc(doc, |dm| dm.doc.data.lines()) else {
-            return;
-        };
+        let Some((vse, dse)) = state.view_and_doc(view) else { return };
+        let doc = vse.doc;
+        let mut cursors = vse.cursors.clone();
+        let tab_width = vse.tab_width;
+        let view_decs = vse.decs.clone();
+        let doc_decs = dse.decs.clone();
+        let lines = dse.doc.data.lines();
+
+        drop(state);
 
         // lines are one indexed.
         let y = pos.y.min(lines - 1);
@@ -148,24 +163,31 @@ impl ActionProtocol {
         cursors.list.drain(1..);
         cursors.list[0] = Cursor::new(Pos::new(x, y), x);
 
-        self.state.with_view_mut(view, |vm| vm.cursors = cursors.clone());
+        let mut state = self.state_lock.write();
+
+        let Some(vse) = state.view_store.get_mut(&view) else { return };
+
+        vse.cursors = cursors.clone();
+
+        drop(state);
+
         if let Some(cursor) = cursors.list.first() {
             let _ = self.view_tx.send(ViewCommand::ScrollIfNeeded { view, pos: cursor.pos });
         }
     }
 
     async fn create_cursor(&self, view: ViewId, pos: Pos) {
-        let Some((doc, mut cursors, tab_width, view_decs)) = self
-            .state
-            .with_view(view, |vm| (vm.doc, vm.cursors.clone(), vm.tab_width, vm.decs.clone()))
-        else {
-            return;
-        };
-        let Some(doc_decs) = self.state.with_doc(doc, |dm| dm.decs.clone()) else { return };
+        let state = self.state_lock.read();
 
-        let Some(lines) = self.state.with_doc(doc, |dm| dm.doc.data.lines()) else {
-            return;
-        };
+        let Some((vse, dse)) = state.view_and_doc(view) else { return };
+        let doc = vse.doc;
+        let mut cursors = vse.cursors.clone();
+        let tab_width = vse.tab_width;
+        let view_decs = vse.decs.clone();
+        let doc_decs = dse.decs.clone();
+        let lines = dse.doc.data.lines();
+
+        drop(state);
 
         // lines are one indexed.
         let y = pos.y.min(lines.saturating_sub(1));
@@ -177,46 +199,55 @@ impl ActionProtocol {
         cursors.list.sort_by(|a, b| a.pos.y.cmp(&b.pos.y).then(a.pos.x.cmp(&b.pos.x)));
         cursors.list.dedup_by_key(|c| c.pos);
 
-        self.state.with_view_mut(view, |vm| vm.cursors = cursors);
+        let mut state = self.state_lock.write();
+
+        let Some(vse) = state.view_store.get_mut(&view) else { return };
+
+        vse.cursors = cursors;
+
+        drop(state);
+
+        // Explicitly redraw the screen after creating new cursors.
+        let _ = self.screen_tx.send(ScreenCommand::Render);
     }
 
     async fn insert_text(&self, view: ViewId, ch: String) {
         if ch == " " {
-            self.state.with_view(view, |vm| vm.doc).and_then(|d| {
-                self.state.with_doc_mut(d, |dm| {
-                    dm.doc.data.end_commit();
-                    dm.doc.data.start_commit();
-                });
+            let mut state = self.state_lock.write();
 
-                Some(())
-            });
+            let Some((_, dse)) = state.view_and_doc_mut(view) else { return };
+
+            dse.doc.data.end_commit();
+            dse.doc.data.start_commit();
+
+            drop(state);
         }
 
         self.execute_insert(view, |_, _| ch.clone()).await;
     }
 
     async fn insert_newline(&self, view: ViewId) {
-        self.state.with_view(view, |vm| vm.doc).and_then(|d| {
-            self.state.with_doc_mut(d, |dm| {
-                dm.doc.data.end_commit();
-                dm.doc.data.start_commit();
-            });
+        let mut state = self.state_lock.write();
 
-            Some(())
-        });
+        let Some((_, dse)) = state.view_and_doc_mut(view) else { return };
+
+        dse.doc.data.end_commit();
+        dse.doc.data.start_commit();
+
+        drop(state);
 
         self.execute_insert(view, |_, _| "\n".to_string()).await;
     }
 
     async fn insert_tab(&self, view: ViewId) {
-        self.state.with_view(view, |vm| vm.doc).and_then(|d| {
-            self.state.with_doc_mut(d, |dm| {
-                dm.doc.data.end_commit();
-                dm.doc.data.start_commit();
-            });
+        let mut state = self.state_lock.write();
 
-            Some(())
-        });
+        let Some((_, dse)) = state.view_and_doc_mut(view) else { return };
+
+        dse.doc.data.end_commit();
+        dse.doc.data.start_commit();
+
+        drop(state);
 
         self.execute_insert(view, |cursor, tab_width| {
             " ".repeat(*tab_width - (cursor.pos.x % *tab_width))
@@ -232,16 +263,16 @@ impl ActionProtocol {
         &self, doc: DocumentId, y: usize, tab_width: TabWidth, doc_decs: &DocDecorations,
         view_decs: &ViewDecorations,
     ) -> Vec<usize> {
-        let Some((offset, line)) = self.state.with_doc(doc, |dm| {
-            let start = dm.doc.data.get_line_start_byte(y);
-            let end = dm.doc.data.get_line_end_byte(y);
+        let state = self.state_lock.read();
 
-            (start, dm.doc.data.slice(start..end))
-        }) else {
-            return vec![0];
-        };
+        let Some(dse) = state.document_store.get(&doc) else { return vec![0] };
+        let start = dse.doc.data.get_line_start_byte(y);
+        let end = dse.doc.data.get_line_end_byte(y);
+        let line = dse.doc.data.slice(start..end);
 
-        let (layout, _) = render::layout(&line, offset, tab_width, doc_decs, view_decs);
+        drop(state);
+
+        let (layout, _) = render::layout(&line, start, tab_width, doc_decs, view_decs);
 
         if layout.visual_cursor_stops.is_empty() { vec![0] } else { layout.visual_cursor_stops }
     }
@@ -305,107 +336,108 @@ impl ActionProtocol {
         &self, view: ViewId,
         edits: impl FnOnce(&mut PieceTable, &Vec<(Cursor, usize)>, TabWidth) -> Vec<Edit>,
     ) {
-        let Some((doc, mut cursors, tab_width, view_decs)) = self
-            .state
-            .with_view(view, |vm| (vm.doc, vm.cursors.clone(), vm.tab_width, vm.decs.clone()))
-        else {
-            return;
-        };
-        let Some(doc_decs) = self.state.with_doc(doc, |dm| dm.decs.clone()) else { return };
+        let mut state = self.state_lock.write();
 
-        self.state.with_doc_mut(doc, |dm| {
-            // Map 2D cursors to 1D.
-            let mut cursors_1d: Vec<_> = cursors
-                .list
-                .iter()
-                .cloned()
-                .map(|c| {
-                    let start = dm.doc.data.get_line_start_byte(c.pos.y);
-                    let end = dm.doc.data.get_line_end_byte(c.pos.y);
-                    let line = dm.doc.data.slice(start..end).to_string();
-                    let (layout, _) =
-                        render::layout(&line, start, tab_width, &doc_decs, &view_decs);
+        let Some((vse, dse)) = state.view_and_doc_mut(view) else { return };
+        let mut cursors = vse.cursors.clone();
+        let tab_width = vse.tab_width;
+        let view_decs = vse.decs.clone();
+        let doc_decs = dse.decs.clone();
 
-                    let offset = layout
-                        .visual_offset_mapping
-                        .iter()
-                        .rev()
-                        .find(|vo| vo.visual_x <= c.pos.x)
-                        .map(|vo| vo.offset)
-                        .unwrap_or(start);
-
-                    (c, offset)
-                })
-                .collect();
-
-            let mut edits = edits(&mut dm.doc.data, &cursors_1d, tab_width);
-            edits.sort_by_key(|e| std::cmp::Reverse(e.offset));
-            edits.dedup_by_key(|e| e.offset);
-
-            // Apply `Edits`.
-            for edit in &edits {
-                if edit.remove > 0 {
-                    dm.doc.data.remove(edit.offset, edit.remove);
-                    dm.doc.modified = true;
-                }
-
-                if !edit.insert.is_empty() {
-                    dm.doc.data.insert(edit.offset, &edit.insert);
-                    dm.doc.modified = true;
-                }
-            }
-
-            // Shift cursors in 1D space.
-            for (cursor, offset) in &mut cursors_1d {
-                for edit in &edits {
-                    if edit.offset < *offset {
-                        // Before cursor.
-                        if *offset < edit.offset + edit.remove {
-                            *offset = edit.offset;
-                        } else {
-                            *offset = *offset + edit.insert.len() - edit.remove;
-                        }
-                    } else if edit.offset == *offset {
-                        // On cursor.
-                        *offset += edit.insert.len();
-                    }
-                }
-
-                // Map 1D cursors to 2D.
-                let lines = dm.doc.data.lines();
-                let mut target_line = lines.saturating_sub(1);
-                for y in 0..lines {
-                    let start = dm.doc.data.get_line_start_byte(y);
-                    let end = dm.doc.data.get_line_end_byte(y);
-
-                    if *offset >= start && (*offset < end || y == lines - 1) {
-                        target_line = y;
-                        break;
-                    }
-                }
-
-                let start = dm.doc.data.get_line_start_byte(target_line);
-                let end = dm.doc.data.get_line_end_byte(target_line);
-                let line = dm.doc.data.slice(start..end).to_string();
+        // Map 2D cursors to 1D.
+        let mut cursors_1d: Vec<_> = cursors
+            .list
+            .iter()
+            .cloned()
+            .map(|c| {
+                let start = dse.doc.data.get_line_start_byte(c.pos.y);
+                let end = dse.doc.data.get_line_end_byte(c.pos.y);
+                let line = dse.doc.data.slice(start..end).to_string();
                 let (layout, _) = render::layout(&line, start, tab_width, &doc_decs, &view_decs);
 
-                cursor.pos.y = target_line;
-                cursor.pos.x = layout
+                let offset = layout
                     .visual_offset_mapping
                     .iter()
-                    .find(|vo| vo.offset >= *offset)
-                    .map(|vo| vo.visual_x)
-                    .unwrap_or_else(|| layout.visual_cursor_stops.last().copied().unwrap_or(0));
-                cursor.pref_x = cursor.pos.x;
+                    .rev()
+                    .find(|vo| vo.visual_x <= c.pos.x)
+                    .map(|vo| vo.offset)
+                    .unwrap_or(start);
+
+                (c, offset)
+            })
+            .collect();
+
+        let mut edits = edits(&mut dse.doc.data, &cursors_1d, tab_width);
+        edits.sort_by_key(|e| std::cmp::Reverse(e.offset));
+        edits.dedup_by_key(|e| e.offset);
+
+        // Apply `Edits`.
+        for edit in &edits {
+            if edit.remove > 0 {
+                dse.doc.data.remove(edit.offset, edit.remove);
+                dse.doc.modified = true;
             }
 
-            cursors.list = cursors_1d.into_iter().map(|(c, _)| c).collect();
-        });
+            if !edit.insert.is_empty() {
+                dse.doc.data.insert(edit.offset, &edit.insert);
+                dse.doc.modified = true;
+            }
+        }
+
+        // Shift cursors in 1D space.
+        for (cursor, offset) in &mut cursors_1d {
+            for edit in &edits {
+                if edit.offset < *offset {
+                    // Before cursor.
+                    if *offset < edit.offset + edit.remove {
+                        *offset = edit.offset;
+                    } else {
+                        *offset = *offset + edit.insert.len() - edit.remove;
+                    }
+                } else if edit.offset == *offset {
+                    // On cursor.
+                    *offset += edit.insert.len();
+                }
+            }
+
+            // Map 1D cursors to 2D.
+            let lines = dse.doc.data.lines();
+            let mut target_line = lines.saturating_sub(1);
+            for y in 0..lines {
+                let start = dse.doc.data.get_line_start_byte(y);
+                let end = dse.doc.data.get_line_end_byte(y);
+
+                if *offset >= start && (*offset < end || y == lines - 1) {
+                    target_line = y;
+                    break;
+                }
+            }
+
+            let start = dse.doc.data.get_line_start_byte(target_line);
+            let end = dse.doc.data.get_line_end_byte(target_line);
+            let line = dse.doc.data.slice(start..end).to_string();
+            let (layout, _) = render::layout(&line, start, tab_width, &doc_decs, &view_decs);
+
+            cursor.pos.y = target_line;
+            cursor.pos.x = layout
+                .visual_offset_mapping
+                .iter()
+                .find(|vo| vo.offset >= *offset)
+                .map(|vo| vo.visual_x)
+                .unwrap_or_else(|| layout.visual_cursor_stops.last().copied().unwrap_or(0));
+            cursor.pref_x = cursor.pos.x;
+        }
+
+        cursors.list = cursors_1d.into_iter().map(|(c, _)| c).collect();
 
         cursors.list.sort_by(|a, b| a.pos.y.cmp(&b.pos.y).then(a.pos.x.cmp(&b.pos.x)));
         cursors.list.dedup_by_key(|c| c.pos);
 
-        self.state.with_view_mut(view, |vm| vm.cursors = cursors.clone());
+        let Some(vse) = state.view_store.get_mut(&view) else { return };
+
+        vse.cursors = cursors.clone();
+
+        drop(state);
 
         let _ = self.view_tx.send(ViewCommand::Update { view });
         if let Some(cursor) = cursors.list.first() {

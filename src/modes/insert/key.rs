@@ -4,19 +4,19 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     input::{KeyInputHandler, priorities::KeyInputPriority},
     protocols::action::ActionCommand,
-    state::{State, ViewStoreTypes},
+    state::{StateLock, ViewStoreTypes},
     types::Direction,
 };
 
 pub struct InsertKeyInput {
-    state: State,
+    state_lock: StateLock,
 
     action_tx: UnboundedSender<ActionCommand>,
 }
 
 impl InsertKeyInput {
-    pub fn new(state: State, action_tx: UnboundedSender<ActionCommand>) -> Self {
-        Self { state, action_tx }
+    pub fn new(state_lock: StateLock, action_tx: UnboundedSender<ActionCommand>) -> Self {
+        Self { state_lock, action_tx }
     }
 }
 
@@ -24,17 +24,15 @@ impl KeyInputHandler for InsertKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::InsertMode }
 
     fn key(&mut self, event: &KeyEvent) -> bool {
-        let Some(view) = self
-            .state
-            .with_workspace(|w| w.active_window)
-            .and_then(|window| self.state.with_window_view_map(|wv| wv.get(&window).cloned())?)
-        else {
-            return false;
-        };
+        let state = self.state_lock.read();
 
-        if self.state.with_view(view, |vm| vm.mode) != Some(ViewStoreTypes::Mode::Insert) {
+        let Some(view) = state.active_view() else { return false };
+
+        if state.view_store.get(&view).map(|vse| vse.mode) != Some(ViewStoreTypes::Mode::Insert) {
             return false;
         }
+
+        drop(state);
 
         match event.code {
             KeyCode::Left => {
@@ -96,13 +94,14 @@ impl KeyInputHandler for InsertKeyInput {
                 let _ = self.action_tx.send(ActionCommand::InsertTab { view });
             }
             KeyCode::Esc => {
-                self.state.with_view(view, |view| view.doc).and_then(|doc| {
-                    self.state.with_doc_mut(doc, |d| {
-                        d.doc.data.end_commit();
-                    })
-                });
+                let mut state = self.state_lock.write();
 
-                self.state.with_view_mut(view, |vm| vm.mode = ViewStoreTypes::Mode::Normal);
+                let Some((vse, dse)) = state.view_and_doc_mut(view) else { return false };
+
+                dse.doc.data.end_commit();
+                vse.mode = ViewStoreTypes::Mode::Normal;
+
+                drop(state);
 
                 return true;
             }

@@ -7,11 +7,7 @@ mod render;
 mod state;
 mod types;
 
-use std::{
-    io::stdout,
-    path::PathBuf,
-    sync::{Arc, RwLock},
-};
+use std::{io::stdout, path::PathBuf};
 
 use crossterm::{
     cursor::{Hide, Show},
@@ -23,6 +19,7 @@ use futures::StreamExt;
 use tokio::sync::{
     broadcast,
     mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
+    oneshot,
 };
 
 use crate::{
@@ -34,12 +31,12 @@ use crate::{
     },
     protocols::{
         action::ActionProtocol,
-        io::IoProtocol,
+        io::{IoCommand, IoProtocol},
         screen::{ScreenProtocol, ScreenResizeInput},
         view::{ViewCommand, ViewProtocol, ViewResizeInput},
     },
     render::Workspace,
-    state::State,
+    state::{State, StateLock},
     types::{Pos, Rect, RectSplit},
 };
 
@@ -68,41 +65,53 @@ async fn setup(
     let (screen_tx, screen_rx) = unbounded_channel();
     let (quit_tx, quit_rx) = unbounded_channel();
 
-    let state = State {
-        workspace: Arc::new(RwLock::new(Workspace::new(Rect::new(Pos::default(), width, height)))),
+    let state_lock = StateLock::new(State {
+        workspace: Workspace::new(Rect::new(Pos::default(), width, height)),
         ..Default::default()
-    };
+    });
 
     // Protocols.
     let io = IoProtocol::new(io_rx);
-    let view = ViewProtocol::new(state.clone(), view_rx);
-    let action = ActionProtocol::new(state.clone(), action_rx, view_tx.clone());
-    let screen = ScreenProtocol::new(state.clone(), width, height, screen_rx);
+    let view = ViewProtocol::new(state_lock.clone(), view_rx, screen_tx.clone());
+    let action =
+        ActionProtocol::new(state_lock.clone(), action_rx, view_tx.clone(), screen_tx.clone());
+    let screen = ScreenProtocol::new(state_lock.clone(), width, height, screen_rx);
 
     // Input handlers.
     let mut input_router = InputRouter::new(input_rx);
     input_router.add_key_handler(Box::new(NormalKeyInput::new(
-        state.clone(),
+        state_lock.clone(),
         action_tx.clone(),
         quit_tx.clone(),
     )));
-    input_router.add_key_handler(Box::new(InsertKeyInput::new(state.clone(), action_tx.clone())));
+    input_router
+        .add_key_handler(Box::new(InsertKeyInput::new(state_lock.clone(), action_tx.clone())));
 
     input_router
-        .add_mouse_handler(Box::new(NormalMouseInput::new(state.clone(), action_tx.clone())));
-    input_router.add_mouse_handler(Box::new(InsertMouseInput::new(state.clone(), action_tx)));
+        .add_mouse_handler(Box::new(NormalMouseInput::new(state_lock.clone(), action_tx.clone())));
+    input_router.add_mouse_handler(Box::new(InsertMouseInput::new(state_lock.clone(), action_tx)));
 
     input_router.add_resize_handler(Box::new(ViewResizeInput::new(view_tx.clone())));
-    input_router.add_resize_handler(Box::new(ScreenResizeInput::new(state.clone(), screen_tx)));
+    input_router
+        .add_resize_handler(Box::new(ScreenResizeInput::new(state_lock.clone(), screen_tx)));
 
     // Initial document creation.
     tokio::spawn(async move {
         let args: Vec<String> = std::env::args().collect();
         let path = args.get(1).map(PathBuf::from);
 
-        let Ok(doc) = state.create_document(path, io_tx).await else {
-            todo!("Exit with error");
+        let data = if let Some(path) = path.clone() {
+            let (tx, rx) = oneshot::channel();
+            if io_tx.send(IoCommand::Read { path, tx }).is_err() {
+                todo!("Exit with error");
+            }
+
+            rx.await.map_err(|err| err.to_string()).flatten().unwrap_or_else(|_| String::new())
+        } else {
+            String::new()
         };
+
+        let doc = state_lock.write().create_document(path, data);
 
         let _ = view_tx.send(ViewCommand::SpawnWindow { doc, split: RectSplit::Vertical });
     });

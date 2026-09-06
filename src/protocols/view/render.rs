@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 use crate::{
     protocols::view::store::LocalViewStore,
     render::{self, Cell, Renderer, Viewport, WindowId},
-    state::{DocumentId, State, ViewId},
+    state::{DocumentId, StateLock, ViewId},
     types::{Face, Pos},
 };
 
@@ -13,14 +13,14 @@ pub struct ViewRenderer {
 
     store: Arc<RwLock<LocalViewStore>>,
 
-    state: State,
+    state_lock: StateLock,
 }
 
 impl ViewRenderer {
     pub fn new(
-        doc: DocumentId, view: ViewId, store: Arc<RwLock<LocalViewStore>>, state: State,
+        doc: DocumentId, view: ViewId, store: Arc<RwLock<LocalViewStore>>, state_lock: StateLock,
     ) -> Self {
-        Self { doc, view, store, state }
+        Self { doc, view, store, state_lock }
     }
 }
 
@@ -41,12 +41,16 @@ impl Renderer for ViewRenderer {
             return;
         };
 
-        let Some((cursors, scroll, tab_width, view_decs)) = self.state.with_view(self.view, |vm| {
-            (vm.cursors.clone(), vm.scroll, vm.tab_width, vm.decs.clone())
-        }) else {
-            return;
-        };
-        let Some(doc_decs) = self.state.with_doc(self.doc, |dm| dm.decs.clone()) else { return };
+        let state = self.state_lock.read();
+
+        let Some((vse, dse)) = state.view_and_doc(self.view) else { return };
+        let cursors = vse.cursors.clone();
+        let scroll = vse.scroll;
+        let tab_width = vse.tab_width;
+        let view_decs = vse.decs.clone();
+        let doc_decs = dse.decs.clone();
+
+        drop(state);
 
         let mut lines_drawn = 0;
         let mut offset = entry.offset;

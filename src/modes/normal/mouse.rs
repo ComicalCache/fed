@@ -4,19 +4,19 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     input::{MouseInputHandler, priorities::MouseInputPriority},
     protocols::action::ActionCommand,
-    state::{State, ViewStoreTypes},
+    state::{StateLock, ViewStoreTypes},
     types::Pos,
 };
 
 pub struct NormalMouseInput {
-    state: State,
+    state_lock: StateLock,
 
     action_tx: UnboundedSender<ActionCommand>,
 }
 
 impl NormalMouseInput {
-    pub fn new(state: State, action_tx: UnboundedSender<ActionCommand>) -> Self {
-        Self { state, action_tx }
+    pub fn new(state_lock: StateLock, action_tx: UnboundedSender<ActionCommand>) -> Self {
+        Self { state_lock, action_tx }
     }
 }
 
@@ -26,25 +26,24 @@ impl MouseInputHandler for NormalMouseInput {
     fn mouse(&mut self, event: &MouseEvent) -> bool {
         let mut pos = (event.column, event.row).into();
 
-        let Some((view, rect)) =
-            self.state.with_workspace(|w| w.get_window(pos)).and_then(|window| {
-                self.state.with_workspace_mut(|w| w.active_window = Some(window));
+        let mut state = self.state_lock.write();
 
-                let view = self.state.with_window_view_map(|wv| wv.get(&window).cloned())??;
-                let rect = self.state.with_workspace(|w| w.get_rect(window).unwrap());
+        let Some(window) = state.workspace.get_window(pos) else { return false };
 
-                Some((view, rect))
-            })
-        else {
-            return false;
-        };
+        state.workspace.active_window = Some(window);
 
-        if self.state.with_view(view, |vm| vm.mode) != Some(ViewStoreTypes::Mode::Normal) {
+        let Some(rect) = state.workspace.get_rect(window) else { return false };
+        let Some(view) = state.active_view() else { return false };
+        let Some(vse) = state.view_store.get(&view) else { return false };
+
+        let scroll = vse.scroll;
+        let layout = vse.layout;
+
+        if vse.mode != ViewStoreTypes::Mode::Normal {
             return false;
         }
 
-        let (scroll, layout) =
-            self.state.with_view(view, |vm| (vm.scroll, vm.layout)).unwrap_or_default();
+        drop(state);
 
         if event.kind != MouseEventKind::Down(MouseButton::Left) {
             return false;

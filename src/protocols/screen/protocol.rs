@@ -1,48 +1,41 @@
-use std::time::Duration;
-
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::{render::Screen, state::State};
+use crate::{render::Screen, state::StateLock};
 
 pub enum ScreenCommand {
     Resize(usize, usize),
+    Render,
 }
 
 pub struct ScreenProtocol {
     screen: Screen,
-    state: State,
+
+    state_lock: StateLock,
 
     rx: UnboundedReceiver<ScreenCommand>,
 }
 
 impl ScreenProtocol {
     pub fn new(
-        state: State, width: usize, height: usize, rx: UnboundedReceiver<ScreenCommand>,
+        state_lock: StateLock, width: usize, height: usize, rx: UnboundedReceiver<ScreenCommand>,
     ) -> Self {
-        Self { screen: Screen::new(width, height), state, rx }
+        Self { screen: Screen::new(width, height), state_lock, rx }
     }
 
     pub async fn run(&mut self) {
-        let mut interval = tokio::time::interval(Duration::from_millis(16));
-
-        loop {
-            tokio::select! {
-                res = self.rx.recv() => {
-                    let Some(res) = res else { break; };
-
-                    match res {
-                        ScreenCommand::Resize(width, height) => {
-                            self.screen.resize(width , height);
-                        }
-                    }
-                }
-
-                _ = interval.tick() => {
-                    self.state.with_workspace(|w| w.render(&mut self.screen));
-
-                    self.screen.render();
-                }
+        while let Some(cmd) = self.rx.recv().await {
+            match cmd {
+                ScreenCommand::Resize(width, height) => self.screen.resize(width, height),
+                ScreenCommand::Render => {}
             }
+
+            let state = self.state_lock.read();
+
+            state.workspace.render(&mut self.screen);
+
+            drop(state);
+
+            self.screen.render();
         }
     }
 }

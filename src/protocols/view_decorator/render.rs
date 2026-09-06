@@ -1,7 +1,7 @@
 use crate::{
     protocols::view::ViewRenderer,
     render::{Cell, Renderer, Viewport, WindowId},
-    state::{State, ViewId, ViewStoreTypes},
+    state::{StateLock, ViewId, ViewStoreTypes},
     types::{Face, Pos, Rect},
 };
 
@@ -9,12 +9,12 @@ pub struct ViewDecoratorRenderer {
     view: ViewId,
     inner: ViewRenderer,
 
-    state: State,
+    state_lock: StateLock,
 }
 
 impl ViewDecoratorRenderer {
-    pub fn new(view: ViewId, inner: ViewRenderer, state: State) -> Self {
-        Self { view, inner, state }
+    pub fn new(view: ViewId, inner: ViewRenderer, state_lock: StateLock) -> Self {
+        Self { view, inner, state_lock }
     }
 }
 
@@ -27,7 +27,12 @@ impl Renderer for ViewDecoratorRenderer {
             return;
         }
 
-        let layout = self.state.with_view(self.view, |vm| vm.layout).unwrap_or_default();
+        let state = self.state_lock.read();
+
+        let Some(vse) = state.view_store.get(&self.view) else { return };
+        let layout = vse.layout;
+
+        drop(state);
 
         let buffer_height = height.saturating_sub(layout.mode_line);
         let buffer_width = width.saturating_sub(layout.gutter);
@@ -47,12 +52,13 @@ impl Renderer for ViewDecoratorRenderer {
 
 impl ViewDecoratorRenderer {
     fn render_gutter(&self, viewport: &mut Viewport, width: usize) {
-        let lines = self
-            .state
-            .with_view(self.view, |vm| vm.doc)
-            .and_then(|d| self.state.with_doc(d, |dm| dm.doc.data.lines()))
-            .unwrap_or_default();
-        let scroll = self.state.with_view(self.view, |vm| vm.scroll).unwrap_or_default();
+        let state = self.state_lock.read();
+
+        let Some((vse, dse)) = state.view_and_doc(self.view) else { return };
+        let lines = dse.doc.data.lines();
+        let scroll = vse.scroll;
+
+        drop(state);
 
         let face = Face::default();
         for y in 0..viewport.height() {
@@ -74,7 +80,12 @@ impl ViewDecoratorRenderer {
     }
 
     fn render_mode_line(&self, viewport: &mut Viewport) {
-        let mode = self.state.with_view(self.view, |vm| vm.mode).unwrap_or_default();
+        let state = self.state_lock.read();
+
+        let Some(vse) = state.view_store.get(&self.view) else { return };
+        let mode = vse.mode;
+
+        drop(state);
 
         let mode = match mode {
             ViewStoreTypes::Mode::Normal => " NORMAL ",

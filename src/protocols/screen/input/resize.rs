@@ -3,17 +3,19 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     input::{ResizeInputHandler, priorities::ResizeInputPriority},
     protocols::screen::ScreenCommand,
-    state::State,
+    state::StateLock,
 };
 
 pub struct ScreenResizeInput {
-    state: State,
+    state_lock: StateLock,
 
     tx: UnboundedSender<ScreenCommand>,
 }
 
 impl ScreenResizeInput {
-    pub fn new(state: State, tx: UnboundedSender<ScreenCommand>) -> Self { Self { state, tx } }
+    pub fn new(state_lock: StateLock, tx: UnboundedSender<ScreenCommand>) -> Self {
+        Self { state_lock, tx }
+    }
 }
 
 impl ResizeInputHandler for ScreenResizeInput {
@@ -22,7 +24,12 @@ impl ResizeInputHandler for ScreenResizeInput {
     fn resize(&mut self, size: (u16, u16)) {
         let (width, height) = (size.0 as usize, size.1 as usize);
 
-        self.state.with_workspace_mut(|w| w.resize(width, height));
+        let mut state = self.state_lock.write();
+
+        state.workspace.resize(width, height);
+
+        drop(state);
+
         let _ = self.tx.send(ScreenCommand::Resize(width, height));
     }
 }
