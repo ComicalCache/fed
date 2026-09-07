@@ -31,7 +31,10 @@ impl ModeLineWidget {
             }
             ModeLineWidget::CursorPos(face) => {
                 let cursor = vse.cursors.list.first().map(|c| c.pos).unwrap_or_default();
-                vec![(format!("[{}:{}]", cursor.y + 1, cursor.x + 1), *face)]
+                vec![(
+                    format!("[{}:{} {}]", cursor.y + 1, cursor.x + 1, vse.cursors.list.len()),
+                    *face,
+                )]
             }
             ModeLineWidget::Text(text, face) => vec![(text.clone(), *face)],
             ModeLineWidget::Custom(f) => f(vse, dse),

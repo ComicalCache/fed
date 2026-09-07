@@ -141,6 +141,9 @@ impl ActionProtocol {
             }
         }
 
+        cursors.list.sort_by(|a, b| a.pos.y.cmp(&b.pos.y).then(a.pos.x.cmp(&b.pos.x)));
+        cursors.list.dedup_by_key(|c| c.pos);
+
         let mut state = self.state_lock.write();
 
         let Some(vse) = state.view_store.get_mut(&view) else { return };

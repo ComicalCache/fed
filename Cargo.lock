@@ -191,7 +191,7 @@ dependencies = [
 
 [[package]]
 name = "fed"
-version = "2.4.0"
+version = "2.4.1"
 dependencies = [
  "arboard",
  "crossterm",
