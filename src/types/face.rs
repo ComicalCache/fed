@@ -17,14 +17,6 @@ pub struct Face {
 }
 
 impl Face {
-    pub fn new(
-        fg: Option<Rgb>, bg: Option<Rgb>, uc: Option<Rgb>, bold: Option<bool>,
-        italic: Option<bool>, underline: Option<bool>, squiggly: Option<bool>,
-        strikethrough: Option<bool>, reverse: Option<bool>,
-    ) -> Self {
-        Self { fg, bg, uc, bold, italic, underline, squiggly, strikethrough, reverse }
-    }
-
     /// Merges the other face onto this one.
     pub fn merge(&mut self, other: Self) {
         if let Some(fg) = other.fg {

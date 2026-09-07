@@ -10,13 +10,13 @@ use std::{
     },
 };
 
-pub use document::{DocumentId, DocumentStore, types as DocumentStoreTypes};
+pub use document::{DocumentId, DocumentStore, DocumentStoreEntry, types as DocumentStoreTypes};
 use piece_table::PieceTable;
 pub use view::{ViewId, ViewStore, ViewStoreEntry, types as ViewStoreTypes};
 
 use crate::{
     render::{WindowId, Workspace},
-    state::{DocumentStoreTypes::Document, document::DocumentStoreEntry},
+    state::DocumentStoreTypes::Document,
 };
 
 #[derive(Clone)]

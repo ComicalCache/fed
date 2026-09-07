@@ -31,6 +31,7 @@ impl KeyInputHandler for NormalKeyInput {
         let state = self.state_lock.read();
 
         let Some(view) = state.active_view() else { return false };
+        let Some(doc) = state.view_store.get(&view).map(|vse| vse.doc) else { return false };
 
         if state.view_store.get(&view).map(|vse| vse.mode) != Some(ViewStoreTypes::Mode::Normal) {
             return false;
@@ -66,14 +67,10 @@ impl KeyInputHandler for NormalKeyInput {
                     .send(ActionCommand::MoveCursors { view, direction: Direction::Right });
             }
             KeyCode::Char('i') => {
-                let mut state = self.state_lock.write();
-
-                let Some((vse, dse)) = state.view_and_doc_mut(view) else { return false };
-
-                dse.doc.data.start_commit();
-                vse.mode = ViewStoreTypes::Mode::Insert;
-
-                drop(state);
+                let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
+                let _ = self
+                    .action_tx
+                    .send(ActionCommand::SetViewMode { view, mode: ViewStoreTypes::Mode::Insert });
             }
             _ => return false,
         };

@@ -7,9 +7,9 @@ use crate::{
     render,
     state::{
         DocumentId,
-        DocumentStoreTypes::Decorations as DocDecorations,
+        DocumentStoreTypes::{Decorations as DocDecorations, Mode as DocumentMode},
         StateLock, ViewId,
-        ViewStoreTypes::{Decorations as ViewDecorations, TabWidth},
+        ViewStoreTypes::{Decorations as ViewDecorations, Mode as ViewMode, TabWidth},
     },
     types::{Cursor, Direction, Pos},
 };
@@ -25,11 +25,17 @@ pub enum ActionCommand {
     MoveCursorTo { view: ViewId, pos: Pos },
     CreateCursor { view: ViewId, pos: Pos },
 
+    StartCommit { doc: DocumentId },
+    EndCommit { doc: DocumentId },
+
     InsertText { view: ViewId, text: String },
     InsertNewline { view: ViewId },
     InsertTab { view: ViewId },
     Backspace { view: ViewId },
     Delete { view: ViewId },
+
+    SetDocumentMode { doc: DocumentId, mode: DocumentMode },
+    SetViewMode { view: ViewId, mode: ViewMode },
 }
 
 pub struct ActionProtocol {
@@ -57,11 +63,19 @@ impl ActionProtocol {
                 ActionCommand::MoveCursorTo { view, pos } => self.move_cursor_to(view, pos).await,
                 ActionCommand::CreateCursor { view, pos } => self.create_cursor(view, pos).await,
 
+                ActionCommand::StartCommit { doc } => self.start_commit(doc).await,
+                ActionCommand::EndCommit { doc } => self.end_commit(doc).await,
+
                 ActionCommand::InsertText { view, text } => self.insert_text(view, text).await,
                 ActionCommand::InsertNewline { view } => self.insert_newline(view).await,
                 ActionCommand::InsertTab { view } => self.insert_tab(view).await,
                 ActionCommand::Backspace { view } => self.backspace(view).await,
                 ActionCommand::Delete { view } => self.delete(view).await,
+
+                ActionCommand::SetDocumentMode { doc, mode } => {
+                    self.set_document_mode(doc, mode).await
+                }
+                ActionCommand::SetViewMode { view, mode } => self.set_view_mode(view, mode).await,
             }
         }
     }
@@ -211,6 +225,26 @@ impl ActionProtocol {
         let _ = self.screen_tx.send(ScreenCommand::Render);
     }
 
+    async fn start_commit(&mut self, doc: DocumentId) {
+        let mut state = self.state_lock.write();
+
+        let Some(dse) = state.document_store.get_mut(&doc) else { return };
+
+        dse.doc.data.start_commit();
+
+        drop(state);
+    }
+
+    async fn end_commit(&mut self, doc: DocumentId) {
+        let mut state = self.state_lock.write();
+
+        let Some(dse) = state.document_store.get_mut(&doc) else { return };
+
+        dse.doc.data.end_commit();
+
+        drop(state);
+    }
+
     async fn insert_text(&self, view: ViewId, ch: String) {
         if ch == " " {
             let mut state = self.state_lock.write();
@@ -258,6 +292,32 @@ impl ActionProtocol {
     async fn backspace(&self, view: ViewId) { self.execute_remove(view, true).await; }
 
     async fn delete(&self, view: ViewId) { self.execute_remove(view, false).await; }
+
+    async fn set_document_mode(&mut self, doc: DocumentId, mode: DocumentMode) {
+        let mut state = self.state_lock.write();
+
+        let Some(dse) = state.document_store.get_mut(&doc) else { return };
+
+        dse.mode = mode;
+
+        drop(state);
+
+        // Mode changes may include mode-line changes.
+        let _ = self.screen_tx.send(ScreenCommand::Render);
+    }
+
+    async fn set_view_mode(&mut self, view: ViewId, mode: ViewMode) {
+        let mut state = self.state_lock.write();
+
+        let Some(vse) = state.view_store.get_mut(&view) else { return };
+
+        vse.mode = mode;
+
+        drop(state);
+
+        // Mode changes may include mode-line changes.
+        let _ = self.screen_tx.send(ScreenCommand::Render);
+    }
 
     async fn visual_cursor_stops(
         &self, doc: DocumentId, y: usize, tab_width: TabWidth, doc_decs: &DocDecorations,

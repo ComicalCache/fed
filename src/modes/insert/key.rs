@@ -27,6 +27,7 @@ impl KeyInputHandler for InsertKeyInput {
         let state = self.state_lock.read();
 
         let Some(view) = state.active_view() else { return false };
+        let Some(doc) = state.view_store.get(&view).map(|vse| vse.doc) else { return false };
 
         if state.view_store.get(&view).map(|vse| vse.mode) != Some(ViewStoreTypes::Mode::Insert) {
             return false;
@@ -94,14 +95,10 @@ impl KeyInputHandler for InsertKeyInput {
                 let _ = self.action_tx.send(ActionCommand::InsertTab { view });
             }
             KeyCode::Esc => {
-                let mut state = self.state_lock.write();
-
-                let Some((vse, dse)) = state.view_and_doc_mut(view) else { return false };
-
-                dse.doc.data.end_commit();
-                vse.mode = ViewStoreTypes::Mode::Normal;
-
-                drop(state);
+                let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
+                let _ = self
+                    .action_tx
+                    .send(ActionCommand::SetViewMode { view, mode: ViewStoreTypes::Mode::Normal });
 
                 return true;
             }

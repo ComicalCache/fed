@@ -1,7 +1,10 @@
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
+
 use crate::{
     protocols::view::ViewRenderer,
     render::{Cell, Renderer, Viewport, WindowId},
-    state::{StateLock, ViewId, ViewStoreTypes},
+    state::{StateLock, ViewId},
     types::{Face, Pos, Rect},
 };
 
@@ -82,31 +85,100 @@ impl ViewDecoratorRenderer {
     fn render_mode_line(&self, viewport: &mut Viewport) {
         let state = self.state_lock.read();
 
-        let Some(vse) = state.view_store.get(&self.view) else { return };
-        let mode = vse.mode;
+        let Some((vse, dse)) = state.view_and_doc(self.view) else { return };
+
+        // Force left padding.
+        let mut left = Vec::new();
+        for widget in &vse.mode_line_config.left {
+            left.extend(widget.render(vse, dse));
+
+            // Add padding.
+            left.push((" ".to_string(), Face::default()));
+        }
+        // Removing trailing padding.
+        left.pop();
+
+        let mut right = Vec::new();
+        for widget in &vse.mode_line_config.right {
+            right.extend(widget.render(vse, dse));
+
+            // Add padding. Keep the trailing padding as right padding.
+            right.push((" ".to_string(), Face::default()));
+        }
 
         drop(state);
 
-        let mode = match mode {
-            ViewStoreTypes::Mode::Normal => " NORMAL ",
-            ViewStoreTypes::Mode::Insert => " INSERT ",
-        };
-
-        let mut face = Face::default();
-        face.reverse = Some(true);
+        let mut base_face = Face::default();
+        base_face.reverse = Some(true);
 
         let mut x = 0;
-        for ch in mode.chars() {
-            if x >= viewport.width() {
-                break;
-            }
 
-            viewport.set(Pos::new(x, 0), Cell::new(ch.to_string(), false, face));
+        for (text, span_face) in left {
+            let mut face = base_face;
+            face.merge(span_face);
+
+            for grapheme in text.graphemes(true) {
+                let width = grapheme.width();
+                if x >= viewport.width() {
+                    break;
+                }
+
+                viewport.set(Pos::new(x, 0), Cell::new(grapheme.to_string(), width == 0, face));
+
+                for _ in 1..width {
+                    if x + 1 < viewport.width() {
+                        viewport.set(Pos::new(x + 1, 0), Cell::new(String::new(), true, face));
+                    }
+
+                    x += 1;
+                }
+
+                if width > 0 {
+                    x += 1;
+                }
+            }
+        }
+
+        let right_width = right
+            .iter()
+            .flat_map(|(text, _)| text.graphemes(true))
+            .map(|g| g.width())
+            .sum::<usize>();
+        let right_start = viewport.width().saturating_sub(right_width);
+
+        while x < right_start {
+            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), false, base_face));
             x += 1;
         }
 
+        for (text, span_face) in right {
+            let mut face = base_face;
+            face.merge(span_face);
+
+            for grapheme in text.graphemes(true) {
+                let width = grapheme.width();
+                if x >= viewport.width() {
+                    break;
+                }
+
+                viewport.set(Pos::new(x, 0), Cell::new(grapheme.to_string(), width == 0, face));
+
+                for _ in 1..width {
+                    if x + 1 < viewport.width() {
+                        viewport.set(Pos::new(x + 1, 0), Cell::new(String::new(), true, face));
+                    }
+
+                    x += 1;
+                }
+
+                if width > 0 {
+                    x += 1;
+                }
+            }
+        }
+
         while x < viewport.width() {
-            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), false, face));
+            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), false, base_face));
             x += 1;
         }
     }
