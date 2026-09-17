@@ -4,7 +4,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::{
     protocols::view::ViewRenderer,
     render::{Cell, Renderer, Viewport, WindowId},
-    state::{StateLock, ViewId},
+    state::{State, StateLock, ViewId},
     types::{Face, Pos, Rect},
 };
 
@@ -22,7 +22,7 @@ impl ViewDecoratorRenderer {
 }
 
 impl Renderer for ViewDecoratorRenderer {
-    fn render(&self, viewport: &mut Viewport, window: WindowId) {
+    fn render(&self, state: &State, viewport: &mut Viewport, window: WindowId) {
         let width = viewport.width();
         let height = viewport.height();
 
@@ -30,38 +30,35 @@ impl Renderer for ViewDecoratorRenderer {
             return;
         }
 
-        let state = self.state_lock.read();
-
-        let Some(vse) = state.view_store.get(&self.view) else { return };
+        let Some((vse, dse)) = state.view_and_doc(self.view) else { return };
+        let lines = dse.doc.data.lines();
         let layout = vse.layout;
 
-        drop(state);
-
         let buffer_height = height.saturating_sub(layout.mode_line);
-        let buffer_width = width.saturating_sub(layout.gutter);
+        let buffer_width = width.saturating_sub(layout.gutter_width(lines));
 
-        let mut gutter = viewport.sub_view(Rect::new(Pos::new(0, 0), layout.gutter, buffer_height));
-        self.render_gutter(&mut gutter, layout.gutter);
+        let mut gutter =
+            viewport.sub_view(Rect::new(Pos::new(0, 0), layout.gutter_width(lines), buffer_height));
+        self.render_gutter(state, &mut gutter, layout.gutter_width(lines));
 
         let mut mode =
             viewport.sub_view(Rect::new(Pos::new(0, buffer_height), width, layout.mode_line));
-        self.render_mode_line(&mut mode);
+        self.render_mode_line(state, &mut mode);
 
-        let mut view =
-            viewport.sub_view(Rect::new(Pos::new(layout.gutter, 0), buffer_width, buffer_height));
-        self.inner.render(&mut view, window);
+        let mut view = viewport.sub_view(Rect::new(
+            Pos::new(layout.gutter_width(lines), 0),
+            buffer_width,
+            buffer_height,
+        ));
+        self.inner.render(state, &mut view, window);
     }
 }
 
 impl ViewDecoratorRenderer {
-    fn render_gutter(&self, viewport: &mut Viewport, width: usize) {
-        let state = self.state_lock.read();
-
+    fn render_gutter(&self, state: &State, viewport: &mut Viewport, width: usize) {
         let Some((vse, dse)) = state.view_and_doc(self.view) else { return };
         let lines = dse.doc.data.lines();
         let scroll = vse.scroll;
-
-        drop(state);
 
         let face = Face::default();
         for y in 0..viewport.height() {
@@ -82,9 +79,7 @@ impl ViewDecoratorRenderer {
         }
     }
 
-    fn render_mode_line(&self, viewport: &mut Viewport) {
-        let state = self.state_lock.read();
-
+    fn render_mode_line(&self, state: &State, viewport: &mut Viewport) {
         let Some((vse, dse)) = state.view_and_doc(self.view) else { return };
 
         // Force left padding.
@@ -105,8 +100,6 @@ impl ViewDecoratorRenderer {
             // Add padding. Keep the trailing padding as right padding.
             right.push((" ".to_string(), Face::default()));
         }
-
-        drop(state);
 
         let mut base_face = Face::default();
         base_face.reverse = Some(true);

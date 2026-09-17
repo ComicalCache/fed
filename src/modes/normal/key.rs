@@ -1,9 +1,11 @@
+use std::time::Duration;
+
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::{mpsc::UnboundedSender, oneshot};
 
 use crate::{
     input::{KeyInputHandler, priorities::KeyInputPriority},
-    protocols::action::ActionCommand,
+    protocols::{action::ActionCommand, mini_buffer::MiniBufferCommand},
     state::{StateLock, ViewStoreTypes},
     types::Direction,
 };
@@ -12,15 +14,16 @@ pub struct NormalKeyInput {
     state_lock: StateLock,
 
     action_tx: UnboundedSender<ActionCommand>,
+    mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
     quit_tx: UnboundedSender<()>,
 }
 
 impl NormalKeyInput {
     pub fn new(
         state_lock: StateLock, action_tx: UnboundedSender<ActionCommand>,
-        quit_tx: UnboundedSender<()>,
+        mini_buffer_tx: UnboundedSender<MiniBufferCommand>, quit_tx: UnboundedSender<()>,
     ) -> Self {
-        Self { state_lock, action_tx, quit_tx }
+        Self { state_lock, action_tx, mini_buffer_tx, quit_tx }
     }
 }
 
@@ -71,6 +74,49 @@ impl KeyInputHandler for NormalKeyInput {
                 let _ = self
                     .action_tx
                     .send(ActionCommand::SetViewMode { view, mode: ViewStoreTypes::Mode::Insert });
+            }
+            KeyCode::Char('T') => {
+                let (tx, rx) = oneshot::channel();
+                let _ = self.mini_buffer_tx.send(MiniBufferCommand::Message {
+                    message: "Hello, world!".to_string(),
+                    tx: tx,
+                });
+
+                let tx = self.mini_buffer_tx.clone();
+                tokio::spawn(async move {
+                    let Ok(id) = rx.await else { return };
+                    tokio::time::sleep(Duration::from_secs(3)).await;
+
+                    let _ = tx.send(MiniBufferCommand::Close { id });
+                });
+            }
+            KeyCode::Char('P') => {
+                let (id_tx, _) = oneshot::channel();
+                let (res_tx, res_rx) = oneshot::channel();
+                let _ = self.mini_buffer_tx.send(MiniBufferCommand::Prompt {
+                    prompt: "Hello, prompt: ".to_string(),
+                    id_tx,
+                    res_tx,
+                });
+
+                let mini_buffer_tx = self.mini_buffer_tx.clone();
+                tokio::spawn(async move {
+                    let Ok(res) = res_rx.await else { return };
+
+                    let (tx, rx) = oneshot::channel();
+                    let _ = mini_buffer_tx.send(MiniBufferCommand::Message {
+                        message: format!("You typed: '{res}'"),
+                        tx: tx,
+                    });
+
+                    let tx = mini_buffer_tx.clone();
+                    tokio::spawn(async move {
+                        let Ok(id) = rx.await else { return };
+                        tokio::time::sleep(Duration::from_secs(3)).await;
+
+                        let _ = tx.send(MiniBufferCommand::Close { id });
+                    });
+                });
             }
             _ => return false,
         };

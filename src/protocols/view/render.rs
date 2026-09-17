@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 use crate::{
     protocols::view::store::LocalViewStore,
     render::{self, Cell, Renderer, Viewport, WindowId},
-    state::{DocumentId, StateLock, ViewId},
+    state::{DocumentId, State, StateLock, ViewId},
     types::{Face, Pos},
 };
 
@@ -25,13 +25,13 @@ impl ViewRenderer {
 }
 
 impl Renderer for ViewRenderer {
-    fn render(&self, viewport: &mut Viewport, _: WindowId) {
+    fn render(&self, state: &State, viewport: &mut Viewport, _: WindowId) {
         let viewport_width = viewport.width();
         let viewport_height = viewport.height();
 
         let store = self.store.read().unwrap();
 
-        let Some(entry) = store.get(&self.view) else {
+        let Some(lvd) = store.get(&self.view) else {
             for y in 0..viewport_height {
                 for x in 0..viewport_width {
                     viewport.set(Pos::new(x, y), Cell::default());
@@ -41,26 +41,25 @@ impl Renderer for ViewRenderer {
             return;
         };
 
-        let state = self.state_lock.read();
-
         let Some((vse, dse)) = state.view_and_doc(self.view) else { return };
         let cursors = vse.cursors.clone();
         let scroll = vse.scroll;
         let tab_width = vse.tab_width;
-        let view_decs = vse.decs.clone();
-        let doc_decs = dse.decs.clone();
 
-        drop(state);
+        let mut decs = Vec::new();
+        let start = lvd.offset;
+        let end = start + lvd.lines.iter().take(viewport_height).map(|l| l.len()).sum::<usize>();
+        dse.decs.range(start, end, &mut decs);
+        vse.decs.range(start, end, &mut decs);
 
         let mut lines_drawn = 0;
-        let mut offset = entry.offset;
-        for (y, line) in entry.lines.iter().enumerate() {
+        let mut offset = lvd.offset;
+        for (y, line) in lvd.lines.iter().enumerate() {
             if y >= viewport_height {
                 break;
             }
 
-            let (layout, next_offset) =
-                render::layout(line, offset, tab_width, &doc_decs, &view_decs);
+            let (layout, next_offset) = render::layout(line, offset, tab_width, &decs);
             offset = next_offset;
 
             let mut x = 0;

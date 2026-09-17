@@ -1,14 +1,33 @@
-use std::sync::Arc;
+use std::collections::BTreeMap;
 
-use rust_lapper::Lapper;
+use crate::types::{Decoration, DecorationProvider, Span};
 
-use crate::types::Decoration;
-
-#[derive(Clone)]
-pub struct Decorations {
-    pub tree: Arc<Lapper<usize, Decoration>>,
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+pub enum ViewDecoration {
+    MiniBuffer,
 }
 
-impl Default for Decorations {
-    fn default() -> Self { Self { tree: Arc::new(Lapper::new(vec![])) } }
+#[derive(Default)]
+pub struct Decorations {
+    pub layers: BTreeMap<ViewDecoration, Box<dyn DecorationProvider>>,
+}
+
+impl Decorations {
+    pub fn edit(&mut self, offset: usize, remove: usize, insert: usize) {
+        for provider in self.layers.values_mut() {
+            provider.edit(offset, remove, insert);
+        }
+    }
+
+    pub fn update(&mut self, start: usize, end: usize) {
+        for provider in self.layers.values_mut() {
+            provider.update(start, end);
+        }
+    }
+
+    pub fn range(&self, start: usize, end: usize, buff: &mut Vec<Span<Decoration>>) {
+        for provider in self.layers.values() {
+            provider.range(start, end, &mut |s| buff.push(s));
+        }
+    }
 }

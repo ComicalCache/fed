@@ -17,6 +17,7 @@ composed of specific, optionally included files based on its functionality:
   that needs to be drawn
 - `store.rs` (optional): Contains internal caching data structures owned exclusively by the
   protocol
+- `decoration_provider.rs` (optional): Contains the protocol's decoration provider
 
 ## Naming Conventions
 
@@ -24,6 +25,7 @@ composed of specific, optionally included files based on its functionality:
 - Message API: `<Name>Command`
 - Input handler: `<Name><Input Type>Input`
 - Renderer: `<Name>Renderer`
+- Decoration Provider: `<Name>DecorationProvier`
 
 ## Communication
 

@@ -2,11 +2,8 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::{
-    state::{
-        DocumentStoreTypes::Decorations as DocDecorations,
-        ViewStoreTypes::{Decorations as ViewDecorations, TabWidth},
-    },
-    types::{Decoration, Face},
+    state::ViewStoreTypes::TabWidth,
+    types::{Decoration, Face, Span},
 };
 
 pub struct LayoutCell {
@@ -27,8 +24,7 @@ pub struct Layout {
 }
 
 pub fn layout(
-    line: &str, mut offset: usize, tab_width: TabWidth, doc_decs: &DocDecorations,
-    view_decs: &ViewDecorations,
+    line: &str, mut offset: usize, tab_width: TabWidth, decs: &[Span<Decoration>],
 ) -> (Layout, usize) {
     let mut cells = Vec::new();
     let mut visual_cursor_stops = Vec::new();
@@ -42,20 +38,21 @@ pub fn layout(
         let mut replacement = None;
         let mut virtual_texts = Vec::new();
 
-        let doc_decs = doc_decs.tree.find(offset, offset + ch_len).into_iter();
-        let view_decs = view_decs.tree.find(offset, offset + ch_len).into_iter();
+        for span in decs {
+            if span.start > offset + ch_len || span.end < offset {
+                continue;
+            }
 
-        for interval in doc_decs.chain(view_decs) {
-            match &interval.val {
-                Decoration::Style(layer_face) => face.merge(*layer_face),
+            match &span.data {
+                Decoration::Style { face: layer_face } => face.merge(*layer_face),
                 Decoration::Replace { text, face } => {
                     replace = true;
-                    if offset == interval.start {
+                    if offset == span.start {
                         replacement = Some((text.clone(), *face));
                     }
                 }
                 Decoration::VirtualText { text, face } => {
-                    if offset == interval.start {
+                    if offset == span.start {
                         virtual_texts.push((text.clone(), *face));
                     }
                 }
@@ -139,6 +136,36 @@ pub fn layout(
     }
 
     if !line.ends_with('\n') {
+        // EOF edge case for empty documents.
+        let mut virtual_texts = Vec::new();
+        for span in decs {
+            if span.start != offset {
+                continue;
+            }
+
+            if let Decoration::VirtualText { text, face } = &span.data {
+                virtual_texts.push((text.clone(), face));
+            }
+        }
+
+        // Virtual Text.
+        for (text, &face) in virtual_texts {
+            for ch in text.graphemes(true) {
+                let width = ch.width();
+                if width == 0 {
+                    break;
+                }
+
+                cells.push(LayoutCell { ch: ch.to_string(), face, width });
+
+                for _ in 1..width {
+                    cells.push(LayoutCell { ch: String::new(), face, width: 0 });
+                }
+
+                visual_x += width;
+            }
+        }
+
         visual_cursor_stops.push(visual_x);
         visual_offset_mapping.push(VisualOffsetMapping { visual_x, offset });
     }

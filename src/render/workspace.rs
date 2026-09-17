@@ -1,6 +1,7 @@
 use crate::{
     newtype::newtype,
-    render::{Renderer, Screen, Viewport, workspace::Tile::Dummy},
+    render::{Renderer, Screen, Viewport, ZLayer, workspace::Tile::Dummy},
+    state::State,
     types::{Direction, Pos, Rect, RectSplit},
 };
 
@@ -87,16 +88,16 @@ impl Tile {
         }
     }
 
-    pub fn render(&self, screen: &mut Screen, rect: Rect) {
+    pub fn render(&self, state: &State, screen: &mut Screen, rect: Rect) {
         match self {
             Tile::Split { direction, ratio, first, second } => {
                 let (first_rect, second_rect) = rect.split(*direction, *ratio);
 
-                first.render(screen, first_rect);
-                second.render(screen, second_rect);
+                first.render(state, screen, first_rect);
+                second.render(state, screen, second_rect);
             }
             Tile::Window { content, id } => {
-                content.render(&mut Viewport::new(screen, rect), *id);
+                content.render(state, &mut Viewport::new(screen, rect), *id);
             }
             Tile::Dummy => unreachable!(),
         }
@@ -107,7 +108,7 @@ impl Tile {
 /// tiling windows.
 struct Floating {
     rect: Rect,
-    z: usize,
+    z: ZLayer,
 
     id: WindowId,
     pub content: Box<dyn Renderer>,
@@ -149,7 +150,7 @@ impl Workspace {
         self.floating.iter().map(|floating| floating.id).collect()
     }
 
-    pub fn create_tile(&mut self, content: Box<dyn Renderer>, direction: RectSplit) -> WindowId {
+    pub fn create_tile(&mut self, direction: RectSplit, content: Box<dyn Renderer>) -> WindowId {
         let id = WindowId(self.next_window_id);
         self.next_window_id += 1;
 
@@ -166,56 +167,24 @@ impl Workspace {
                 second: Box::new(Tile::Window { id, content }),
             };
 
-            self.active_window = Some(id);
-
             return id;
         }
 
         self.root = Some(Tile::Window { id, content });
-        self.active_window = Some(id);
 
         id
     }
 
-    pub fn destroy_tile(&mut self, target: WindowId) {
-        let Some(root) = &mut self.root else {
-            return;
-        };
-
-        match root {
-            Tile::Window { id: root, .. } if *root == target => self.root = None,
-            _ => {
-                if let Some(parent) = root.find_parent(target) {
-                    let survivor = if let Tile::Split { first, second, .. } = parent {
-                        if matches!(**first, Tile::Window { id, .. } if id == target) {
-                            std::mem::replace(&mut **second, Tile::Dummy)
-                        } else {
-                            std::mem::replace(&mut **first, Tile::Dummy)
-                        }
-                    } else {
-                        unreachable!()
-                    };
-
-                    *parent = survivor;
-                }
-
-                if self.active_window == Some(target) {
-                    self.active_window = None;
-                }
-            }
-        }
-    }
-
-    pub fn resize_tile(&mut self, target: WindowId, delta: f32) {
+    pub fn resize_tile(&mut self, id: WindowId, delta: f32) {
         if let Some(root) = &mut self.root
-            && let Some(Tile::Split { ratio, .. }) = root.find_parent(target)
+            && let Some(Tile::Split { ratio, .. }) = root.find_parent(id)
         {
             *ratio = (*ratio + delta).clamp(0.05, 0.95);
         }
     }
 
     pub fn create_floating(
-        &mut self, rect: Rect, z: usize, content: Box<dyn Renderer>,
+        &mut self, rect: Rect, z: ZLayer, content: Box<dyn Renderer>,
     ) -> WindowId {
         let id = WindowId(self.next_window_id);
         self.next_window_id += 1;
@@ -226,13 +195,6 @@ impl Workspace {
         id
     }
 
-    pub fn destroy_floating(&mut self, id: WindowId) {
-        if let Some(idx) = self.floating.iter().position(|floating| floating.id == id) {
-            self.floating.remove(idx);
-        }
-    }
-
-    /// Resizes a floating window.
     pub fn resize_floating(&mut self, id: WindowId, width: usize, height: usize) {
         if let Some(floating) = self.floating.iter_mut().find(|floating| floating.id == id) {
             floating.rect.width = width;
@@ -246,8 +208,60 @@ impl Workspace {
         }
     }
 
-    /// Replaces the `Renderer` of a window with a new one.
-    pub fn replace_renderer(&mut self, id: WindowId, content: Box<dyn Renderer>) { todo!() }
+    pub fn destroy_window(&mut self, id: WindowId) {
+        // Search floating windows first.
+        if let Some(idx) = self.floating.iter().position(|floating| floating.id == id) {
+            self.floating.remove(idx);
+
+            if self.active_window == Some(id) {
+                self.active_window = None;
+            }
+
+            return;
+        }
+
+        // Search tiling tree second.
+        let Some(root) = &mut self.root else { return };
+        match root {
+            Tile::Window { id: root, .. } if *root == id => self.root = None,
+            _ => {
+                if let Some(parent) = root.find_parent(id) {
+                    let survivor = if let Tile::Split { first, second, .. } = parent {
+                        if matches!(**first, Tile::Window { id, .. } if id == id) {
+                            std::mem::replace(&mut **second, Tile::Dummy)
+                        } else {
+                            std::mem::replace(&mut **first, Tile::Dummy)
+                        }
+                    } else {
+                        unreachable!()
+                    };
+
+                    *parent = survivor;
+                }
+
+                if self.active_window == Some(id) {
+                    self.active_window = None;
+                }
+            }
+        }
+    }
+
+    pub fn replace_renderer(&mut self, id: WindowId, content: Box<dyn Renderer>) {
+        // Search floating windows first.
+        if let Some(idx) = self.floating.iter().position(|f| f.id == id) {
+            self.floating[idx].content = content;
+
+            return;
+        }
+
+        // Search tiling tree second.
+        if let Some(root) = &mut self.root
+            && let Some(tile) = root.find(id)
+            && matches!(tile, Tile::Window { .. })
+        {
+            *tile = Tile::Window { id, content };
+        }
+    }
 
     pub fn get_rect(&self, id: WindowId) -> Option<Rect> {
         if let Some(f) = self.floating.iter().find(|f| f.id == id) {
@@ -265,7 +279,6 @@ impl Workspace {
         None
     }
 
-    /// Returns the `WindowId` at the given physical screen coordinates, if any.
     pub fn get_window(&self, pos: Pos) -> Option<WindowId> {
         for floating in self.floating.iter().rev() {
             if floating.rect.contains(pos) {
@@ -287,7 +300,6 @@ impl Workspace {
         None
     }
 
-    /// Returns the next window in the corresponding `Direction`.
     pub fn navigate(&self, direction: Direction) -> Option<WindowId> {
         let Some(active) = self.active_window else {
             return None;
@@ -329,13 +341,13 @@ impl Workspace {
         res
     }
 
-    pub fn render(&self, screen: &mut Screen) {
+    pub fn render(&self, state: &State, screen: &mut Screen) {
         if let Some(root) = &self.root {
-            root.render(screen, self.rect);
+            root.render(state, screen, self.rect);
         }
 
         for floating in &self.floating {
-            floating.content.render(&mut Viewport::new(screen, floating.rect), floating.id);
+            floating.content.render(state, &mut Viewport::new(screen, floating.rect), floating.id);
         }
     }
 }

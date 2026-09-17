@@ -31,7 +31,7 @@ impl ScreenProtocol {
 
             let state = self.state_lock.read();
 
-            state.workspace.render(&mut self.screen);
+            state.workspace.render(&state, &mut self.screen);
 
             drop(state);
 

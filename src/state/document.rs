@@ -3,14 +3,18 @@ mod document;
 mod mode;
 
 pub mod types {
-    pub use crate::state::document::{decorations::Decorations, document::Document, mode::Mode};
+    pub use crate::state::document::{
+        decorations::{Decorations, DocumentDecoration},
+        document::Document,
+        mode::Mode,
+    };
 }
 
 use std::collections::HashMap;
 
 use crate::newtype::newtype;
 
-newtype!(DocumentId, u64);
+newtype!(DocumentId, usize);
 
 pub type DocumentStore = HashMap<DocumentId, DocumentStoreEntry>;
 

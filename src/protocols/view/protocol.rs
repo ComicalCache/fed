@@ -4,7 +4,10 @@ use std::{
 };
 
 use piece_table::Slice;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::{
+    mpsc::{UnboundedReceiver, UnboundedSender},
+    oneshot,
+};
 
 use crate::{
     protocols::{
@@ -15,17 +18,59 @@ use crate::{
         },
         view_decorator::ViewDecoratorRenderer,
     },
-    render::WindowId,
+    render::{WindowId, ZLayer},
     state::{DocumentId, StateLock, ViewId, ViewStoreTypes},
-    types::{Pos, RectSplit},
+    types::{Pos, Rect, RectSplit},
 };
 
 pub enum ViewCommand {
-    Init { window: WindowId, view: ViewId, doc: DocumentId },
-    Update { view: ViewId },
-    ScrollTo { view: ViewId, pos: Pos },
-    ScrollIfNeeded { view: ViewId, pos: Pos },
-    SpawnWindow { doc: DocumentId, split: RectSplit },
+    Init {
+        window: WindowId,
+        view: ViewId,
+        doc: DocumentId,
+    },
+    Update {
+        view: ViewId,
+    },
+    ScrollTo {
+        view: ViewId,
+        pos: Pos,
+    },
+    ScrollIfNeeded {
+        view: ViewId,
+        pos: Pos,
+    },
+
+    CreateRawTile {
+        doc: DocumentId,
+        view: Option<ViewId>,
+        split: RectSplit,
+        tx: oneshot::Sender<(ViewId, WindowId)>,
+    },
+    CreateTile {
+        doc: DocumentId,
+        view: Option<ViewId>,
+        split: RectSplit,
+        tx: oneshot::Sender<(ViewId, WindowId)>,
+    },
+    CreateFloating {
+        doc: DocumentId,
+        view: Option<ViewId>,
+        rect: Rect,
+        z: ZLayer,
+        tx: oneshot::Sender<(ViewId, WindowId)>,
+    },
+    CreateRawFloating {
+        doc: DocumentId,
+        view: Option<ViewId>,
+        rect: Rect,
+        z: ZLayer,
+        tx: oneshot::Sender<(ViewId, WindowId)>,
+    },
+    DestroyView {
+        view: ViewId,
+    },
+
     Resize,
 }
 
@@ -53,7 +98,21 @@ impl ViewProtocol {
                 ViewCommand::Update { view } => self.update(view).await,
                 ViewCommand::ScrollTo { view, pos } => self.scroll_to(view, pos).await,
                 ViewCommand::ScrollIfNeeded { view, pos } => self.scroll_if_needed(view, pos).await,
-                ViewCommand::SpawnWindow { doc, split } => self.spawn_window(doc, split).await,
+
+                ViewCommand::CreateRawTile { doc, view, split, tx } => {
+                    self.create_tile(doc, view, split, tx, true).await
+                }
+                ViewCommand::CreateTile { doc, view, split, tx } => {
+                    self.create_tile(doc, view, split, tx, false).await
+                }
+                ViewCommand::CreateRawFloating { doc, view, rect, z, tx } => {
+                    self.create_floating(doc, view, rect, z, tx, true).await
+                }
+                ViewCommand::CreateFloating { doc, view, rect, z, tx } => {
+                    self.create_floating(doc, view, rect, z, tx, false).await
+                }
+                ViewCommand::DestroyView { view } => self.destroy_view(view).await,
+
                 ViewCommand::Resize => self.resize().await,
             }
 
@@ -130,14 +189,16 @@ impl ViewProtocol {
             return;
         };
         let Some(rect) = state.workspace.get_rect(window) else { return };
-        let Some(vse) = state.view_store.get(&view) else { return };
+        let Some((vse, dse)) = state.view_and_doc(view) else { return };
+
         let doc = vse.doc;
+        let lines = dse.doc.data.lines();
         let mut scroll = vse.scroll;
         let layout = vse.layout;
 
         drop(state);
 
-        let buffer_width = rect.width.saturating_sub(layout.gutter);
+        let buffer_width = rect.width.saturating_sub(layout.gutter_width(lines));
         let buffer_height = rect.height.saturating_sub(layout.mode_line);
         if buffer_width == 0 || buffer_height == 0 {
             return;
@@ -173,22 +234,91 @@ impl ViewProtocol {
         }
     }
 
-    async fn spawn_window(&mut self, doc: DocumentId, split: RectSplit) {
+    async fn create_tile(
+        &mut self, doc: DocumentId, view: Option<ViewId>, split: RectSplit,
+        tx: oneshot::Sender<(ViewId, WindowId)>, raw: bool,
+    ) {
         let mut state = self.state_lock.write();
 
-        let view = state.create_view(doc);
+        let view = view.unwrap_or_else(|| state.create_view(doc));
 
-        let view_renderer =
-            ViewRenderer::new(doc, view, self.local_store.clone(), self.state_lock.clone());
-        let view_decorator_renderer =
-            Box::new(ViewDecoratorRenderer::new(view, view_renderer, self.state_lock.clone()));
+        let window = if raw {
+            let renderer = Box::new(ViewRenderer::new(
+                doc,
+                view,
+                self.local_store.clone(),
+                self.state_lock.clone(),
+            ));
 
-        let window = state.workspace.create_tile(view_decorator_renderer, split);
+            state.workspace.create_tile(split, renderer)
+        } else {
+            let renderer = Box::new(ViewDecoratorRenderer::new(
+                view,
+                ViewRenderer::new(doc, view, self.local_store.clone(), self.state_lock.clone()),
+                self.state_lock.clone(),
+            ));
+
+            state.workspace.create_tile(split, renderer)
+        };
         state.window_view_map.insert(window, view);
 
         drop(state);
 
         self.init(window, view, doc).await;
+
+        let _ = tx.send((view, window));
+    }
+
+    async fn create_floating(
+        &mut self, doc: DocumentId, view: Option<ViewId>, rect: Rect, z: ZLayer,
+        tx: oneshot::Sender<(ViewId, WindowId)>, raw: bool,
+    ) {
+        let mut state = self.state_lock.write();
+
+        let view = view.unwrap_or_else(|| state.create_view(doc));
+
+        let window = if raw {
+            let renderer = Box::new(ViewRenderer::new(
+                doc,
+                view,
+                self.local_store.clone(),
+                self.state_lock.clone(),
+            ));
+
+            state.workspace.create_floating(rect, z, renderer)
+        } else {
+            let renderer = Box::new(ViewDecoratorRenderer::new(
+                view,
+                ViewRenderer::new(doc, view, self.local_store.clone(), self.state_lock.clone()),
+                self.state_lock.clone(),
+            ));
+
+            state.workspace.create_floating(rect, z, renderer)
+        };
+        state.window_view_map.insert(window, view);
+
+        drop(state);
+
+        self.init(window, view, doc).await;
+
+        let _ = tx.send((view, window));
+    }
+
+    async fn destroy_view(&mut self, view: ViewId) {
+        let mut state = self.state_lock.write();
+        let mut local_store = self.local_store.write().unwrap();
+
+        let windows: Vec<_> =
+            state.window_view_map.iter().filter(|&(_, &v)| v == view).map(|(&k, _)| k).collect();
+        for window in windows {
+            state.workspace.destroy_window(window);
+            state.window_view_map.remove(&window);
+
+            local_store.remove(&view);
+        }
+
+        drop(local_store);
+        drop(state);
     }
 
     async fn resize(&mut self) {
@@ -204,9 +334,9 @@ impl ViewProtocol {
             let scroll = vse.scroll;
             let layout = vse.layout;
 
-            let buffer_height = rect.height.saturating_sub(layout.mode_line);
+            let height = rect.height.saturating_sub(layout.mode_line);
 
-            entries.push((view, doc, scroll, buffer_height));
+            entries.push((view, doc, scroll, height));
         }
 
         drop(state);
@@ -225,26 +355,21 @@ impl ViewProtocol {
         // Fix the borrow checker.
         let state = &mut *guard;
 
-        let Some(dse) = state.document_store.get(&doc) else { return };
-        let lines = dse.doc.data.lines();
-
-        let digits = lines.checked_ilog10().unwrap_or(0) as usize + 1;
-        let gutter = digits + 2;
-
         let Some(vse) = state.view_store.get_mut(&view) else { return };
-
-        if vse.layout.gutter != gutter {
-            vse.layout.gutter = gutter;
-        }
+        let Some(dse) = state.document_store.get_mut(&doc) else { return };
 
         let start = dse.doc.data.get_line_start_byte(scroll.y);
         let end = dse.doc.data.get_line_end_byte(scroll.y + height);
+
+        vse.decs.update(start, end);
+        dse.decs.update(start, end);
+
         let data = dse.doc.data.slice(start..end);
 
         drop(guard);
 
         let mut lines = data.split_inclusive('\n').map(String::from).collect::<Vec<_>>();
-        if data.ends_with('\n') {
+        if data.is_empty() || data.ends_with('\n') {
             lines.push(String::new());
         }
 

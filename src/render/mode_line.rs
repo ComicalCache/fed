@@ -4,20 +4,20 @@ use crate::{
 };
 
 pub enum ModeLineWidget {
-    Mode(Face),
-    FilePath(Face),
-    CursorPos(Face),
-    Text(String, Face),
+    Mode { face: Face },
+    FilePath { face: Face },
+    CursorPos { face: Face },
+    Text { text: String, face: Face },
     Custom(fn(&ViewStoreEntry, &DocumentStoreEntry) -> Vec<(String, Face)>),
 }
 
 impl ModeLineWidget {
     pub fn render(&self, vse: &ViewStoreEntry, dse: &DocumentStoreEntry) -> Vec<(String, Face)> {
         match self {
-            ModeLineWidget::Mode(face) => {
+            ModeLineWidget::Mode { face } => {
                 vec![(format!("[{}]", vse.mode.to_string().to_uppercase()), *face)]
             }
-            ModeLineWidget::FilePath(face) => {
+            ModeLineWidget::FilePath { face } => {
                 match dse.doc.path.as_ref().map(|p| p.display().to_string()) {
                     Some(path) => vec![(
                         format!("[{path}{}]", if dse.doc.modified { "*" } else { "" }),
@@ -29,14 +29,14 @@ impl ModeLineWidget {
                     )],
                 }
             }
-            ModeLineWidget::CursorPos(face) => {
+            ModeLineWidget::CursorPos { face } => {
                 let cursor = vse.cursors.list.first().map(|c| c.pos).unwrap_or_default();
                 vec![(
                     format!("[{}:{} {}]", cursor.y + 1, cursor.x + 1, vse.cursors.list.len()),
                     *face,
                 )]
             }
-            ModeLineWidget::Text(text, face) => vec![(text.clone(), *face)],
+            ModeLineWidget::Text { text, face } => vec![(text.clone(), *face)],
             ModeLineWidget::Custom(f) => f(vse, dse),
         }
     }
@@ -51,10 +51,10 @@ impl Default for ModeLineConfig {
     fn default() -> Self {
         Self {
             left: vec![
-                ModeLineWidget::Mode(Face::default()),
-                ModeLineWidget::FilePath(Face::default()),
+                ModeLineWidget::Mode { face: Face::default() },
+                ModeLineWidget::FilePath { face: Face::default() },
             ],
-            right: vec![ModeLineWidget::CursorPos(Face::default())],
+            right: vec![ModeLineWidget::CursorPos { face: Face::default() }],
         }
     }
 }

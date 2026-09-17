@@ -3,8 +3,11 @@ pub mod priorities;
 use crossterm::event::{Event, KeyEvent, MouseEvent};
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::input::priorities::{
-    KeyInputPriority, MouseInputPriority, PasteInputPriority, ResizeInputPriority,
+use crate::{
+    input::priorities::{
+        KeyInputPriority, MouseInputPriority, PasteInputPriority, ResizeInputPriority,
+    },
+    state::StateLock,
 };
 
 /// A trait that should be implemented by protocol input handlers to receive
@@ -73,16 +76,19 @@ pub struct InputRouter {
     paste_handlers: Vec<Box<dyn PasteInputHandler>>,
     resize_handlers: Vec<Box<dyn ResizeInputHandler>>,
 
+    state_lock: StateLock,
+
     rx: UnboundedReceiver<Event>,
 }
 
 impl InputRouter {
-    pub fn new(rx: UnboundedReceiver<Event>) -> Self {
+    pub fn new(state_lock: StateLock, rx: UnboundedReceiver<Event>) -> Self {
         Self {
             key_handlers: Vec::new(),
             mouse_handlers: Vec::new(),
             paste_handlers: Vec::new(),
             resize_handlers: Vec::new(),
+            state_lock,
             rx,
         }
     }
@@ -121,6 +127,14 @@ impl InputRouter {
                     }
                 }
                 Event::Mouse(mouse) => {
+                    let mut state = self.state_lock.write();
+
+                    if let Some(w) = state.workspace.get_window((mouse.column, mouse.row).into()) {
+                        state.workspace.active_window = Some(w);
+                    }
+
+                    drop(state);
+
                     for handler in &mut self.mouse_handlers {
                         if handler.mouse(&mouse) {
                             break;

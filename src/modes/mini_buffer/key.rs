@@ -3,35 +3,42 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     input::{KeyInputHandler, priorities::KeyInputPriority},
-    protocols::action::ActionCommand,
-    state::{StateLock, ViewStoreTypes},
+    protocols::{action::ActionCommand, mini_buffer::MiniBufferCommand},
+    state::{MiniBufferStoreTypes, StateLock},
     types::Direction,
 };
 
-pub struct InsertKeyInput {
+pub struct MiniBufferKeyInput {
     state_lock: StateLock,
 
     action_tx: UnboundedSender<ActionCommand>,
+    mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
 }
 
-impl InsertKeyInput {
-    pub fn new(state_lock: StateLock, action_tx: UnboundedSender<ActionCommand>) -> Self {
-        Self { state_lock, action_tx }
+impl MiniBufferKeyInput {
+    pub fn new(
+        state_lock: StateLock, action_tx: UnboundedSender<ActionCommand>,
+        mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
+    ) -> Self {
+        Self { state_lock, action_tx, mini_buffer_tx }
     }
 }
 
-impl KeyInputHandler for InsertKeyInput {
-    fn priority(&self) -> KeyInputPriority { KeyInputPriority::InsertMode }
+impl KeyInputHandler for MiniBufferKeyInput {
+    fn priority(&self) -> KeyInputPriority { KeyInputPriority::MiniBufferMode }
 
     fn key(&mut self, event: &KeyEvent) -> bool {
         let state = self.state_lock.read();
 
-        let Some(view) = state.active_view() else { return false };
-        let Some(doc) = state.view_store.get(&view).map(|vse| vse.doc) else { return false };
-
-        if state.view_store.get(&view).map(|vse| vse.mode) != Some(ViewStoreTypes::Mode::Insert) {
+        if state.workspace.active_window != state.mini_buffer_store.window {
             return false;
         }
+        if state.mini_buffer_store.kind != MiniBufferStoreTypes::Kind::Prompt {
+            return false;
+        }
+
+        let id = state.mini_buffer_store.id;
+        let view = state.mini_buffer_store.view;
 
         drop(state);
 
@@ -46,16 +53,8 @@ impl KeyInputHandler for InsertKeyInput {
                     .action_tx
                     .send(ActionCommand::MoveCursors { view, direction: Direction::Right });
             }
-            KeyCode::Up => {
-                let _ = self
-                    .action_tx
-                    .send(ActionCommand::MoveCursors { view, direction: Direction::Up });
-            }
-            KeyCode::Down => {
-                let _ = self
-                    .action_tx
-                    .send(ActionCommand::MoveCursors { view, direction: Direction::Down });
-            }
+            KeyCode::Up => {}   // TODO: Prompt history previous/next auto complete?
+            KeyCode::Down => {} // TODO: Prompt history next/previous auto complete?
             KeyCode::Backspace => {
                 let _ = self.action_tx.send(ActionCommand::Backspace { view });
             }
@@ -87,18 +86,13 @@ impl KeyInputHandler for InsertKeyInput {
                 }
             }
             KeyCode::Enter => {
-                let _ = self.action_tx.send(ActionCommand::InsertNewline { view });
+                let _ = self.mini_buffer_tx.send(MiniBufferCommand::Submit);
             }
             KeyCode::Tab => {
                 let _ = self.action_tx.send(ActionCommand::InsertTab { view });
             }
             KeyCode::Esc => {
-                let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
-                let _ = self
-                    .action_tx
-                    .send(ActionCommand::SetViewMode { view, mode: ViewStoreTypes::Mode::Normal });
-
-                return true;
+                let _ = self.mini_buffer_tx.send(MiniBufferCommand::Close { id });
             }
             _ => return false,
         }

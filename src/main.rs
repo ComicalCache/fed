@@ -27,16 +27,18 @@ use crate::{
     input::InputRouter,
     modes::{
         insert::{InsertKeyInput, InsertMouseInput},
+        mini_buffer::{MiniBufferKeyInput, MiniBufferMouseInput},
         normal::{NormalKeyInput, NormalMouseInput},
     },
     protocols::{
         action::ActionProtocol,
         io::{IoCommand, IoProtocol},
+        mini_buffer::{MiniBufferProtocol, MiniBufferResizeInput},
         screen::{ScreenProtocol, ScreenResizeInput},
         view::{ViewCommand, ViewProtocol, ViewResizeInput},
     },
     render::Workspace,
-    state::{State, StateLock},
+    state::{State, StateLock, ViewStoreTypes::Layout},
     types::{Pos, Rect, RectSplit},
 };
 
@@ -62,38 +64,73 @@ async fn setup(
     let (view_tx, view_rx) = unbounded_channel();
     let (io_tx, io_rx) = unbounded_channel();
     let (action_tx, action_rx) = unbounded_channel();
+    let (mini_buffer_tx, mini_buffer_rx) = unbounded_channel();
     let (screen_tx, screen_rx) = unbounded_channel();
     let (quit_tx, quit_rx) = unbounded_channel();
 
-    let state_lock = StateLock::new(State {
+    // Initialize application state.
+    let mut state = State {
         workspace: Workspace::new(Rect::new(Pos::default(), width, height)),
         ..Default::default()
-    });
+    };
+    state.mini_buffer_store.doc = state.create_document(None, String::new());
+    state.mini_buffer_store.view = state.create_view(state.mini_buffer_store.doc);
+
+    let mini_buffer_view = state.mini_buffer_store.view;
+    let mini_buffer_vse =
+        state.view_store.get_mut(&mini_buffer_view).expect("Mini buffer view must exist");
+    mini_buffer_vse.layout = Layout { gutter: false, mode_line: 0 };
+    mini_buffer_vse.cursors.list.clear();
+
+    let state_lock = StateLock::new(state);
 
     // Protocols.
-    let io = IoProtocol::new(io_rx);
-    let view = ViewProtocol::new(state_lock.clone(), view_rx, screen_tx.clone());
     let action =
         ActionProtocol::new(state_lock.clone(), action_rx, view_tx.clone(), screen_tx.clone());
+    let io = IoProtocol::new(io_rx);
+    let mini_buffer = MiniBufferProtocol::new(
+        width,
+        height,
+        state_lock.clone(),
+        mini_buffer_rx,
+        action_tx.clone(),
+        view_tx.clone(),
+        screen_tx.clone(),
+    );
     let screen = ScreenProtocol::new(state_lock.clone(), width, height, screen_rx);
+    let view = ViewProtocol::new(state_lock.clone(), view_rx, screen_tx.clone());
 
     // Input handlers.
-    let mut input_router = InputRouter::new(input_rx);
+    let mut input_router = InputRouter::new(state_lock.clone(), input_rx);
     input_router.add_key_handler(Box::new(NormalKeyInput::new(
         state_lock.clone(),
         action_tx.clone(),
+        mini_buffer_tx.clone(),
         quit_tx.clone(),
     )));
     input_router
         .add_key_handler(Box::new(InsertKeyInput::new(state_lock.clone(), action_tx.clone())));
+    input_router.add_key_handler(Box::new(MiniBufferKeyInput::new(
+        state_lock.clone(),
+        action_tx.clone(),
+        mini_buffer_tx.clone(),
+    )));
 
     input_router
         .add_mouse_handler(Box::new(NormalMouseInput::new(state_lock.clone(), action_tx.clone())));
-    input_router.add_mouse_handler(Box::new(InsertMouseInput::new(state_lock.clone(), action_tx)));
+    input_router
+        .add_mouse_handler(Box::new(InsertMouseInput::new(state_lock.clone(), action_tx.clone())));
+    input_router.add_mouse_handler(Box::new(MiniBufferMouseInput::new(
+        state_lock.clone(),
+        action_tx.clone(),
+    )));
 
     input_router.add_resize_handler(Box::new(ViewResizeInput::new(view_tx.clone())));
-    input_router
-        .add_resize_handler(Box::new(ScreenResizeInput::new(state_lock.clone(), screen_tx)));
+    input_router.add_resize_handler(Box::new(MiniBufferResizeInput::new(mini_buffer_tx.clone())));
+    input_router.add_resize_handler(Box::new(ScreenResizeInput::new(
+        state_lock.clone(),
+        screen_tx.clone(),
+    )));
 
     // Initial document creation.
     tokio::spawn(async move {
@@ -113,10 +150,19 @@ async fn setup(
 
         let doc = state_lock.write().create_document(path, data);
 
-        let _ = view_tx.send(ViewCommand::SpawnWindow { doc, split: RectSplit::Vertical });
+        let (tx, rx) = oneshot::channel();
+        let _ = view_tx.send(ViewCommand::CreateTile {
+            doc,
+            view: None,
+            split: RectSplit::Vertical,
+            tx,
+        });
+
+        let Ok((_, window)) = rx.await else { return };
+        state_lock.write().workspace.active_window = Some(window);
     });
 
-    (Fed::new(input_router, io, view, action, screen), quit_rx)
+    (Fed::new(input_router, action, io, mini_buffer, screen, view), quit_rx)
 }
 
 #[tokio::main]

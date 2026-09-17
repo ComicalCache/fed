@@ -4,38 +4,47 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     input::{MouseInputHandler, priorities::MouseInputPriority},
     protocols::action::ActionCommand,
-    state::{StateLock, ViewStoreTypes},
+    state::{MiniBufferStoreTypes, StateLock},
     types::Pos,
 };
 
-pub struct NormalMouseInput {
+pub struct MiniBufferMouseInput {
     state_lock: StateLock,
 
     action_tx: UnboundedSender<ActionCommand>,
 }
 
-impl NormalMouseInput {
+impl MiniBufferMouseInput {
     pub fn new(state_lock: StateLock, action_tx: UnboundedSender<ActionCommand>) -> Self {
         Self { state_lock, action_tx }
     }
 }
 
-impl MouseInputHandler for NormalMouseInput {
-    fn priority(&self) -> MouseInputPriority { MouseInputPriority::NormalMode }
+impl MouseInputHandler for MiniBufferMouseInput {
+    fn priority(&self) -> MouseInputPriority { MouseInputPriority::MiniBufferMode }
 
     fn mouse(&mut self, event: &MouseEvent) -> bool {
         let mut pos = (event.column, event.row).into();
 
         let state = self.state_lock.read();
 
-        let Some(window) = state.workspace.get_window(pos) else { return false };
-        let Some(rect) = state.workspace.get_rect(window) else { return false };
-        let Some(view) = state.active_view() else { return false };
-        let Some((vse, dse)) = state.view_and_doc(view) else { return false };
-
-        if vse.mode != ViewStoreTypes::Mode::Normal {
+        if state.mini_buffer_store.window != state.workspace.get_window(pos) {
             return false;
         }
+
+        // If the mini buffer window is not none, neither must the kind be none.
+        debug_assert!(state.mini_buffer_store.kind != MiniBufferStoreTypes::Kind::None);
+
+        if state.mini_buffer_store.kind == MiniBufferStoreTypes::Kind::Message {
+            // Consume the click but ignore it to avoid tiles under the message to move the
+            // cursor bellow the floating message.
+            return true;
+        }
+
+        let Some(window) = state.mini_buffer_store.window else { return false };
+        let Some(rect) = state.workspace.get_rect(window) else { return false };
+        let view = state.mini_buffer_store.view;
+        let Some((vse, dse)) = state.view_and_doc(view) else { return false };
 
         let lines = dse.doc.data.lines();
         let scroll = vse.scroll;

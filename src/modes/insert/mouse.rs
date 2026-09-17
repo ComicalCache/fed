@@ -11,12 +11,12 @@ use crate::{
 pub struct InsertMouseInput {
     state_lock: StateLock,
 
-    cursor_tx: UnboundedSender<ActionCommand>,
+    action_tx: UnboundedSender<ActionCommand>,
 }
 
 impl InsertMouseInput {
-    pub fn new(state_lock: StateLock, cursor_tx: UnboundedSender<ActionCommand>) -> Self {
-        Self { state_lock, cursor_tx }
+    pub fn new(state_lock: StateLock, action_tx: UnboundedSender<ActionCommand>) -> Self {
+        Self { state_lock, action_tx }
     }
 }
 
@@ -26,21 +26,20 @@ impl MouseInputHandler for InsertMouseInput {
     fn mouse(&mut self, event: &MouseEvent) -> bool {
         let mut pos = (event.column, event.row).into();
 
-        let mut state = self.state_lock.write();
+        let state = self.state_lock.read();
 
         let Some(window) = state.workspace.get_window(pos) else { return false };
-
-        state.workspace.active_window = Some(window);
-
         let Some(rect) = state.workspace.get_rect(window) else { return false };
         let Some(view) = state.active_view() else { return false };
-        let Some(vse) = state.view_store.get(&view) else { return false };
-        let scroll = vse.scroll;
-        let layout = vse.layout;
+        let Some((vse, dse)) = state.view_and_doc(view) else { return false };
 
         if vse.mode != ViewStoreTypes::Mode::Insert {
             return false;
         }
+
+        let lines = dse.doc.data.lines();
+        let scroll = vse.scroll;
+        let layout = vse.layout;
 
         drop(state);
 
@@ -50,17 +49,19 @@ impl MouseInputHandler for InsertMouseInput {
 
         pos = pos.saturating_sub(rect.pos);
 
-        if pos.x < layout.gutter || pos.y >= rect.height.saturating_sub(layout.mode_line) {
+        if pos.x < layout.gutter_width(lines)
+            || pos.y >= rect.height.saturating_sub(layout.mode_line)
+        {
             return false;
         }
 
         // Offset the physical x by the gutter width to get the actual text column.
-        pos = Pos::new(pos.x - layout.gutter, pos.y) + *scroll;
+        pos = Pos::new(pos.x - layout.gutter_width(lines), pos.y) + *scroll;
 
         if event.modifiers.contains(KeyModifiers::ALT) {
-            let _ = self.cursor_tx.send(ActionCommand::CreateCursor { view, pos });
+            let _ = self.action_tx.send(ActionCommand::CreateCursor { view, pos });
         } else {
-            let _ = self.cursor_tx.send(ActionCommand::MoveCursorTo { view, pos });
+            let _ = self.action_tx.send(ActionCommand::MoveCursorTo { view, pos });
         }
 
         true

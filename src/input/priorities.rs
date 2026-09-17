@@ -6,12 +6,18 @@
 pub enum KeyInputPriority {
     NormalMode,
     InsertMode,
+
+    // Needs the highest priority.
+    MiniBufferMode,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum MouseInputPriority {
     NormalMode,
     InsertMode,
+
+    // Needs the highest priority.
+    MiniBufferMode,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -20,6 +26,8 @@ pub enum PasteInputPriority {}
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum ResizeInputPriority {
     ViewProtocol,
+    MiniBufferProtocol,
+
     // Needs the highest priority.
     ScreenProtocol,
 }

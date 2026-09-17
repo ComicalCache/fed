@@ -7,7 +7,11 @@ mod tab_width;
 
 pub mod types {
     pub use crate::state::view::{
-        cursors::Cursors, decorations::Decorations, layout::Layout, mode::Mode, scroll::Scroll,
+        cursors::Cursors,
+        decorations::{Decorations, ViewDecoration},
+        layout::Layout,
+        mode::Mode,
+        scroll::Scroll,
         tab_width::TabWidth,
     };
 }
@@ -16,7 +20,7 @@ use std::collections::HashMap;
 
 use crate::{newtype::newtype, render::ModeLineConfig, state::document::DocumentId};
 
-newtype!(ViewId, u64);
+newtype!(ViewId, usize);
 
 pub type ViewStore = HashMap<ViewId, ViewStoreEntry>;
 
