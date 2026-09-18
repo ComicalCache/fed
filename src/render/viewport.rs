@@ -3,7 +3,6 @@ use crate::{
     types::{Pos, Rect},
 };
 
-/// A bounded proxy for the `Screen`, limited to a rectangle on the screen.
 pub struct Viewport<'a> {
     data: &'a mut Screen,
     rect: Rect,

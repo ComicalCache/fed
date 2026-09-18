@@ -1,3 +1,5 @@
+use piece_table::Slice;
+
 use crate::{
     state::{DocumentStoreEntry, ViewStoreEntry},
     types::Face,
@@ -30,11 +32,36 @@ impl ModeLineWidget {
                 }
             }
             ModeLineWidget::CursorPos { face } => {
-                let cursor = vse.cursors.list.first().map(|c| c.pos).unwrap_or_default();
-                vec![(
-                    format!("[{}:{} {}]", cursor.y + 1, cursor.x + 1, vse.cursors.list.len()),
-                    *face,
-                )]
+                let offset = vse.cursors.list.first().map(|c| c.offset).unwrap_or(0);
+
+                let lines = dse.doc.data.lines();
+                let mut y = lines.saturating_sub(1);
+                for idx in 0..lines {
+                    if offset >= dse.doc.data.get_line_start_byte(idx)
+                        && (offset < dse.doc.data.get_line_end_byte(idx) || idx == lines - 1)
+                    {
+                        y = idx;
+                        break;
+                    }
+                }
+
+                let start = dse.doc.data.get_line_start_byte(y);
+                let end = dse.doc.data.get_line_end_byte(y);
+                let line = dse.doc.data.slice(start..end);
+
+                let mut decs = Vec::new();
+                dse.decs.range(start, end, &mut decs);
+                vse.decs.range(start, end, &mut decs);
+
+                let (layout, _) = crate::render::layout(&line, start, vse.tab_width, &decs);
+                let x = layout
+                    .visual_offset_mapping
+                    .iter()
+                    .find(|vo| vo.offset >= offset)
+                    .map(|vo| vo.visual_x)
+                    .unwrap_or(0);
+
+                vec![(format!("[{}:{} {}]", y + 1, x + 1, vse.cursors.list.len()), *face)]
             }
             ModeLineWidget::Text { text, face } => vec![(text.clone(), *face)],
             ModeLineWidget::Custom(f) => f(vse, dse),

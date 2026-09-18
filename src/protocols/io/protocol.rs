@@ -17,13 +17,13 @@ impl IoProtocol {
     pub async fn run(&mut self) {
         while let Some(cmd) = self.rx.recv().await {
             match cmd {
-                IoCommand::Read { path, tx } => self.read(path, tx).await,
-                IoCommand::Write { path, data, tx } => self.write(path, data, tx).await,
+                IoCommand::Read { path, tx } => self.read(path, tx),
+                IoCommand::Write { path, data, tx } => self.write(path, data, tx),
             }
         }
     }
 
-    async fn read(&mut self, path: PathBuf, tx: oneshot::Sender<Result<String, String>>) {
+    fn read(&mut self, path: PathBuf, tx: oneshot::Sender<Result<String, String>>) {
         tokio::spawn(async move {
             // TODO: chunked reading.
             let res = tokio::fs::read_to_string(&path).await.map_err(|err| err.to_string());
@@ -32,9 +32,7 @@ impl IoProtocol {
         });
     }
 
-    async fn write(
-        &mut self, path: PathBuf, data: String, tx: oneshot::Sender<Result<(), String>>,
-    ) {
+    fn write(&mut self, path: PathBuf, data: String, tx: oneshot::Sender<Result<(), String>>) {
         tokio::spawn(async move {
             let res = tokio::fs::write(&path, data).await.map_err(|err| err.to_string());
 

@@ -26,7 +26,9 @@ impl ScreenProtocol {
         while let Some(cmd) = self.rx.recv().await {
             match cmd {
                 ScreenCommand::Resize(width, height) => self.screen.resize(width, height),
-                ScreenCommand::Render => {}
+                ScreenCommand::Render => {
+                    while matches!(self.rx.try_recv(), Ok(ScreenCommand::Render)) {}
+                }
             }
 
             let state = self.state_lock.read();

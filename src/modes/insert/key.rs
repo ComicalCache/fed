@@ -27,9 +27,10 @@ impl KeyInputHandler for InsertKeyInput {
         let state = self.state_lock.read();
 
         let Some(view) = state.active_view() else { return false };
-        let Some(doc) = state.view_store.get(&view).map(|vse| vse.doc) else { return false };
+        let Some(vse) = state.view_store.get(&view) else { return false };
+        let Some(doc) = state.index.view_to_doc(view) else { return false };
 
-        if state.view_store.get(&view).map(|vse| vse.mode) != Some(ViewStoreTypes::Mode::Insert) {
+        if vse.mode != ViewStoreTypes::Mode::Insert {
             return false;
         }
 
@@ -87,10 +88,10 @@ impl KeyInputHandler for InsertKeyInput {
                 }
             }
             KeyCode::Enter => {
-                let _ = self.action_tx.send(ActionCommand::InsertNewline { view });
+                let _ = self.action_tx.send(ActionCommand::Insert { view, text: "\n".to_string() });
             }
             KeyCode::Tab => {
-                let _ = self.action_tx.send(ActionCommand::InsertTab { view });
+                let _ = self.action_tx.send(ActionCommand::Insert { view, text: "\t".to_string() });
             }
             KeyCode::Esc => {
                 let _ = self.action_tx.send(ActionCommand::EndCommit { doc });

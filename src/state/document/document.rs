@@ -9,7 +9,7 @@ pub enum DocumentEvent {
     Destroyed { id: DocumentId },
     Inserted { id: DocumentId, pos: usize, n: usize, str: String },
     Removed { id: DocumentId, pos: usize, n: usize, str: String },
-    Saved { id: DocumentId, path: PathBuf, bytes_written: usize },
+    Written { id: DocumentId, path: PathBuf, bytes_written: usize },
 }
 
 #[derive(Default)]

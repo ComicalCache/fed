@@ -34,9 +34,10 @@ impl KeyInputHandler for NormalKeyInput {
         let state = self.state_lock.read();
 
         let Some(view) = state.active_view() else { return false };
-        let Some(doc) = state.view_store.get(&view).map(|vse| vse.doc) else { return false };
+        let Some(vse) = state.view_store.get(&view) else { return false };
+        let Some(doc) = state.index.view_to_doc(view) else { return false };
 
-        if state.view_store.get(&view).map(|vse| vse.mode) != Some(ViewStoreTypes::Mode::Normal) {
+        if vse.mode != ViewStoreTypes::Mode::Normal {
             return false;
         }
 

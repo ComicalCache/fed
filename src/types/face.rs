@@ -1,6 +1,5 @@
 use crate::types::Rgb;
 
-/// A set of styling rules.
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub struct Face {
     pub fg: Option<Rgb>,
@@ -17,7 +16,6 @@ pub struct Face {
 }
 
 impl Face {
-    /// Merges the other face onto this one.
     pub fn merge(&mut self, other: Self) {
         if let Some(fg) = other.fg {
             self.fg = Some(fg);

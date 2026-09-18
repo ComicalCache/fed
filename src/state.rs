@@ -1,9 +1,10 @@
 mod document;
+mod index;
 mod mini_buffer;
 mod view;
 
 use std::{
-    collections::HashMap,
+    collections::HashSet,
     path::PathBuf,
     sync::{
         Arc, RwLock, RwLockReadGuard, RwLockWriteGuard,
@@ -18,7 +19,7 @@ pub use view::{ViewId, ViewStore, ViewStoreEntry, types as ViewStoreTypes};
 
 use crate::{
     render::{WindowId, Workspace},
-    state::DocumentStoreTypes::Document,
+    state::{DocumentStoreTypes::Document, index::Index},
 };
 
 #[derive(Clone)]
@@ -36,64 +37,71 @@ impl StateLock {
 
 #[derive(Default)]
 pub struct State {
+    pub index: Index,
     pub workspace: Workspace,
+
     pub document_store: DocumentStore,
     pub view_store: ViewStore,
     pub mini_buffer_store: MiniBufferStore,
-
-    pub window_view_map: HashMap<WindowId, ViewId>,
 }
 
 impl State {
     pub fn create_document(&mut self, path: Option<PathBuf>, data: String) -> DocumentId {
         static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
-        let id = DocumentId(NEXT_ID.fetch_add(1, Ordering::Relaxed));
+        let doc = DocumentId(NEXT_ID.fetch_add(1, Ordering::Relaxed));
 
-        let doc = Document::new(path, PieceTable::from(data));
+        let entry = DocumentStoreEntry {
+            doc: Document::new(path, PieceTable::from(data)),
+            ..Default::default()
+        };
+        self.document_store.insert(doc, entry);
 
-        let entry = DocumentStoreEntry { doc, ..Default::default() };
-        self.document_store.insert(id, entry);
-
-        id
+        doc
     }
 
-    pub fn destroy_document(&mut self, id: DocumentId) {
-        // TODO: remove doc from all views containing this doc.
-        //       Should those views get a scratchpad doc or be destroyed?
+    /// Returns all views which contained the document.
+    pub fn destroy_document(&mut self, doc: DocumentId) -> HashSet<ViewId> {
+        self.document_store.remove(&doc);
 
-        self.document_store.remove(&id);
+        self.index.unlink_doc(doc)
     }
 
     pub fn create_view(&mut self, doc: DocumentId) -> ViewId {
         static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
-        let id = ViewId(NEXT_ID.fetch_add(1, Ordering::Relaxed));
+        let view = ViewId(NEXT_ID.fetch_add(1, Ordering::Relaxed));
 
-        let entry =
-            ViewStoreEntry { doc, tab_width: ViewStoreTypes::TabWidth(4), ..Default::default() };
-        self.view_store.insert(id, entry);
+        let entry = ViewStoreEntry { tab_width: ViewStoreTypes::TabWidth(4), ..Default::default() };
+        self.view_store.insert(view, entry);
 
-        id
+        self.index.link_view_to_doc(view, doc);
+
+        view
     }
 
-    pub fn destroy_view(&mut self, id: ViewId) { self.view_store.remove(&id); }
+    /// Returns all windows which contained the view.
+    pub fn destroy_view(&mut self, view: ViewId) -> HashSet<WindowId> {
+        self.view_store.remove(&view);
+
+        self.index.unlink_view(view)
+    }
 
     pub fn active_view(&self) -> Option<ViewId> {
-        self.workspace.active_window.and_then(|w| self.window_view_map.get(&w)).cloned()
+        self.workspace.active_window.and_then(|w| self.index.window_to_view(w))
     }
 
-    pub fn view_and_doc(&self, view: ViewId) -> Option<(&ViewStoreEntry, &DocumentStoreEntry)> {
-        let view = self.view_store.get(&view)?;
-        let doc = self.document_store.get(&view.doc)?;
+    pub fn vse_and_dse(&self, view: ViewId) -> Option<(&ViewStoreEntry, &DocumentStoreEntry)> {
+        let vse = self.view_store.get(&view)?;
+        let dse = self.document_store.get(&self.index.view_to_doc(view)?)?;
 
-        Some((view, doc))
+        Some((vse, dse))
     }
 
-    pub fn view_and_doc_mut(
+    pub fn vse_and_dse_mut(
         &mut self, view: ViewId,
     ) -> Option<(&mut ViewStoreEntry, &mut DocumentStoreEntry)> {
-        let view = self.view_store.get_mut(&view)?;
-        let doc = self.document_store.get_mut(&view.doc)?;
+        let vse = self.view_store.get_mut(&view)?;
+        let dse = self.document_store.get_mut(&self.index.view_to_doc(view)?)?;
 
-        Some((view, doc))
+        Some((vse, dse))
     }
 }

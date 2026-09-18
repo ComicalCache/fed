@@ -22,5 +22,6 @@ pub type DocumentStore = HashMap<DocumentId, DocumentStoreEntry>;
 pub struct DocumentStoreEntry {
     pub doc: types::Document,
     pub mode: types::Mode,
+
     pub decs: types::Decorations,
 }

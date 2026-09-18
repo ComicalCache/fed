@@ -41,20 +41,20 @@ impl MouseInputHandler for MiniBufferMouseInput {
             return true;
         }
 
+        if event.kind != MouseEventKind::Down(MouseButton::Left) {
+            return false;
+        }
+
         let Some(window) = state.mini_buffer_store.window else { return false };
         let Some(rect) = state.workspace.get_rect(window) else { return false };
         let view = state.mini_buffer_store.view;
-        let Some((vse, dse)) = state.view_and_doc(view) else { return false };
+        let Some((vse, dse)) = state.vse_and_dse(view) else { return false };
 
         let lines = dse.doc.data.lines();
         let scroll = vse.scroll;
         let layout = vse.layout;
 
         drop(state);
-
-        if event.kind != MouseEventKind::Down(MouseButton::Left) {
-            return false;
-        }
 
         pos = pos.saturating_sub(rect.pos);
 
@@ -68,9 +68,9 @@ impl MouseInputHandler for MiniBufferMouseInput {
         pos = Pos::new(pos.x - layout.gutter_width(lines), pos.y) + *scroll;
 
         if event.modifiers.contains(KeyModifiers::ALT) {
-            let _ = self.action_tx.send(ActionCommand::CreateCursor { view, pos });
+            let _ = self.action_tx.send(ActionCommand::CreateCursorAtPos { view, pos });
         } else {
-            let _ = self.action_tx.send(ActionCommand::MoveCursorTo { view, pos });
+            let _ = self.action_tx.send(ActionCommand::MoveCursorToPos { view, pos });
         }
 
         true

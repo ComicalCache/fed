@@ -41,7 +41,6 @@ impl Rect {
         }
     }
 
-    /// Checks if a `Pos` is contained in the rect.
     pub fn contains(&self, pos: Pos) -> bool {
         pos.x >= self.pos.x
             && pos.x < self.pos.x + self.width
@@ -57,8 +56,7 @@ impl Rect {
         )
     }
 
-    /// Calculates the Manhattan distance to the other rectangle.
-    pub fn distance(&self, other: Rect) -> usize {
+    pub fn manhattan_distance(&self, other: Rect) -> usize {
         (self.pos.x + self.width / 2).abs_diff(other.pos.x + other.width / 2)
             + (self.pos.y + self.height / 2).abs_diff(other.pos.y + other.height / 2)
     }

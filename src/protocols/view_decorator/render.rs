@@ -4,21 +4,17 @@ use unicode_width::UnicodeWidthStr;
 use crate::{
     protocols::view::ViewRenderer,
     render::{Cell, Renderer, Viewport, WindowId},
-    state::{State, StateLock, ViewId},
+    state::{State, ViewId},
     types::{Face, Pos, Rect},
 };
 
 pub struct ViewDecoratorRenderer {
     view: ViewId,
     inner: ViewRenderer,
-
-    state_lock: StateLock,
 }
 
 impl ViewDecoratorRenderer {
-    pub fn new(view: ViewId, inner: ViewRenderer, state_lock: StateLock) -> Self {
-        Self { view, inner, state_lock }
-    }
+    pub fn new(view: ViewId, inner: ViewRenderer) -> Self { Self { view, inner } }
 }
 
 impl Renderer for ViewDecoratorRenderer {
@@ -30,7 +26,7 @@ impl Renderer for ViewDecoratorRenderer {
             return;
         }
 
-        let Some((vse, dse)) = state.view_and_doc(self.view) else { return };
+        let Some((vse, dse)) = state.vse_and_dse(self.view) else { return };
         let lines = dse.doc.data.lines();
         let layout = vse.layout;
 
@@ -41,9 +37,9 @@ impl Renderer for ViewDecoratorRenderer {
             viewport.sub_view(Rect::new(Pos::new(0, 0), layout.gutter_width(lines), buffer_height));
         self.render_gutter(state, &mut gutter, layout.gutter_width(lines));
 
-        let mut mode =
+        let mut mode_line =
             viewport.sub_view(Rect::new(Pos::new(0, buffer_height), width, layout.mode_line));
-        self.render_mode_line(state, &mut mode);
+        self.render_mode_line(state, &mut mode_line);
 
         let mut view = viewport.sub_view(Rect::new(
             Pos::new(layout.gutter_width(lines), 0),
@@ -56,7 +52,7 @@ impl Renderer for ViewDecoratorRenderer {
 
 impl ViewDecoratorRenderer {
     fn render_gutter(&self, state: &State, viewport: &mut Viewport, width: usize) {
-        let Some((vse, dse)) = state.view_and_doc(self.view) else { return };
+        let Some((vse, dse)) = state.vse_and_dse(self.view) else { return };
         let lines = dse.doc.data.lines();
         let scroll = vse.scroll;
 
@@ -80,7 +76,7 @@ impl ViewDecoratorRenderer {
     }
 
     fn render_mode_line(&self, state: &State, viewport: &mut Viewport) {
-        let Some((vse, dse)) = state.view_and_doc(self.view) else { return };
+        let Some((vse, dse)) = state.vse_and_dse(self.view) else { return };
 
         // Force left padding.
         let mut left = Vec::new();

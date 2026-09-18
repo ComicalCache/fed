@@ -59,7 +59,6 @@ pub fn layout(
             }
         }
 
-        // Virtual Text.
         for (text, face) in virtual_texts {
             for ch in text.graphemes(true) {
                 let width = ch.width();
@@ -148,7 +147,6 @@ pub fn layout(
             }
         }
 
-        // Virtual Text.
         for (text, &face) in virtual_texts {
             for ch in text.graphemes(true) {
                 let width = ch.width();

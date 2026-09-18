@@ -7,7 +7,6 @@ use crate::{
 
 newtype!(WindowId, u64);
 
-/// A window tile in the tiling window of the workspace of the editor.
 enum Tile {
     Split { direction: RectSplit, ratio: f32, first: Box<Tile>, second: Box<Tile> },
     Window { id: WindowId, content: Box<dyn Renderer> },
@@ -104,8 +103,6 @@ impl Tile {
     }
 }
 
-/// A floating window in the workspace of the editor. It "floats" above the
-/// tiling windows.
 struct Floating {
     rect: Rect,
     z: ZLayer,
@@ -136,19 +133,11 @@ impl Workspace {
 
     /// Collects all tiled window IDs.
     pub fn tiles(&self) -> Vec<WindowId> {
-        let mut ids = Vec::new();
-
-        if let Some(tile) = &self.root {
-            ids.extend(tile.windows());
-        }
-
-        ids
+        self.root.as_ref().and_then(|t| Some(t.windows())).unwrap_or_default()
     }
 
     /// Collects all floating window IDs.
-    pub fn floatings(&self) -> Vec<WindowId> {
-        self.floating.iter().map(|floating| floating.id).collect()
-    }
+    pub fn floatings(&self) -> Vec<WindowId> { self.floating.iter().map(|f| f.id).collect() }
 
     pub fn create_tile(&mut self, direction: RectSplit, content: Box<dyn Renderer>) -> WindowId {
         let id = WindowId(self.next_window_id);
@@ -190,27 +179,27 @@ impl Workspace {
         self.next_window_id += 1;
 
         self.floating.push(Floating { rect, z, id, content });
-        self.floating.sort_by_key(|floating| floating.z);
+        self.floating.sort_by_key(|f| f.z);
 
         id
     }
 
     pub fn resize_floating(&mut self, id: WindowId, width: usize, height: usize) {
-        if let Some(floating) = self.floating.iter_mut().find(|floating| floating.id == id) {
+        if let Some(floating) = self.floating.iter_mut().find(|f| f.id == id) {
             floating.rect.width = width;
             floating.rect.height = height;
         }
     }
 
     pub fn reposition_floating(&mut self, id: WindowId, pos: Pos) {
-        if let Some(idx) = self.floating.iter().position(|floating| floating.id == id) {
+        if let Some(idx) = self.floating.iter().position(|f| f.id == id) {
             self.floating[idx].rect.pos = pos;
         }
     }
 
     pub fn destroy_window(&mut self, id: WindowId) {
         // Search floating windows first.
-        if let Some(idx) = self.floating.iter().position(|floating| floating.id == id) {
+        if let Some(idx) = self.floating.iter().position(|f| f.id == id) {
             self.floating.remove(idx);
 
             if self.active_window == Some(id) {
@@ -330,7 +319,7 @@ impl Workspace {
             };
 
             if valid {
-                let dist = rect.distance(active_rect);
+                let dist = rect.manhattan_distance(active_rect);
                 if dist < min {
                     min = dist;
                     res = Some(id);

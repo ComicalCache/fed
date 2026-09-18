@@ -31,9 +31,13 @@ impl MouseInputHandler for NormalMouseInput {
         let Some(window) = state.workspace.get_window(pos) else { return false };
         let Some(rect) = state.workspace.get_rect(window) else { return false };
         let Some(view) = state.active_view() else { return false };
-        let Some((vse, dse)) = state.view_and_doc(view) else { return false };
+        let Some((vse, dse)) = state.vse_and_dse(view) else { return false };
 
         if vse.mode != ViewStoreTypes::Mode::Normal {
+            return false;
+        }
+
+        if event.kind != MouseEventKind::Down(MouseButton::Left) {
             return false;
         }
 
@@ -42,10 +46,6 @@ impl MouseInputHandler for NormalMouseInput {
         let layout = vse.layout;
 
         drop(state);
-
-        if event.kind != MouseEventKind::Down(MouseButton::Left) {
-            return false;
-        }
 
         pos = pos.saturating_sub(rect.pos);
 
@@ -59,9 +59,9 @@ impl MouseInputHandler for NormalMouseInput {
         pos = Pos::new(pos.x - layout.gutter_width(lines), pos.y) + *scroll;
 
         if event.modifiers.contains(KeyModifiers::ALT) {
-            let _ = self.action_tx.send(ActionCommand::CreateCursor { view, pos });
+            let _ = self.action_tx.send(ActionCommand::CreateCursorAtPos { view, pos });
         } else {
-            let _ = self.action_tx.send(ActionCommand::MoveCursorTo { view, pos });
+            let _ = self.action_tx.send(ActionCommand::MoveCursorToPos { view, pos });
         }
 
         true

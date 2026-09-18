@@ -55,7 +55,7 @@ async fn input_events(tx: UnboundedSender<Event>) -> std::io::Result<()> {
     Ok(())
 }
 
-async fn setup(
+fn setup(
     input_rx: UnboundedReceiver<Event>, width: usize, height: usize,
 ) -> (Fed, UnboundedReceiver<()>) {
     // Channels.
@@ -178,7 +178,7 @@ async fn main() -> std::io::Result<()> {
     let (input_tx, input_rx) = unbounded_channel();
 
     let (width, height) = crossterm::terminal::size()?;
-    let (mut fed, mut quit_rx) = setup(input_rx, width as usize, height as usize).await;
+    let (mut fed, mut quit_rx) = setup(input_rx, width as usize, height as usize);
 
     // Main loop.
     tokio::select! {

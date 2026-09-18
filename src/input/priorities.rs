@@ -7,7 +7,7 @@ pub enum KeyInputPriority {
     NormalMode,
     InsertMode,
 
-    // Needs the highest priority.
+    // Needs the highest priority for intercepting with active mini buffer.
     MiniBufferMode,
 }
 
@@ -16,7 +16,7 @@ pub enum MouseInputPriority {
     NormalMode,
     InsertMode,
 
-    // Needs the highest priority.
+    // Needs the highest priority for intercepting with active mini buffer.
     MiniBufferMode,
 }
 
@@ -28,6 +28,6 @@ pub enum ResizeInputPriority {
     ViewProtocol,
     MiniBufferProtocol,
 
-    // Needs the highest priority.
+    // Needs the highest priority for resizing the screen buffer.
     ScreenProtocol,
 }

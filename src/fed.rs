@@ -6,7 +6,6 @@ use crate::{
     },
 };
 
-/// A struct containing all application state.
 pub struct Fed {
     input_router: InputRouter,
 
@@ -25,7 +24,6 @@ impl Fed {
         Self { input_router, action, io, mini_buffer, screen, view }
     }
 
-    /// Runs applications main event loop.
     pub async fn run(&mut self) {
         tokio::join!(
             self.input_router.run(),

@@ -26,6 +26,7 @@ pub enum MiniBufferCommand {
 
 pub struct MiniBufferProtocol {
     next_id: AtomicUsize,
+
     width: usize,
     height: usize,
 
@@ -62,9 +63,9 @@ impl MiniBufferProtocol {
                 MiniBufferCommand::Prompt { prompt, id_tx, res_tx } => {
                     self.prompt(prompt, id_tx, res_tx).await
                 }
-                MiniBufferCommand::Submit => self.submit().await,
-                MiniBufferCommand::Close { id } => self.close(id).await,
-                MiniBufferCommand::Resize { width, height } => self.resize(width, height).await,
+                MiniBufferCommand::Submit => self.submit(),
+                MiniBufferCommand::Close { id } => self.close(id),
+                MiniBufferCommand::Resize { width, height } => self.resize(width, height),
             }
 
             // Always redraw the screen after any mini buffer command.
@@ -73,11 +74,19 @@ impl MiniBufferProtocol {
     }
 
     async fn message(&mut self, message: String, tx: oneshot::Sender<MiniBufferId>) {
-        let mut state = self.state_lock.write();
+        let state = self.state_lock.read();
 
         if state.mini_buffer_store.kind == MiniBufferStoreTypes::Kind::Prompt {
             return;
         }
+
+        let id = state.mini_buffer_store.id;
+
+        drop(state);
+
+        self.close(id);
+
+        let mut state = self.state_lock.write();
 
         let doc = state.mini_buffer_store.doc;
         let view = state.mini_buffer_store.view;
@@ -99,9 +108,9 @@ impl MiniBufferProtocol {
         });
         let Ok((_, window)) = floating_rx.await else { return };
 
-        let mut state = self.state_lock.write();
-
         let id = MiniBufferId(self.next_id.fetch_add(1, Ordering::Relaxed));
+
+        let mut state = self.state_lock.write();
 
         state.mini_buffer_store.window = Some(window);
         state.mini_buffer_store.id = id;
@@ -115,11 +124,19 @@ impl MiniBufferProtocol {
         &mut self, prompt: String, id_tx: oneshot::Sender<MiniBufferId>,
         res_tx: oneshot::Sender<String>,
     ) {
-        let mut state = self.state_lock.write();
+        let state = self.state_lock.read();
 
         if state.mini_buffer_store.kind == MiniBufferStoreTypes::Kind::Prompt {
             return;
         }
+
+        let id = state.mini_buffer_store.id;
+
+        drop(state);
+
+        self.close(id);
+
+        let mut state = self.state_lock.write();
 
         let doc = state.mini_buffer_store.doc;
         let view = state.mini_buffer_store.view;
@@ -130,7 +147,7 @@ impl MiniBufferProtocol {
 
         drop(state);
 
-        let _ = self.action_tx.send(ActionCommand::CreateCursor { view, pos: Pos::new(0, 0) });
+        let _ = self.action_tx.send(ActionCommand::CreateCursorAtPos { view, pos: Pos::new(0, 0) });
 
         let (floating_tx, floating_rx) = oneshot::channel();
         let _ = self.view_tx.send(ViewCommand::CreateRawFloating {
@@ -142,6 +159,8 @@ impl MiniBufferProtocol {
         });
         let Ok((_, window)) = floating_rx.await else { return };
 
+        let id = MiniBufferId(self.next_id.fetch_add(1, Ordering::Relaxed));
+
         let mut state = self.state_lock.write();
 
         let Some(vse) = state.view_store.get_mut(&view) else { return };
@@ -150,8 +169,6 @@ impl MiniBufferProtocol {
             ViewDecoration::MiniBuffer,
             Box::new(MiniBufferDecorationProvider::new(prompt, Face::default())),
         );
-
-        let id = MiniBufferId(self.next_id.fetch_add(1, Ordering::Relaxed));
 
         state.mini_buffer_store.window = Some(window);
         state.mini_buffer_store.id = id;
@@ -162,8 +179,10 @@ impl MiniBufferProtocol {
         let _ = id_tx.send(id);
     }
 
-    async fn submit(&mut self) {
-        let mut state = self.state_lock.write();
+    fn submit(&mut self) {
+        let mut guard = self.state_lock.write();
+        // Fix the borrow checker.
+        let state = &mut *guard;
 
         if state.mini_buffer_store.kind != MiniBufferStoreTypes::Kind::Prompt {
             return;
@@ -173,19 +192,18 @@ impl MiniBufferProtocol {
         let id = state.mini_buffer_store.id;
 
         let Some(dse) = state.document_store.get(&doc) else { return };
+        let Some(res_tx) = state.mini_buffer_store.res_tx.take() else { return };
 
         let response = dse.doc.data.slice(0..dse.doc.data.len());
 
-        let Some(res_tx) = state.mini_buffer_store.res_tx.take() else { return };
-
-        drop(state);
+        drop(guard);
 
         let _ = res_tx.send(response);
 
-        self.close(id).await;
+        self.close(id);
     }
 
-    async fn close(&mut self, id: MiniBufferId) {
+    fn close(&mut self, id: MiniBufferId) {
         let mut guard = self.state_lock.write();
         // Fix the borrow checker.
         let state = &mut *guard;
@@ -199,9 +217,9 @@ impl MiniBufferProtocol {
 
         let Some(window) = state.mini_buffer_store.window.take() else { return };
 
+        state.index.unlink_window(window);
         state.workspace.destroy_window(window);
         state.workspace.active_window = state.mini_buffer_store.prev_window;
-        state.window_view_map.remove(&window);
 
         state.mini_buffer_store.kind = MiniBufferStoreTypes::Kind::None;
         state.mini_buffer_store.prev_window = None;
@@ -216,17 +234,17 @@ impl MiniBufferProtocol {
         vse.decs.layers.remove(&ViewDecoration::MiniBuffer);
 
         let len = dse.doc.data.len();
-        let cursors: Vec<_> = vse.cursors.list.iter().map(|c| c.pos).collect();
+        let cursors: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();
 
         drop(guard);
 
-        for pos in cursors {
-            let _ = self.action_tx.send(ActionCommand::RemoveCursor { view, pos });
+        for offset in cursors {
+            let _ = self.action_tx.send(ActionCommand::RemoveCursor { view, offset });
         }
         let _ = self.action_tx.send(ActionCommand::Remove { view, offset: 0, len });
     }
 
-    async fn resize(&mut self, width: usize, height: usize) {
+    fn resize(&mut self, width: usize, height: usize) {
         self.width = width;
         self.height = height;
 

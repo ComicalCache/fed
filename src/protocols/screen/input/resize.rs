@@ -21,8 +21,8 @@ impl ScreenResizeInput {
 impl ResizeInputHandler for ScreenResizeInput {
     fn priority(&self) -> ResizeInputPriority { ResizeInputPriority::ScreenProtocol }
 
-    fn resize(&mut self, size: (u16, u16)) {
-        let (width, height) = (size.0 as usize, size.1 as usize);
+    fn resize(&mut self, (width, height): (u16, u16)) {
+        let (width, height) = (width as usize, height as usize);
 
         let mut state = self.state_lock.write();
 

@@ -69,7 +69,6 @@ pub trait ResizeInputHandler: Send + Sync + 'static {
     fn resize(&mut self, _: (u16, u16));
 }
 
-/// A router which routes input `Event`s from the front-end to the protocols.
 pub struct InputRouter {
     key_handlers: Vec<Box<dyn KeyInputHandler>>,
     mouse_handlers: Vec<Box<dyn MouseInputHandler>>,
@@ -109,8 +108,6 @@ impl InputRouter {
         self.resize_handlers.push(handler);
     }
 
-    /// Runs the input routers main event loop, routing input `Event`s to all
-    /// input handlers.
     pub async fn run(&mut self) {
         self.key_handlers.sort_by(|a, b| b.priority().cmp(&a.priority()));
         self.mouse_handlers.sort_by(|a, b| b.priority().cmp(&a.priority()));

@@ -89,7 +89,7 @@ impl KeyInputHandler for MiniBufferKeyInput {
                 let _ = self.mini_buffer_tx.send(MiniBufferCommand::Submit);
             }
             KeyCode::Tab => {
-                let _ = self.action_tx.send(ActionCommand::InsertTab { view });
+                let _ = self.action_tx.send(ActionCommand::Insert { view, text: "\t".to_string() });
             }
             KeyCode::Esc => {
                 let _ = self.mini_buffer_tx.send(MiniBufferCommand::Close { id });

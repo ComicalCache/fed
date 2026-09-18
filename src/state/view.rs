@@ -18,7 +18,7 @@ pub mod types {
 
 use std::collections::HashMap;
 
-use crate::{newtype::newtype, render::ModeLineConfig, state::document::DocumentId};
+use crate::{newtype::newtype, render::ModeLineConfig};
 
 newtype!(ViewId, usize);
 
@@ -26,12 +26,14 @@ pub type ViewStore = HashMap<ViewId, ViewStoreEntry>;
 
 #[derive(Default)]
 pub struct ViewStoreEntry {
-    pub doc: DocumentId,
+    pub mode: types::Mode,
+
+    pub layout: types::Layout,
+    pub mode_line_config: ModeLineConfig,
+
     pub tab_width: types::TabWidth,
     pub scroll: types::Scroll,
     pub cursors: types::Cursors,
-    pub mode: types::Mode,
-    pub mode_line_config: ModeLineConfig,
-    pub layout: types::Layout,
+
     pub decs: types::Decorations,
 }

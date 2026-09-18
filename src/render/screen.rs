@@ -70,7 +70,6 @@ impl Screen {
         self.dirty[idx] = true;
     }
 
-    /// Renders the dirty `Cell`s to the terminal.
     pub fn render(&mut self) {
         let mut stdout = std::io::stdout().lock();
 
@@ -86,11 +85,9 @@ impl Screen {
                 if !self.dirty[idx] {
                     continue;
                 }
-
                 self.dirty[idx] = false;
 
                 let cell = &self.grid[idx];
-
                 if cell.wide_trailing {
                     continue;
                 }

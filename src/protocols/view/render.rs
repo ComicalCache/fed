@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 use crate::{
     protocols::view::store::LocalViewStore,
     render::{self, Cell, Renderer, Viewport, WindowId},
-    state::{DocumentId, State, StateLock, ViewId},
+    state::{DocumentId, State, ViewId},
     types::{Face, Pos},
 };
 
@@ -12,28 +12,24 @@ pub struct ViewRenderer {
     view: ViewId,
 
     store: Arc<RwLock<LocalViewStore>>,
-
-    state_lock: StateLock,
 }
 
 impl ViewRenderer {
-    pub fn new(
-        doc: DocumentId, view: ViewId, store: Arc<RwLock<LocalViewStore>>, state_lock: StateLock,
-    ) -> Self {
-        Self { doc, view, store, state_lock }
+    pub fn new(doc: DocumentId, view: ViewId, store: Arc<RwLock<LocalViewStore>>) -> Self {
+        Self { doc, view, store }
     }
 }
 
 impl Renderer for ViewRenderer {
     fn render(&self, state: &State, viewport: &mut Viewport, _: WindowId) {
-        let viewport_width = viewport.width();
-        let viewport_height = viewport.height();
+        let width = viewport.width();
+        let height = viewport.height();
 
         let store = self.store.read().unwrap();
 
-        let Some(lvd) = store.get(&self.view) else {
-            for y in 0..viewport_height {
-                for x in 0..viewport_width {
+        let Some(lvd) = store.get(&self.view).cloned() else {
+            for y in 0..height {
+                for x in 0..width {
                     viewport.set(Pos::new(x, y), Cell::default());
                 }
             }
@@ -41,26 +37,37 @@ impl Renderer for ViewRenderer {
             return;
         };
 
-        let Some((vse, dse)) = state.view_and_doc(self.view) else { return };
+        drop(store);
+
+        let Some((vse, dse)) = state.vse_and_dse(self.view) else { return };
+
         let cursors = vse.cursors.clone();
         let scroll = vse.scroll;
         let tab_width = vse.tab_width;
 
-        let mut decs = Vec::new();
         let start = lvd.offset;
-        let end = start + lvd.lines.iter().take(viewport_height).map(|l| l.len()).sum::<usize>();
+        let end = start + lvd.lines.iter().take(height).map(|l| l.len()).sum::<usize>();
+
+        let mut decs = Vec::new();
         dse.decs.range(start, end, &mut decs);
         vse.decs.range(start, end, &mut decs);
 
         let mut lines_drawn = 0;
         let mut offset = lvd.offset;
         for (y, line) in lvd.lines.iter().enumerate() {
-            if y >= viewport_height {
+            if y >= height {
                 break;
             }
 
             let (layout, next_offset) = render::layout(line, offset, tab_width, &decs);
             offset = next_offset;
+
+            let mut cursor_xs = Vec::new();
+            for vo in &layout.visual_offset_mapping {
+                if cursors.list.iter().any(|c| c.offset == vo.offset) {
+                    cursor_xs.push(vo.visual_x);
+                }
+            }
 
             let mut x = 0;
             let mut visual_x = 0;
@@ -70,23 +77,19 @@ impl Renderer for ViewRenderer {
                     continue;
                 }
 
-                if x >= viewport_width {
+                if x >= width {
                     break;
                 }
 
                 let mut face = cell.face;
-                if cursors
-                    .list
-                    .iter()
-                    .any(|cursor| cursor.pos.y == y + scroll.y && cursor.pos.x == visual_x)
-                {
+                if cursor_xs.contains(&visual_x) {
                     face.reverse = Some(true);
                 }
 
                 if visual_x == scroll.x && cell.width == 0 {
                     // A wide char's first section is off-screen.
                     viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, face));
-                } else if x + cell.width > viewport_width {
+                } else if x + cell.width > width {
                     // A wide char's trailing section is off-screen.
                     viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, face));
                 } else {
@@ -98,13 +101,9 @@ impl Renderer for ViewRenderer {
             }
 
             // Undrawn tail of line.
-            while x < viewport_width {
+            while x < width {
                 let mut face = Face::default();
-                if cursors
-                    .list
-                    .iter()
-                    .any(|cursor| cursor.pos.y == y + scroll.y && cursor.pos.x == visual_x)
-                {
+                if cursor_xs.contains(&visual_x) {
                     face.reverse = Some(true);
                 }
 
@@ -117,18 +116,9 @@ impl Renderer for ViewRenderer {
         }
 
         // Undrawn trailing lines.
-        for y in lines_drawn..viewport_height {
-            for x in 0..viewport_width {
-                let mut face = Face::default();
-                if cursors
-                    .list
-                    .iter()
-                    .any(|cursor| cursor.pos.y == y + scroll.y && cursor.pos.x == x + scroll.x)
-                {
-                    face.reverse = Some(true);
-                }
-
-                viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, face));
+        for y in lines_drawn..height {
+            for x in 0..width {
+                viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, Face::default()));
             }
         }
     }

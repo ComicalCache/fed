@@ -7,5 +7,5 @@ pub enum Mode {
 }
 
 impl Display for Mode {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result { write!(f, "{:?}", self) }
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result { write!(f, "{self:?}") }
 }

@@ -2,7 +2,6 @@ use std::any::Any;
 
 use crate::types::{Face, Span};
 
-/// Decorations modify the styling and rendering of text.
 #[derive(Clone, PartialEq, Eq)]
 pub enum Decoration {
     /// Modifies the face of the rendered text.
