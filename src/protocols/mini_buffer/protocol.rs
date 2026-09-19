@@ -145,7 +145,7 @@ impl MiniBufferProtocol {
         let Some(vse) = state.view_store.get_mut(&view) else {
             state.workspace.destroy_window(window);
 
-            debug_panic!("mini buffer view must be in view store");
+            debug_panic!();
 
             return;
         };
@@ -180,11 +180,11 @@ impl MiniBufferProtocol {
         let id = state.mini_buffer_store.id;
 
         let Some(dse) = state.doc_store.get(&doc) else {
-            debug_panic!("mini buffer doc must be in doc store");
+            debug_panic!();
             return;
         };
         let Some(res_tx) = state.mini_buffer_store.res_tx.take() else {
-            debug_panic!("mini buffer kind is prompt => res tx must be some");
+            debug_panic!();
             return;
         };
 
@@ -222,11 +222,11 @@ impl MiniBufferProtocol {
         let view = state.mini_buffer_store.view;
         let doc = state.mini_buffer_store.doc;
         let Some(vse) = state.view_store.get_mut(&view) else {
-            debug_panic!("mini buffer view must be in view store");
+            debug_panic!();
             return;
         };
         let Some(dse) = state.doc_store.get(&doc) else {
-            debug_panic!("mini buffer doc must be in doc store");
+            debug_panic!();
             return;
         };
 
@@ -252,7 +252,7 @@ impl MiniBufferProtocol {
         }
 
         let Some(window) = state.mini_buffer_store.window else {
-            debug_panic!("mini buffer kind not none => mini buffer window not none");
+            debug_panic!();
             return;
         };
 

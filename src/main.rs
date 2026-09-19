@@ -78,8 +78,7 @@ fn setup(
     state.mini_buffer_store.view = state.create_view(state.mini_buffer_store.doc);
 
     let mini_buffer_view = state.mini_buffer_store.view;
-    let mini_buffer_vse =
-        state.view_store.get_mut(&mini_buffer_view).expect("Mini buffer view must exist");
+    let mini_buffer_vse = state.view_store.get_mut(&mini_buffer_view).unwrap();
     mini_buffer_vse.layout = Layout { gutter: false, mode_line: 0 };
     mini_buffer_vse.cursors.list.clear();
 

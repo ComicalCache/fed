@@ -90,7 +90,7 @@ impl ActionProtocol {
     fn move_cursors(&self, view: ViewId, direction: Direction) {
         let mut state = self.state_lock.write();
         let Some((vse, dse)) = state.vse_and_dse_mut(view) else {
-            debug_panic!("move_cursors(view, direction) => vse and dse for view");
+            debug_panic!();
             return;
         };
 
@@ -209,15 +209,14 @@ impl ActionProtocol {
         vse.cursors = cursors.clone();
 
         let Some(cursor) = cursors.list.first() else { return };
-        let Some(pos) = self.offset_to_pos(&state, view, cursor.offset) else {
-            unreachable!(
-                "Code at the beginning of the function ensures, that vse and dse exists for view"
-            );
-        };
         let Some(window) = state.workspace.active_window else {
             // If no active window, nothing needs to scroll.
             return;
         };
+
+        let pos = self
+            .offset_to_pos(&state, view, cursor.offset)
+            .expect("Beginning of function checks it");
         drop(state);
 
         let _ = self.view_tx.send(ViewCommand::ScrollIfNeeded { window, view, pos });
@@ -226,9 +225,7 @@ impl ActionProtocol {
     fn move_cursor_to_pos(&self, view: ViewId, pos: Pos) {
         let mut state = self.state_lock.write();
         let Some(offset) = self.pos_to_offset(&state, view, pos) else { return };
-        let Some(vse) = state.view_store.get_mut(&view) else {
-            unreachable!("self.pos_to_offset ensures, that vse exists for view");
-        };
+        let vse = state.view_store.get_mut(&view).expect("self.pos_to_offset checks it");
 
         vse.cursors.list.clear();
         vse.cursors.list.push(Cursor::new(offset, pos.x));
@@ -246,9 +243,7 @@ impl ActionProtocol {
         let mut state = self.state_lock.write();
 
         let Some(offset) = self.pos_to_offset(&state, view, pos) else { return };
-        let Some(vse) = state.view_store.get_mut(&view) else {
-            unreachable!("self.pos_to_offset ensures, that vse exists for view");
-        };
+        let vse = state.view_store.get_mut(&view).expect("self.pos_to_offset checks it");
 
         vse.cursors.list.push(Cursor::new(offset, pos.x));
         vse.cursors.list.sort_by_key(|c| c.offset);
@@ -263,7 +258,7 @@ impl ActionProtocol {
     fn remove_cursor(&mut self, view: ViewId, offset: usize) {
         let mut state = self.state_lock.write();
         let Some(vse) = state.view_store.get_mut(&view) else {
-            debug_panic!("move_cursor(view, offset) => view in view store");
+            debug_panic!();
             return;
         };
 
@@ -277,7 +272,7 @@ impl ActionProtocol {
     fn start_commit(&mut self, doc: DocumentId) {
         let mut state = self.state_lock.write();
         let Some(dse) = state.doc_store.get_mut(&doc) else {
-            debug_panic!("start_commit(doc) => doc in doc store");
+            debug_panic!();
             return;
         };
 
@@ -288,7 +283,7 @@ impl ActionProtocol {
     fn end_commit(&mut self, doc: DocumentId) {
         let mut state = self.state_lock.write();
         let Some(dse) = state.doc_store.get_mut(&doc) else {
-            debug_panic!("end_commit(doc) => doc in doc store");
+            debug_panic!();
             return;
         };
 
@@ -300,7 +295,7 @@ impl ActionProtocol {
         if text == " " || text == "\n" || text == "\t" {
             let mut state = self.state_lock.write();
             let Some((_, dse)) = state.vse_and_dse_mut(view) else {
-                debug_panic!("insert(view, text) => vse and dse for view");
+                debug_panic!();
                 return;
             };
 
@@ -314,7 +309,7 @@ impl ActionProtocol {
         } else {
             let state = self.state_lock.read();
             let Some(vse) = state.view_store.get(&view) else {
-                debug_panic!("insert(view, text) => view in view store");
+                debug_panic!();
                 return;
             };
 
@@ -360,7 +355,7 @@ impl ActionProtocol {
     fn set_doc_mode(&mut self, doc: DocumentId, mode: DocumentMode) {
         let mut state = self.state_lock.write();
         let Some(dse) = state.doc_store.get_mut(&doc) else {
-            debug_panic!("set_doc_mode(doc, mode) => doc in doc store");
+            debug_panic!();
             return;
         };
 
@@ -374,7 +369,7 @@ impl ActionProtocol {
     fn set_view_mode(&mut self, view: ViewId, mode: ViewMode) {
         let mut state = self.state_lock.write();
         let Some(vse) = state.view_store.get_mut(&view) else {
-            debug_panic!("set_view_mode(view, mode) => view in view store");
+            debug_panic!();
             return;
         };
 
@@ -465,7 +460,7 @@ impl ActionProtocol {
         let state = &mut *guard;
 
         let Some((vse, dse)) = state.vse_and_dse_mut(view) else {
-            debug_panic!("execute_transaction(view, edits) => vse and dse for view");
+            debug_panic!();
             return;
         };
 
@@ -519,11 +514,11 @@ impl ActionProtocol {
 
         let mut state = self.state_lock.write();
         let Some(cursor) = cursors.list.first() else { return };
-        let Some(pos) = self.offset_to_pos(&state, view, cursor.offset) else {
-            unreachable!(
-                "Code at the beginning of the function ensures, that vse and dse exists for view"
-            );
-        };
+
+        let pos = self
+            .offset_to_pos(&state, view, cursor.offset)
+            .expect("Beginning of function checks it");
+
         let Some(vse) = state.view_store.get_mut(&view) else { return };
 
         vse.cursors.list[0].pref_x = pos.x;
@@ -539,7 +534,7 @@ impl ActionProtocol {
 
     fn pos_to_offset(&self, state: &State, view: ViewId, pos: Pos) -> Option<usize> {
         let Some((vse, dse)) = state.vse_and_dse(view) else {
-            debug_panic!("pos_to_offset(state, view, pos) => vse and dse for view");
+            debug_panic!();
             return None;
         };
 
@@ -566,7 +561,7 @@ impl ActionProtocol {
 
     fn offset_to_pos(&self, state: &State, view: ViewId, offset: usize) -> Option<Pos> {
         let Some((vse, dse)) = state.vse_and_dse(view) else {
-            debug_panic!("offset_to_pos(state, view, pos) => vse and dse for view");
+            debug_panic!();
             return None;
         };
 

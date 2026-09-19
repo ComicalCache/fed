@@ -39,7 +39,7 @@ impl Renderer for ViewRenderer {
         drop(store);
 
         let Some((vse, dse)) = state.vse_and_dse(self.view) else {
-            debug_panic!("self.view => vse and dse for view");
+            debug_panic!();
             return;
         };
 

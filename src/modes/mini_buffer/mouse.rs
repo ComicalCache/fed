@@ -34,10 +34,7 @@ impl MouseInputHandler for MiniBufferMouseInput {
             return false;
         }
 
-        debug_assert!(
-            state.mini_buffer_store.kind != MiniBufferStoreTypes::Kind::None,
-            "mini buffer window exists => mini buffer kind is not none"
-        );
+        debug_assert!(state.mini_buffer_store.kind != MiniBufferStoreTypes::Kind::None);
 
         if state.mini_buffer_store.kind == MiniBufferStoreTypes::Kind::Message {
             // Consume the click but ignore it to avoid tiles under the message to move the
@@ -50,16 +47,16 @@ impl MouseInputHandler for MiniBufferMouseInput {
         }
 
         let Some(window) = state.mini_buffer_store.window else {
-            debug_panic!("mini buffer kind != none => mini buffer window must be some");
+            debug_panic!();
             return false;
         };
         let Some(rect) = state.workspace.get_rect(window) else {
-            debug_panic!("window must be in workspace");
+            debug_panic!();
             return false;
         };
         let view = state.mini_buffer_store.view;
         let Some((vse, dse)) = state.vse_and_dse(view) else {
-            debug_panic!("vse and dse must exist for mini buffer view");
+            debug_panic!();
             return false;
         };
 

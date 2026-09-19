@@ -31,11 +31,11 @@ impl KeyInputHandler for InsertKeyInput {
             return false;
         };
         let Some(vse) = state.view_store.get(&view) else {
-            debug_panic!("active view must be in view store");
+            debug_panic!();
             return false;
         };
         let Some(doc) = state.index.view_to_doc(view) else {
-            debug_panic!("active view => view to doc");
+            debug_panic!();
             return false;
         };
 

@@ -129,21 +129,15 @@ impl ViewProtocol {
 
     fn init(&mut self, window: WindowId, view: ViewId, doc: DocumentId) {
         let state = self.state_lock.read();
-        debug_assert!(
-            state.index.window_to_view(window) == Some(view),
-            "init(window, view, doc) => window to view"
-        );
-        debug_assert!(
-            state.index.view_to_doc(view) == Some(doc),
-            "init(window, view, doc) => view to doc"
-        );
+        debug_assert!(state.index.window_to_view(window) == Some(view));
+        debug_assert!(state.index.view_to_doc(view) == Some(doc));
 
         let Some(height) = state.workspace.get_rect(window).map(|r| r.height) else {
-            debug_panic!("init(window, view, doc) => window in workspace");
+            debug_panic!();
             return;
         };
         let Some(vse) = state.view_store.get(&view) else {
-            debug_panic!("init(window, view, doc) => view in view_store");
+            debug_panic!();
             return;
         };
 
@@ -160,11 +154,11 @@ impl ViewProtocol {
         let state = self.state_lock.read();
         let Some(windows) = state.index.view_to_windows(view) else { return };
         let Some(vse) = state.view_store.get(&view) else {
-            debug_panic!("update(view) => view in view_store");
+            debug_panic!();
             return;
         };
         let Some(doc) = state.index.view_to_doc(view) else {
-            debug_panic!("update(view) => view to doc");
+            debug_panic!();
             return;
         };
 
@@ -174,7 +168,7 @@ impl ViewProtocol {
             .iter()
             .map(|&w| {
                 let rect = state.workspace.get_rect(w);
-                debug_assert!(rect.is_some(), "windows => window in workspace");
+                debug_assert!(rect.is_some());
                 rect
             })
             .flatten()
@@ -195,11 +189,11 @@ impl ViewProtocol {
 
         let Some(windows) = state.index.view_to_windows(view) else { return };
         let Some(vse) = state.view_store.get_mut(&view) else {
-            debug_panic!("scroll_to(view) => view in view_store");
+            debug_panic!();
             return;
         };
         let Some(doc) = state.index.view_to_doc(view) else {
-            debug_panic!("scroll_to(view) => view to doc");
+            debug_panic!();
             return;
         };
 
@@ -208,7 +202,7 @@ impl ViewProtocol {
             .iter()
             .map(|&w| {
                 let rect = state.workspace.get_rect(w);
-                debug_assert!(rect.is_some(), "windows => window in workspace");
+                debug_assert!(rect.is_some());
                 rect
             })
             .flatten()
@@ -229,20 +223,20 @@ impl ViewProtocol {
         let Some(windows) = state.index.view_to_windows(view) else { return };
 
         if !windows.contains(&window) {
-            debug_panic!("scroll_if_needed(window, view, pos) => window in view's windows");
+            debug_panic!();
             return;
         }
 
         let Some((vse, dse)) = state.vse_and_dse(view) else {
-            debug_panic!("scroll_if_needed(window, view, pos) => vse and dse for view");
+            debug_panic!();
             return;
         };
         let Some(doc) = state.index.view_to_doc(view) else {
-            debug_panic!("scroll_if_needed(window, view, pos) => view to doc");
+            debug_panic!();
             return;
         };
         let Some(rect) = state.workspace.get_rect(window) else {
-            debug_panic!("scroll_if_needed(window, view, pos) => window must be in workspace");
+            debug_panic!();
             return;
         };
 
@@ -253,7 +247,7 @@ impl ViewProtocol {
             .iter()
             .map(|&w| {
                 let rect = state.workspace.get_rect(w);
-                debug_assert!(rect.is_some(), "windows => window in workspace");
+                debug_assert!(rect.is_some());
                 rect
             })
             .flatten()
@@ -289,7 +283,7 @@ impl ViewProtocol {
         if scroll_needed {
             let mut state = self.state_lock.write();
             let Some(vse) = state.view_store.get_mut(&view) else {
-                debug_panic!("scroll_if_needed(window, view, pos) => view in view_store");
+                debug_panic!();
                 return;
             };
 
@@ -322,9 +316,9 @@ impl ViewProtocol {
 
         let Some(window) = window else {
             let windows = state.destroy_view(view);
-            debug_assert!(windows.is_empty(), "Tile creation failed => on windows associated");
+            debug_assert!(windows.is_empty());
 
-            debug_panic!("split_id must be in workspace");
+            debug_panic!();
 
             return;
         };
@@ -386,15 +380,15 @@ impl ViewProtocol {
         let mut entries = Vec::new();
         for (window, view) in mappings {
             let Some(rect) = state.workspace.get_rect(window) else {
-                debug_panic!("'window to view' window => window in workspace");
+                debug_panic!();
                 continue;
             };
             let Some(vse) = state.view_store.get(&view) else {
-                debug_panic!("'window to view' view => view in view store");
+                debug_panic!();
                 continue;
             };
             let Some(doc) = state.index.view_to_doc(view) else {
-                debug_panic!("'window to view' view => view to doc");
+                debug_panic!();
                 continue;
             };
 
@@ -420,11 +414,11 @@ impl ViewProtocol {
         let state = &mut *guard;
 
         let Some(vse) = state.view_store.get_mut(&view) else {
-            debug_panic!("fetch(view, doc, scroll, height) => view in view store");
+            debug_panic!();
             return;
         };
         let Some(dse) = state.doc_store.get_mut(&doc) else {
-            debug_panic!("fetch(view, doc, scroll, height) => doc in doc store");
+            debug_panic!();
             return;
         };
 

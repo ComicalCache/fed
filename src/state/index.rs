@@ -84,10 +84,7 @@ impl Index {
 
         if cfg!(debug_assertions) && view.is_some() {
             let windows = self.view_to_windows.get(&view.unwrap());
-            debug_assert!(
-                windows.and_then(|w| Some(w.contains(&window))) == Some(true),
-                "window to view => view to windows"
-            );
+            debug_assert!(windows.and_then(|w| Some(w.contains(&window))) == Some(true));
         }
 
         view
@@ -98,10 +95,7 @@ impl Index {
 
         if cfg!(debug_assertions) && windows.is_some() {
             for window in windows.unwrap() {
-                debug_assert!(
-                    self.window_to_view.get(window) == Some(&view),
-                    "view to windows => window to view"
-                );
+                debug_assert!(self.window_to_view.get(window) == Some(&view));
             }
         }
 
@@ -113,10 +107,7 @@ impl Index {
 
         if cfg!(debug_assertions) && doc.is_some() {
             let windows = self.doc_to_views.get(&doc.unwrap());
-            debug_assert!(
-                windows.and_then(|w| Some(w.contains(&view))) == Some(true),
-                "view to doc => doc to views"
-            );
+            debug_assert!(windows.and_then(|w| Some(w.contains(&view))) == Some(true));
         }
 
         doc
@@ -127,10 +118,7 @@ impl Index {
 
         if cfg!(debug_assertions) && views.is_some() {
             for view in views.unwrap() {
-                debug_assert!(
-                    self.view_to_doc.get(view) == Some(&doc),
-                    "doc to views => view to doc"
-                );
+                debug_assert!(self.view_to_doc.get(view) == Some(&doc));
             }
         }
 

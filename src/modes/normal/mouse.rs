@@ -33,15 +33,15 @@ impl MouseInputHandler for NormalMouseInput {
             return false;
         };
         let Some(rect) = state.workspace.get_rect(window) else {
-            debug_panic!("window must be in workspace");
+            debug_panic!();
             return false;
         };
         let Some(view) = state.active_view() else {
-            debug_panic!("window at pos => active view must exist");
+            debug_panic!();
             return false;
         };
         let Some((vse, dse)) = state.vse_and_dse(view) else {
-            debug_panic!("vse and dse must exist for active view");
+            debug_panic!();
             return false;
         };
 
