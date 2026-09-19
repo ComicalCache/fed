@@ -2,6 +2,7 @@ use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
+    debug_panic::debug_panic,
     input::{MouseInputHandler, priorities::MouseInputPriority},
     protocols::action::ActionCommand,
     state::{StateLock, ViewStoreTypes},
@@ -27,11 +28,22 @@ impl MouseInputHandler for InsertMouseInput {
         let mut pos = (event.column, event.row).into();
 
         let state = self.state_lock.read();
-
-        let Some(window) = state.workspace.get_window(pos) else { return false };
-        let Some(rect) = state.workspace.get_rect(window) else { return false };
-        let Some(view) = state.active_view() else { return false };
-        let Some((vse, dse)) = state.vse_and_dse(view) else { return false };
+        let Some(window) = state.workspace.get_window(pos) else {
+            // Click outside of any window, just abort.
+            return false;
+        };
+        let Some(rect) = state.workspace.get_rect(window) else {
+            debug_panic!("window must be in workspace");
+            return false;
+        };
+        let Some(view) = state.active_view() else {
+            debug_panic!("window at pos => active view must exist");
+            return false;
+        };
+        let Some((vse, dse)) = state.vse_and_dse(view) else {
+            debug_panic!("vse and dse must exist for active view");
+            return false;
+        };
 
         if vse.mode != ViewStoreTypes::Mode::Insert {
             return false;
@@ -44,7 +56,6 @@ impl MouseInputHandler for InsertMouseInput {
         let lines = dse.doc.data.lines();
         let scroll = vse.scroll;
         let layout = vse.layout;
-
         drop(state);
 
         pos = pos.saturating_sub(rect.pos);
@@ -56,7 +67,7 @@ impl MouseInputHandler for InsertMouseInput {
         }
 
         // Offset the physical x by the gutter width to get the actual text column.
-        pos = Pos::new(pos.x - layout.gutter_width(lines), pos.y) + *scroll;
+        pos = Pos::new(pos.x.saturating_sub(layout.gutter_width(lines)), pos.y) + *scroll;
 
         if event.modifiers.contains(KeyModifiers::ALT) {
             let _ = self.action_tx.send(ActionCommand::CreateCursorAtPos { view, pos });

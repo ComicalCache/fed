@@ -10,6 +10,7 @@ use tokio::sync::{
 };
 
 use crate::{
+    debug_panic::debug_panic,
     protocols::{
         screen::ScreenCommand,
         view::{
@@ -37,6 +38,7 @@ pub enum ViewCommand {
         pos: Pos,
     },
     ScrollIfNeeded {
+        window: WindowId,
         view: ViewId,
         pos: Pos,
     },
@@ -44,13 +46,15 @@ pub enum ViewCommand {
     CreateRawTile {
         doc: DocumentId,
         view: Option<ViewId>,
-        split: RectSplit,
+        split_window: WindowId,
+        direction: RectSplit,
         tx: oneshot::Sender<(ViewId, WindowId)>,
     },
     CreateTile {
         doc: DocumentId,
         view: Option<ViewId>,
-        split: RectSplit,
+        split_window: WindowId,
+        direction: RectSplit,
         tx: oneshot::Sender<(ViewId, WindowId)>,
     },
     CreateFloating {
@@ -97,13 +101,15 @@ impl ViewProtocol {
                 ViewCommand::Init { window, view, doc } => self.init(window, view, doc),
                 ViewCommand::Update { view } => self.update(view),
                 ViewCommand::ScrollTo { view, pos } => self.scroll_to(view, pos),
-                ViewCommand::ScrollIfNeeded { view, pos } => self.scroll_if_needed(view, pos),
-
-                ViewCommand::CreateRawTile { doc, view, split, tx } => {
-                    self.create_tile(doc, view, split, tx, true)
+                ViewCommand::ScrollIfNeeded { window, view, pos } => {
+                    self.scroll_if_needed(window, view, pos)
                 }
-                ViewCommand::CreateTile { doc, view, split, tx } => {
-                    self.create_tile(doc, view, split, tx, false)
+
+                ViewCommand::CreateRawTile { doc, view, split_window, direction, tx } => {
+                    self.create_tile(doc, view, split_window, direction, tx, true)
+                }
+                ViewCommand::CreateTile { doc, view, split_window, direction, tx } => {
+                    self.create_tile(doc, view, split_window, direction, tx, false)
                 }
                 ViewCommand::CreateRawFloating { doc, view, rect, z, tx } => {
                     self.create_floating(doc, view, rect, z, tx, true)
@@ -123,12 +129,25 @@ impl ViewProtocol {
 
     fn init(&mut self, window: WindowId, view: ViewId, doc: DocumentId) {
         let state = self.state_lock.read();
+        debug_assert!(
+            state.index.window_to_view(window) == Some(view),
+            "init(window, view, doc) => window to view"
+        );
+        debug_assert!(
+            state.index.view_to_doc(view) == Some(doc),
+            "init(window, view, doc) => view to doc"
+        );
 
-        let Some(height) = state.workspace.get_rect(window).map(|r| r.height) else { return };
-        let Some(vse) = state.view_store.get(&view) else { return };
+        let Some(height) = state.workspace.get_rect(window).map(|r| r.height) else {
+            debug_panic!("init(window, view, doc) => window in workspace");
+            return;
+        };
+        let Some(vse) = state.view_store.get(&view) else {
+            debug_panic!("init(window, view, doc) => view in view_store");
+            return;
+        };
 
         let layout = vse.layout;
-
         drop(state);
 
         let height = height.saturating_sub(layout.mode_line);
@@ -139,21 +158,29 @@ impl ViewProtocol {
 
     fn update(&mut self, view: ViewId) {
         let state = self.state_lock.read();
-
         let Some(windows) = state.index.view_to_windows(view) else { return };
-        let Some(vse) = state.view_store.get(&view) else { return };
-        let Some(doc) = state.index.view_to_doc(view) else { return };
+        let Some(vse) = state.view_store.get(&view) else {
+            debug_panic!("update(view) => view in view_store");
+            return;
+        };
+        let Some(doc) = state.index.view_to_doc(view) else {
+            debug_panic!("update(view) => view to doc");
+            return;
+        };
 
         let scroll = vse.scroll;
         let layout = vse.layout;
         let height = windows
             .iter()
-            .map(|&w| state.workspace.get_rect(w))
+            .map(|&w| {
+                let rect = state.workspace.get_rect(w);
+                debug_assert!(rect.is_some(), "windows => window in workspace");
+                rect
+            })
             .flatten()
             .map(|r| r.height.saturating_sub(layout.mode_line))
             .max()
             .unwrap_or(0);
-
         drop(state);
 
         if height > 0 {
@@ -167,20 +194,29 @@ impl ViewProtocol {
         let state = &mut *guard;
 
         let Some(windows) = state.index.view_to_windows(view) else { return };
-        let Some(vse) = state.view_store.get_mut(&view) else { return };
-        let Some(doc) = state.index.view_to_doc(view) else { return };
+        let Some(vse) = state.view_store.get_mut(&view) else {
+            debug_panic!("scroll_to(view) => view in view_store");
+            return;
+        };
+        let Some(doc) = state.index.view_to_doc(view) else {
+            debug_panic!("scroll_to(view) => view to doc");
+            return;
+        };
 
         let layout = vse.layout;
         let height = windows
             .iter()
-            .map(|&w| state.workspace.get_rect(w))
+            .map(|&w| {
+                let rect = state.workspace.get_rect(w);
+                debug_assert!(rect.is_some(), "windows => window in workspace");
+                rect
+            })
             .flatten()
             .map(|r| r.height.saturating_sub(layout.mode_line))
             .max()
             .unwrap_or(0);
 
         vse.scroll = ViewStoreTypes::Scroll(pos);
-
         drop(guard);
 
         if height > 0 {
@@ -188,31 +224,42 @@ impl ViewProtocol {
         }
     }
 
-    fn scroll_if_needed(&mut self, view: ViewId, pos: Pos) {
+    fn scroll_if_needed(&mut self, window: WindowId, view: ViewId, pos: Pos) {
         let state = self.state_lock.read();
-
         let Some(windows) = state.index.view_to_windows(view) else { return };
-        let Some(active_window) = state.workspace.active_window else { return };
 
-        if !windows.contains(&active_window) {
+        if !windows.contains(&window) {
+            debug_panic!("scroll_if_needed(window, view, pos) => window in view's windows");
             return;
         }
 
-        let Some(rect) = state.workspace.get_rect(active_window) else { return };
-        let Some((vse, dse)) = state.vse_and_dse(view) else { return };
-        let Some(doc) = state.index.view_to_doc(view) else { return };
+        let Some((vse, dse)) = state.vse_and_dse(view) else {
+            debug_panic!("scroll_if_needed(window, view, pos) => vse and dse for view");
+            return;
+        };
+        let Some(doc) = state.index.view_to_doc(view) else {
+            debug_panic!("scroll_if_needed(window, view, pos) => view to doc");
+            return;
+        };
+        let Some(rect) = state.workspace.get_rect(window) else {
+            debug_panic!("scroll_if_needed(window, view, pos) => window must be in workspace");
+            return;
+        };
 
         let lines = dse.doc.data.lines();
         let mut scroll = vse.scroll;
         let layout = vse.layout;
         let max_height = windows
             .iter()
-            .map(|&w| state.workspace.get_rect(w))
+            .map(|&w| {
+                let rect = state.workspace.get_rect(w);
+                debug_assert!(rect.is_some(), "windows => window in workspace");
+                rect
+            })
             .flatten()
             .map(|r| r.height.saturating_sub(layout.mode_line))
             .max()
             .unwrap_or(0);
-
         drop(state);
 
         let width = rect.width.saturating_sub(layout.gutter_width(lines));
@@ -241,11 +288,12 @@ impl ViewProtocol {
 
         if scroll_needed {
             let mut state = self.state_lock.write();
-
-            let Some(vse) = state.view_store.get_mut(&view) else { return };
+            let Some(vse) = state.view_store.get_mut(&view) else {
+                debug_panic!("scroll_if_needed(window, view, pos) => view in view_store");
+                return;
+            };
 
             vse.scroll = scroll;
-
             drop(state);
 
             self.fetch(view, doc, scroll, max_height);
@@ -253,27 +301,35 @@ impl ViewProtocol {
     }
 
     fn create_tile(
-        &mut self, doc: DocumentId, view: Option<ViewId>, split: RectSplit,
-        tx: oneshot::Sender<(ViewId, WindowId)>, raw: bool,
+        &mut self, doc: DocumentId, view: Option<ViewId>, split_window: WindowId,
+        direction: RectSplit, tx: oneshot::Sender<(ViewId, WindowId)>, raw: bool,
     ) {
         let mut state = self.state_lock.write();
-
         let view = view.unwrap_or_else(|| state.create_view(doc));
 
         let window = if raw {
             let renderer = Box::new(ViewRenderer::new(doc, view, self.local_store.clone()));
 
-            state.workspace.create_tile(split, renderer)
+            state.workspace.create_tile(split_window, direction, renderer)
         } else {
             let renderer = Box::new(ViewDecoratorRenderer::new(
                 view,
                 ViewRenderer::new(doc, view, self.local_store.clone()),
             ));
 
-            state.workspace.create_tile(split, renderer)
+            state.workspace.create_tile(split_window, direction, renderer)
         };
-        state.index.link_window_to_view(window, view);
 
+        let Some(window) = window else {
+            let windows = state.destroy_view(view);
+            debug_assert!(windows.is_empty(), "Tile creation failed => on windows associated");
+
+            debug_panic!("split_id must be in workspace");
+
+            return;
+        };
+
+        state.index.link_window_to_view(window, view);
         drop(state);
 
         self.init(window, view, doc);
@@ -286,7 +342,6 @@ impl ViewProtocol {
         tx: oneshot::Sender<(ViewId, WindowId)>, raw: bool,
     ) {
         let mut state = self.state_lock.write();
-
         let view = view.unwrap_or_else(|| state.create_view(doc));
 
         let window = if raw {
@@ -302,7 +357,6 @@ impl ViewProtocol {
             state.workspace.create_floating(rect, z, renderer)
         };
         state.index.link_window_to_view(window, view);
-
         drop(state);
 
         self.init(window, view, doc);
@@ -331,9 +385,18 @@ impl ViewProtocol {
 
         let mut entries = Vec::new();
         for (window, view) in mappings {
-            let Some(rect) = state.workspace.get_rect(window) else { continue };
-            let Some(vse) = state.view_store.get(&view) else { continue };
-            let Some(doc) = state.index.view_to_doc(view) else { continue };
+            let Some(rect) = state.workspace.get_rect(window) else {
+                debug_panic!("'window to view' window => window in workspace");
+                continue;
+            };
+            let Some(vse) = state.view_store.get(&view) else {
+                debug_panic!("'window to view' view => view in view store");
+                continue;
+            };
+            let Some(doc) = state.index.view_to_doc(view) else {
+                debug_panic!("'window to view' view => view to doc");
+                continue;
+            };
 
             let scroll = vse.scroll;
             let layout = vse.layout;
@@ -356,8 +419,14 @@ impl ViewProtocol {
         // Fix the borrow checker.
         let state = &mut *guard;
 
-        let Some(vse) = state.view_store.get_mut(&view) else { return };
-        let Some(dse) = state.document_store.get_mut(&doc) else { return };
+        let Some(vse) = state.view_store.get_mut(&view) else {
+            debug_panic!("fetch(view, doc, scroll, height) => view in view store");
+            return;
+        };
+        let Some(dse) = state.doc_store.get_mut(&doc) else {
+            debug_panic!("fetch(view, doc, scroll, height) => doc in doc store");
+            return;
+        };
 
         let start = dse.doc.data.get_line_start_byte(scroll.y);
         let end = dse.doc.data.get_line_end_byte(scroll.y + height);

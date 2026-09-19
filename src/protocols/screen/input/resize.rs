@@ -25,9 +25,7 @@ impl ResizeInputHandler for ScreenResizeInput {
         let (width, height) = (width as usize, height as usize);
 
         let mut state = self.state_lock.write();
-
         state.workspace.resize(width, height);
-
         drop(state);
 
         let _ = self.tx.send(ScreenCommand::Resize(width, height));

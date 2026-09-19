@@ -7,6 +7,7 @@ use tokio::sync::{
 };
 
 use crate::{
+    debug_panic::debug_panic,
     protocols::{
         action::ActionCommand, mini_buffer::MiniBufferDecorationProvider, screen::ScreenCommand,
         view::ViewCommand,
@@ -75,26 +76,16 @@ impl MiniBufferProtocol {
 
     async fn message(&mut self, message: String, tx: oneshot::Sender<MiniBufferId>) {
         let state = self.state_lock.read();
-
         if state.mini_buffer_store.kind == MiniBufferStoreTypes::Kind::Prompt {
             return;
         }
 
         let id = state.mini_buffer_store.id;
-
+        let doc = state.mini_buffer_store.doc;
+        let view = state.mini_buffer_store.view;
         drop(state);
 
         self.close(id);
-
-        let mut state = self.state_lock.write();
-
-        let doc = state.mini_buffer_store.doc;
-        let view = state.mini_buffer_store.view;
-
-        state.mini_buffer_store.kind = MiniBufferStoreTypes::Kind::Message;
-        state.mini_buffer_store.prev_window = state.workspace.active_window;
-
-        drop(state);
 
         let _ = self.action_tx.send(ActionCommand::InsertAt { view, text: message, offset: 0 });
 
@@ -111,10 +102,10 @@ impl MiniBufferProtocol {
         let id = MiniBufferId(self.next_id.fetch_add(1, Ordering::Relaxed));
 
         let mut state = self.state_lock.write();
-
-        state.mini_buffer_store.window = Some(window);
         state.mini_buffer_store.id = id;
-
+        state.mini_buffer_store.kind = MiniBufferStoreTypes::Kind::Message;
+        state.mini_buffer_store.window = Some(window);
+        state.mini_buffer_store.prev_window = state.workspace.active_window;
         drop(state);
 
         let _ = tx.send(id);
@@ -125,27 +116,16 @@ impl MiniBufferProtocol {
         res_tx: oneshot::Sender<String>,
     ) {
         let state = self.state_lock.read();
-
         if state.mini_buffer_store.kind == MiniBufferStoreTypes::Kind::Prompt {
             return;
         }
 
         let id = state.mini_buffer_store.id;
-
+        let doc = state.mini_buffer_store.doc;
+        let view = state.mini_buffer_store.view;
         drop(state);
 
         self.close(id);
-
-        let mut state = self.state_lock.write();
-
-        let doc = state.mini_buffer_store.doc;
-        let view = state.mini_buffer_store.view;
-
-        state.mini_buffer_store.kind = MiniBufferStoreTypes::Kind::Prompt;
-        state.mini_buffer_store.prev_window = state.workspace.active_window;
-        state.mini_buffer_store.res_tx = Some(res_tx);
-
-        drop(state);
 
         let _ = self.action_tx.send(ActionCommand::CreateCursorAtPos { view, pos: Pos::new(0, 0) });
 
@@ -162,18 +142,26 @@ impl MiniBufferProtocol {
         let id = MiniBufferId(self.next_id.fetch_add(1, Ordering::Relaxed));
 
         let mut state = self.state_lock.write();
+        let Some(vse) = state.view_store.get_mut(&view) else {
+            state.workspace.destroy_window(window);
 
-        let Some(vse) = state.view_store.get_mut(&view) else { return };
+            debug_panic!("mini buffer view must be in view store");
+
+            return;
+        };
 
         vse.decs.layers.insert(
             ViewDecoration::MiniBuffer,
             Box::new(MiniBufferDecorationProvider::new(prompt, Face::default())),
         );
 
-        state.mini_buffer_store.window = Some(window);
         state.mini_buffer_store.id = id;
-        state.workspace.active_window = Some(window);
+        state.mini_buffer_store.kind = MiniBufferStoreTypes::Kind::Prompt;
+        state.mini_buffer_store.window = Some(window);
+        state.mini_buffer_store.prev_window = state.workspace.active_window;
+        state.mini_buffer_store.res_tx = Some(res_tx);
 
+        state.workspace.active_window = Some(window);
         drop(state);
 
         let _ = id_tx.send(id);
@@ -191,11 +179,16 @@ impl MiniBufferProtocol {
         let doc = state.mini_buffer_store.doc;
         let id = state.mini_buffer_store.id;
 
-        let Some(dse) = state.document_store.get(&doc) else { return };
-        let Some(res_tx) = state.mini_buffer_store.res_tx.take() else { return };
+        let Some(dse) = state.doc_store.get(&doc) else {
+            debug_panic!("mini buffer doc must be in doc store");
+            return;
+        };
+        let Some(res_tx) = state.mini_buffer_store.res_tx.take() else {
+            debug_panic!("mini buffer kind is prompt => res tx must be some");
+            return;
+        };
 
         let response = dse.doc.data.slice(0..dse.doc.data.len());
-
         drop(guard);
 
         let _ = res_tx.send(response);
@@ -215,27 +208,32 @@ impl MiniBufferProtocol {
             return;
         }
 
-        let Some(window) = state.mini_buffer_store.window.take() else { return };
+        if let Some(window) = state.mini_buffer_store.window.take() {
+            state.index.unlink_window(window);
+            state.workspace.destroy_window(window);
+        };
 
-        state.index.unlink_window(window);
-        state.workspace.destroy_window(window);
         state.workspace.active_window = state.mini_buffer_store.prev_window;
 
         state.mini_buffer_store.kind = MiniBufferStoreTypes::Kind::None;
         state.mini_buffer_store.prev_window = None;
         state.mini_buffer_store.res_tx = None;
 
-        let doc = state.mini_buffer_store.doc;
         let view = state.mini_buffer_store.view;
-
-        let Some(vse) = state.view_store.get_mut(&view) else { return };
-        let Some(dse) = state.document_store.get(&doc) else { return };
+        let doc = state.mini_buffer_store.doc;
+        let Some(vse) = state.view_store.get_mut(&view) else {
+            debug_panic!("mini buffer view must be in view store");
+            return;
+        };
+        let Some(dse) = state.doc_store.get(&doc) else {
+            debug_panic!("mini buffer doc must be in doc store");
+            return;
+        };
 
         vse.decs.layers.remove(&ViewDecoration::MiniBuffer);
 
         let len = dse.doc.data.len();
         let cursors: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();
-
         drop(guard);
 
         for offset in cursors {
@@ -249,15 +247,16 @@ impl MiniBufferProtocol {
         self.height = height;
 
         let mut state = self.state_lock.write();
-
         if state.mini_buffer_store.kind == MiniBufferStoreTypes::Kind::None {
             return;
         }
 
-        let Some(window) = state.mini_buffer_store.window else { return };
+        let Some(window) = state.mini_buffer_store.window else {
+            debug_panic!("mini buffer kind not none => mini buffer window not none");
+            return;
+        };
 
         state.workspace.resize_floating(window, width, 1);
-
         drop(state);
     }
 }

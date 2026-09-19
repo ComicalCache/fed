@@ -2,6 +2,7 @@ use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
+    debug_panic::debug_panic,
     input::{MouseInputHandler, priorities::MouseInputPriority},
     protocols::action::ActionCommand,
     state::{MiniBufferStoreTypes, StateLock},
@@ -27,13 +28,16 @@ impl MouseInputHandler for MiniBufferMouseInput {
         let mut pos = (event.column, event.row).into();
 
         let state = self.state_lock.read();
-
-        if state.mini_buffer_store.window != state.workspace.get_window(pos) {
+        if state.mini_buffer_store.window.is_none()
+            || state.mini_buffer_store.window != state.workspace.get_window(pos)
+        {
             return false;
         }
 
-        // If the mini buffer window is not none, neither must the kind be none.
-        debug_assert!(state.mini_buffer_store.kind != MiniBufferStoreTypes::Kind::None);
+        debug_assert!(
+            state.mini_buffer_store.kind != MiniBufferStoreTypes::Kind::None,
+            "mini buffer window exists => mini buffer kind is not none"
+        );
 
         if state.mini_buffer_store.kind == MiniBufferStoreTypes::Kind::Message {
             // Consume the click but ignore it to avoid tiles under the message to move the
@@ -45,15 +49,23 @@ impl MouseInputHandler for MiniBufferMouseInput {
             return false;
         }
 
-        let Some(window) = state.mini_buffer_store.window else { return false };
-        let Some(rect) = state.workspace.get_rect(window) else { return false };
+        let Some(window) = state.mini_buffer_store.window else {
+            debug_panic!("mini buffer kind != none => mini buffer window must be some");
+            return false;
+        };
+        let Some(rect) = state.workspace.get_rect(window) else {
+            debug_panic!("window must be in workspace");
+            return false;
+        };
         let view = state.mini_buffer_store.view;
-        let Some((vse, dse)) = state.vse_and_dse(view) else { return false };
+        let Some((vse, dse)) = state.vse_and_dse(view) else {
+            debug_panic!("vse and dse must exist for mini buffer view");
+            return false;
+        };
 
         let lines = dse.doc.data.lines();
         let scroll = vse.scroll;
         let layout = vse.layout;
-
         drop(state);
 
         pos = pos.saturating_sub(rect.pos);
@@ -65,7 +77,7 @@ impl MouseInputHandler for MiniBufferMouseInput {
         }
 
         // Offset the physical x by the gutter width to get the actual text column.
-        pos = Pos::new(pos.x - layout.gutter_width(lines), pos.y) + *scroll;
+        pos = Pos::new(pos.x.saturating_sub(layout.gutter_width(lines)), pos.y) + *scroll;
 
         if event.modifiers.contains(KeyModifiers::ALT) {
             let _ = self.action_tx.send(ActionCommand::CreateCursorAtPos { view, pos });

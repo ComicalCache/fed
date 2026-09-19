@@ -4,17 +4,15 @@ use crate::types::Face;
 pub struct Cell {
     // Must be a string for multi-codepoint grapheme clusters.
     pub ch: String,
-    pub wide_trailing: bool,
+    pub width: usize,
 
     pub face: Face,
 }
 
 impl Cell {
-    pub fn new(ch: String, wide_trailing: bool, face: Face) -> Self {
-        Self { ch, wide_trailing, face }
-    }
+    pub fn new(ch: String, width: usize, face: Face) -> Self { Self { ch, width, face } }
 }
 
 impl Default for Cell {
-    fn default() -> Self { Self::new(" ".to_string(), false, Face::default()) }
+    fn default() -> Self { Self::new(" ".to_string(), 1, Face::default()) }
 }

@@ -1,24 +1,18 @@
 macro_rules! newtype {
-    ($name:ident, $inner:ty) => {
-        newtype!($name, $inner, Default, Clone, Copy, PartialEq, Eq, Hash);
-    };
+    ($name:ident, $t:ty) => { newtype!($name, $t, Default, Clone, Copy, PartialEq, Eq, Hash); };
 
-    ($name:ident, $inner:ty, $($derive:path),+) => {
+    ($name:ident, $t:ty, $($derive:path),+) => {
         #[derive($($derive),+)]
-        pub struct $name(pub $inner);
+        pub struct $name(pub $t);
 
         impl std::ops::Deref for $name {
-            type Target = $inner;
+            type Target = $t;
 
-            fn deref(&self) -> &Self::Target {
-                &self.0
-            }
+            fn deref(&self) -> &Self::Target { &self.0 }
         }
 
         impl std::ops::DerefMut for $name {
-            fn deref_mut(&mut self) -> &mut Self::Target {
-                &mut self.0
-            }
+            fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
         }
     };
 }

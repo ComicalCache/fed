@@ -25,18 +25,13 @@ impl IoProtocol {
 
     fn read(&mut self, path: PathBuf, tx: oneshot::Sender<Result<String, String>>) {
         tokio::spawn(async move {
-            // TODO: chunked reading.
-            let res = tokio::fs::read_to_string(&path).await.map_err(|err| err.to_string());
-
-            let _ = tx.send(res);
+            let _ = tx.send(tokio::fs::read_to_string(&path).await.map_err(|err| err.to_string()));
         });
     }
 
     fn write(&mut self, path: PathBuf, data: String, tx: oneshot::Sender<Result<(), String>>) {
         tokio::spawn(async move {
-            let res = tokio::fs::write(&path, data).await.map_err(|err| err.to_string());
-
-            let _ = tx.send(res);
+            let _ = tx.send(tokio::fs::write(&path, data).await.map_err(|err| err.to_string()));
         });
     }
 }

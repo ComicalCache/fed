@@ -139,29 +139,30 @@ impl Workspace {
     /// Collects all floating window IDs.
     pub fn floatings(&self) -> Vec<WindowId> { self.floating.iter().map(|f| f.id).collect() }
 
-    pub fn create_tile(&mut self, direction: RectSplit, content: Box<dyn Renderer>) -> WindowId {
+    pub fn create_tile(
+        &mut self, split_id: WindowId, direction: RectSplit, content: Box<dyn Renderer>,
+    ) -> Option<WindowId> {
         let id = WindowId(self.next_window_id);
         self.next_window_id += 1;
 
-        if let Some(root) = &mut self.root
-            && let Some(active_window) = self.active_window
-            && let Some(target) = root.find(active_window)
-        {
-            let tile = std::mem::replace(target, Tile::Dummy);
+        let Some(root) = &mut self.root else {
+            self.root = Some(Tile::Window { id, content });
 
-            *target = Tile::Split {
-                direction,
-                ratio: 0.5,
-                first: Box::new(tile),
-                second: Box::new(Tile::Window { id, content }),
-            };
+            return Some(id);
+        };
 
-            return id;
-        }
+        let Some(target) = root.find(split_id) else { return None };
 
-        self.root = Some(Tile::Window { id, content });
+        let tile = std::mem::replace(target, Tile::Dummy);
 
-        id
+        *target = Tile::Split {
+            direction,
+            ratio: 0.5,
+            first: Box::new(tile),
+            second: Box::new(Tile::Window { id, content }),
+        };
+
+        Some(id)
     }
 
     pub fn resize_tile(&mut self, id: WindowId, delta: f32) {
@@ -258,11 +259,10 @@ impl Workspace {
         }
 
         if let Some(root) = &self.root {
-            // FIXME: memoize this.
             let mut layout = Vec::new();
             root.layout(self.rect, &mut layout);
 
-            return layout.into_iter().find(|(window, _)| *window == id).map(|(_, rect)| rect);
+            return layout.into_iter().find(|(w, _)| *w == id).map(|(_, r)| r);
         }
 
         None
@@ -290,12 +290,8 @@ impl Workspace {
     }
 
     pub fn navigate(&self, direction: Direction) -> Option<WindowId> {
-        let Some(active) = self.active_window else {
-            return None;
-        };
-        let Some(root) = &self.root else {
-            return None;
-        };
+        let Some(active) = self.active_window else { return None };
+        let Some(root) = &self.root else { return None };
 
         let mut layout = Vec::new();
         root.layout(self.rect, &mut layout);

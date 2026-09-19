@@ -1,3 +1,4 @@
+mod debug_panic;
 mod fed;
 mod input;
 mod modes;
@@ -37,7 +38,7 @@ use crate::{
         screen::{ScreenProtocol, ScreenResizeInput},
         view::{ViewCommand, ViewProtocol, ViewResizeInput},
     },
-    render::Workspace,
+    render::{WindowId, Workspace},
     state::{State, StateLock, ViewStoreTypes::Layout},
     types::{Pos, Rect, RectSplit},
 };
@@ -73,7 +74,7 @@ fn setup(
         workspace: Workspace::new(Rect::new(Pos::default(), width, height)),
         ..Default::default()
     };
-    state.mini_buffer_store.doc = state.create_document(None, String::new());
+    state.mini_buffer_store.doc = state.create_doc(None, String::new());
     state.mini_buffer_store.view = state.create_view(state.mini_buffer_store.doc);
 
     let mini_buffer_view = state.mini_buffer_store.view;
@@ -148,17 +149,20 @@ fn setup(
             String::new()
         };
 
-        let doc = state_lock.write().create_document(path, data);
+        let doc = state_lock.write().create_doc(path, data);
 
         let (tx, rx) = oneshot::channel();
         let _ = view_tx.send(ViewCommand::CreateTile {
             doc,
             view: None,
-            split: RectSplit::Vertical,
+            // This is kind of a hack, but since no other windows exist, we can pass anything since
+            // a new root window will be created in any case.
+            split_window: WindowId(0),
+            direction: RectSplit::Vertical,
             tx,
         });
-
         let Ok((_, window)) = rx.await else { return };
+
         state_lock.write().workspace.active_window = Some(window);
     });
 

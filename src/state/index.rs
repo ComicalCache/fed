@@ -80,18 +80,60 @@ impl Index {
     }
 
     pub fn window_to_view(&self, window: WindowId) -> Option<ViewId> {
-        self.window_to_view.get(&window).copied()
+        let view = self.window_to_view.get(&window).cloned();
+
+        if cfg!(debug_assertions) && view.is_some() {
+            let windows = self.view_to_windows.get(&view.unwrap());
+            debug_assert!(
+                windows.and_then(|w| Some(w.contains(&window))) == Some(true),
+                "window to view => view to windows"
+            );
+        }
+
+        view
     }
 
     pub fn view_to_windows(&self, view: ViewId) -> Option<&HashSet<WindowId>> {
-        self.view_to_windows.get(&view)
+        let windows = self.view_to_windows.get(&view);
+
+        if cfg!(debug_assertions) && windows.is_some() {
+            for window in windows.unwrap() {
+                debug_assert!(
+                    self.window_to_view.get(window) == Some(&view),
+                    "view to windows => window to view"
+                );
+            }
+        }
+
+        windows
     }
 
     pub fn view_to_doc(&self, view: ViewId) -> Option<DocumentId> {
-        self.view_to_doc.get(&view).copied()
+        let doc = self.view_to_doc.get(&view).cloned();
+
+        if cfg!(debug_assertions) && doc.is_some() {
+            let windows = self.doc_to_views.get(&doc.unwrap());
+            debug_assert!(
+                windows.and_then(|w| Some(w.contains(&view))) == Some(true),
+                "view to doc => doc to views"
+            );
+        }
+
+        doc
     }
 
     pub fn doc_to_views(&self, doc: DocumentId) -> Option<&HashSet<ViewId>> {
-        self.doc_to_views.get(&doc)
+        let views = self.doc_to_views.get(&doc);
+
+        if cfg!(debug_assertions) && views.is_some() {
+            for view in views.unwrap() {
+                debug_assert!(
+                    self.view_to_doc.get(view) == Some(&doc),
+                    "doc to views => view to doc"
+                );
+            }
+        }
+
+        views
     }
 }

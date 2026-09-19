@@ -1,6 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use crate::{
+    debug_panic::debug_panic,
     protocols::view::store::LocalViewStore,
     render::{self, Cell, Renderer, Viewport, WindowId},
     state::{DocumentId, State, ViewId},
@@ -26,7 +27,6 @@ impl Renderer for ViewRenderer {
         let height = viewport.height();
 
         let store = self.store.read().unwrap();
-
         let Some(lvd) = store.get(&self.view).cloned() else {
             for y in 0..height {
                 for x in 0..width {
@@ -36,10 +36,12 @@ impl Renderer for ViewRenderer {
 
             return;
         };
-
         drop(store);
 
-        let Some((vse, dse)) = state.vse_and_dse(self.view) else { return };
+        let Some((vse, dse)) = state.vse_and_dse(self.view) else {
+            debug_panic!("self.view => vse and dse for view");
+            return;
+        };
 
         let cursors = vse.cursors.clone();
         let scroll = vse.scroll;
@@ -59,11 +61,12 @@ impl Renderer for ViewRenderer {
                 break;
             }
 
-            let (layout, next_offset) = render::layout(line, offset, tab_width, &decs);
+            let (vom, next_offset) = render::layout_vom(line, offset, tab_width, &decs);
+            let cells = render::layout_cells(line, offset, tab_width, &decs);
             offset = next_offset;
 
             let mut cursor_xs = Vec::new();
-            for vo in &layout.visual_offset_mapping {
+            for vo in &vom {
                 if cursors.list.iter().any(|c| c.offset == vo.offset) {
                     cursor_xs.push(vo.visual_x);
                 }
@@ -71,7 +74,7 @@ impl Renderer for ViewRenderer {
 
             let mut x = 0;
             let mut visual_x = 0;
-            for cell in layout.cells {
+            for mut cell in cells {
                 if visual_x < scroll.x {
                     visual_x += 1;
                     continue;
@@ -81,19 +84,18 @@ impl Renderer for ViewRenderer {
                     break;
                 }
 
-                let mut face = cell.face;
                 if cursor_xs.contains(&visual_x) {
-                    face.reverse = Some(true);
+                    cell.face.reverse = Some(true);
                 }
 
                 if visual_x == scroll.x && cell.width == 0 {
                     // A wide char's first section is off-screen.
-                    viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, face));
+                    viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), 1, cell.face));
                 } else if x + cell.width > width {
                     // A wide char's trailing section is off-screen.
-                    viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, face));
+                    viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), 1, cell.face));
                 } else {
-                    viewport.set(Pos::new(x, y), Cell::new(cell.ch, cell.width == 0, face));
+                    viewport.set(Pos::new(x, y), cell);
                 }
 
                 x += 1;
@@ -107,7 +109,7 @@ impl Renderer for ViewRenderer {
                     face.reverse = Some(true);
                 }
 
-                viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, face));
+                viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), 1, face));
                 x += 1;
                 visual_x += 1;
             }
@@ -118,7 +120,7 @@ impl Renderer for ViewRenderer {
         // Undrawn trailing lines.
         for y in lines_drawn..height {
             for x in 0..width {
-                viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), false, Face::default()));
+                viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), 1, Face::default()));
             }
         }
     }

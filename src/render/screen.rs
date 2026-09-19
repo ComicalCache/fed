@@ -3,7 +3,10 @@ use std::io::Write;
 use crossterm::{
     cursor::MoveTo,
     queue,
-    style::{Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor},
+    style::{
+        Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
+        SetUnderlineColor,
+    },
 };
 use unicode_width::UnicodeWidthStr;
 
@@ -41,7 +44,7 @@ impl Screen {
 
         self.grid.resize(width * height, Cell::default());
         self.dirty.resize(width * height, true);
-        // Redraw everything since resize destroyes the 2D -> 1D mapping.
+        // Redraw everything since resize destroys the 2D -> 1D mapping.
         self.dirty.fill(true);
     }
 
@@ -88,7 +91,7 @@ impl Screen {
                 self.dirty[idx] = false;
 
                 let cell = &self.grid[idx];
-                if cell.wide_trailing {
+                if cell.width == 0 {
                     continue;
                 }
 
@@ -117,6 +120,8 @@ impl Screen {
         if (active.bold == Some(true) && target.bold != Some(true))
             || (active.italic == Some(true) && target.italic != Some(true))
             || (active.underline == Some(true) && target.underline != Some(true))
+            || (active.squiggly == Some(true) && target.squiggly != Some(true))
+            || (active.strikethrough == Some(true) && target.strikethrough != Some(true))
             || (active.reverse == Some(true) && target.reverse != Some(true))
         {
             reset = true;
@@ -148,6 +153,16 @@ impl Screen {
             active.bg = target.bg;
         }
 
+        if active.uc != target.uc {
+            if let Some(rgb) = target.uc {
+                queue!(stdout, SetUnderlineColor(rgb.into())).unwrap();
+            } else {
+                queue!(stdout, SetUnderlineColor(Color::Reset)).unwrap();
+            }
+
+            active.uc = target.uc;
+        }
+
         if active.bold != target.bold && target.bold == Some(true) {
             queue!(stdout, SetAttribute(Attribute::Bold)).unwrap();
 
@@ -162,6 +177,16 @@ impl Screen {
             queue!(stdout, SetAttribute(Attribute::Underlined)).unwrap();
 
             active.underline = target.underline;
+        }
+        if active.squiggly != target.squiggly && target.squiggly == Some(true) {
+            queue!(stdout, SetAttribute(Attribute::Undercurled)).unwrap();
+
+            active.squiggly = target.squiggly;
+        }
+        if active.strikethrough != target.strikethrough && target.strikethrough == Some(true) {
+            queue!(stdout, SetAttribute(Attribute::CrossedOut)).unwrap();
+
+            active.strikethrough = target.strikethrough;
         }
 
         if active.reverse != target.reverse && target.reverse == Some(true) {

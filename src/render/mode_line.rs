@@ -1,6 +1,7 @@
 use piece_table::Slice;
 
 use crate::{
+    render,
     state::{DocumentStoreEntry, ViewStoreEntry},
     types::Face,
 };
@@ -53,13 +54,9 @@ impl ModeLineWidget {
                 dse.decs.range(start, end, &mut decs);
                 vse.decs.range(start, end, &mut decs);
 
-                let (layout, _) = crate::render::layout(&line, start, vse.tab_width, &decs);
-                let x = layout
-                    .visual_offset_mapping
-                    .iter()
-                    .find(|vo| vo.offset >= offset)
-                    .map(|vo| vo.visual_x)
-                    .unwrap_or(0);
+                let (vom, _) = render::layout_vom(&line, start, vse.tab_width, &decs);
+                let x =
+                    vom.iter().find(|vo| vo.offset >= offset).map(|vo| vo.visual_x).unwrap_or(0);
 
                 vec![(format!("[{}:{} {}]", y + 1, x + 1, vse.cursors.list.len()), *face)]
             }

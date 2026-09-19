@@ -125,11 +125,9 @@ impl InputRouter {
                 }
                 Event::Mouse(mouse) => {
                     let mut state = self.state_lock.write();
-
                     if let Some(w) = state.workspace.get_window((mouse.column, mouse.row).into()) {
                         state.workspace.active_window = Some(w);
                     }
-
                     drop(state);
 
                     for handler in &mut self.mouse_handlers {

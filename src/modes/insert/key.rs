@@ -2,6 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
+    debug_panic::debug_panic,
     input::{KeyInputHandler, priorities::KeyInputPriority},
     protocols::action::ActionCommand,
     state::{StateLock, ViewStoreTypes},
@@ -25,15 +26,22 @@ impl KeyInputHandler for InsertKeyInput {
 
     fn key(&mut self, event: &KeyEvent) -> bool {
         let state = self.state_lock.read();
-
-        let Some(view) = state.active_view() else { return false };
-        let Some(vse) = state.view_store.get(&view) else { return false };
-        let Some(doc) = state.index.view_to_doc(view) else { return false };
+        let Some(view) = state.active_view() else {
+            // Click active view, just abort.
+            return false;
+        };
+        let Some(vse) = state.view_store.get(&view) else {
+            debug_panic!("active view must be in view store");
+            return false;
+        };
+        let Some(doc) = state.index.view_to_doc(view) else {
+            debug_panic!("active view => view to doc");
+            return false;
+        };
 
         if vse.mode != ViewStoreTypes::Mode::Insert {
             return false;
         }
-
         drop(state);
 
         match event.code {

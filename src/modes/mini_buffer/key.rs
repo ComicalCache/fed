@@ -29,7 +29,6 @@ impl KeyInputHandler for MiniBufferKeyInput {
 
     fn key(&mut self, event: &KeyEvent) -> bool {
         let state = self.state_lock.read();
-
         if state.workspace.active_window != state.mini_buffer_store.window {
             return false;
         }
@@ -39,7 +38,6 @@ impl KeyInputHandler for MiniBufferKeyInput {
 
         let id = state.mini_buffer_store.id;
         let view = state.mini_buffer_store.view;
-
         drop(state);
 
         match event.code {

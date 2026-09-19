@@ -40,13 +40,13 @@ pub struct State {
     pub index: Index,
     pub workspace: Workspace,
 
-    pub document_store: DocumentStore,
+    pub doc_store: DocumentStore,
     pub view_store: ViewStore,
     pub mini_buffer_store: MiniBufferStore,
 }
 
 impl State {
-    pub fn create_document(&mut self, path: Option<PathBuf>, data: String) -> DocumentId {
+    pub fn create_doc(&mut self, path: Option<PathBuf>, data: String) -> DocumentId {
         static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
         let doc = DocumentId(NEXT_ID.fetch_add(1, Ordering::Relaxed));
 
@@ -54,14 +54,14 @@ impl State {
             doc: Document::new(path, PieceTable::from(data)),
             ..Default::default()
         };
-        self.document_store.insert(doc, entry);
+        self.doc_store.insert(doc, entry);
 
         doc
     }
 
     /// Returns all views which contained the document.
-    pub fn destroy_document(&mut self, doc: DocumentId) -> HashSet<ViewId> {
-        self.document_store.remove(&doc);
+    pub fn destroy_doc(&mut self, doc: DocumentId) -> HashSet<ViewId> {
+        self.doc_store.remove(&doc);
 
         self.index.unlink_doc(doc)
     }
@@ -91,7 +91,7 @@ impl State {
 
     pub fn vse_and_dse(&self, view: ViewId) -> Option<(&ViewStoreEntry, &DocumentStoreEntry)> {
         let vse = self.view_store.get(&view)?;
-        let dse = self.document_store.get(&self.index.view_to_doc(view)?)?;
+        let dse = self.doc_store.get(&self.index.view_to_doc(view)?)?;
 
         Some((vse, dse))
     }
@@ -100,7 +100,7 @@ impl State {
         &mut self, view: ViewId,
     ) -> Option<(&mut ViewStoreEntry, &mut DocumentStoreEntry)> {
         let vse = self.view_store.get_mut(&view)?;
-        let dse = self.document_store.get_mut(&self.index.view_to_doc(view)?)?;
+        let dse = self.doc_store.get_mut(&self.index.view_to_doc(view)?)?;
 
         Some((vse, dse))
     }

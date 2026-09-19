@@ -2,6 +2,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::{
+    debug_panic::debug_panic,
     protocols::view::ViewRenderer,
     render::{Cell, Renderer, Viewport, WindowId},
     state::{State, ViewId},
@@ -26,7 +27,11 @@ impl Renderer for ViewDecoratorRenderer {
             return;
         }
 
-        let Some((vse, dse)) = state.vse_and_dse(self.view) else { return };
+        let Some((vse, dse)) = state.vse_and_dse(self.view) else {
+            debug_panic!("self.view => vse and dse for view");
+            return;
+        };
+
         let lines = dse.doc.data.lines();
         let layout = vse.layout;
 
@@ -52,7 +57,9 @@ impl Renderer for ViewDecoratorRenderer {
 
 impl ViewDecoratorRenderer {
     fn render_gutter(&self, state: &State, viewport: &mut Viewport, width: usize) {
-        let Some((vse, dse)) = state.vse_and_dse(self.view) else { return };
+        // The render function checks for existance.
+        let (vse, dse) = state.vse_and_dse(self.view).unwrap();
+
         let lines = dse.doc.data.lines();
         let scroll = vse.scroll;
 
@@ -70,13 +77,14 @@ impl ViewDecoratorRenderer {
                     break;
                 }
 
-                viewport.set(Pos::new(x, y), Cell::new(ch.to_string(), false, face));
+                viewport.set(Pos::new(x, y), Cell::new(ch.to_string(), 1, face));
             }
         }
     }
 
     fn render_mode_line(&self, state: &State, viewport: &mut Viewport) {
-        let Some((vse, dse)) = state.vse_and_dse(self.view) else { return };
+        // The render function checks for existance.
+        let (vse, dse) = state.vse_and_dse(self.view).unwrap();
 
         // Force left padding.
         let mut left = Vec::new();
@@ -112,11 +120,11 @@ impl ViewDecoratorRenderer {
                     break;
                 }
 
-                viewport.set(Pos::new(x, 0), Cell::new(grapheme.to_string(), width == 0, face));
+                viewport.set(Pos::new(x, 0), Cell::new(grapheme.to_string(), width, face));
 
                 for _ in 1..width {
                     if x + 1 < viewport.width() {
-                        viewport.set(Pos::new(x + 1, 0), Cell::new(String::new(), true, face));
+                        viewport.set(Pos::new(x + 1, 0), Cell::new(String::new(), 0, face));
                     }
 
                     x += 1;
@@ -136,7 +144,7 @@ impl ViewDecoratorRenderer {
         let right_start = viewport.width().saturating_sub(right_width);
 
         while x < right_start {
-            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), false, base_face));
+            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), 1, base_face));
             x += 1;
         }
 
@@ -150,11 +158,11 @@ impl ViewDecoratorRenderer {
                     break;
                 }
 
-                viewport.set(Pos::new(x, 0), Cell::new(grapheme.to_string(), width == 0, face));
+                viewport.set(Pos::new(x, 0), Cell::new(grapheme.to_string(), width, face));
 
                 for _ in 1..width {
                     if x + 1 < viewport.width() {
-                        viewport.set(Pos::new(x + 1, 0), Cell::new(String::new(), true, face));
+                        viewport.set(Pos::new(x + 1, 0), Cell::new(String::new(), 0, face));
                     }
 
                     x += 1;
@@ -167,7 +175,7 @@ impl ViewDecoratorRenderer {
         }
 
         while x < viewport.width() {
-            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), false, base_face));
+            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), 1, base_face));
             x += 1;
         }
     }
