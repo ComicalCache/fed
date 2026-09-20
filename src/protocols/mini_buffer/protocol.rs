@@ -74,7 +74,7 @@ impl MiniBufferProtocol {
         }
     }
 
-    async fn message(&mut self, message: String, tx: oneshot::Sender<MiniBufferId>) {
+    async fn message(&self, message: String, tx: oneshot::Sender<MiniBufferId>) {
         let state = self.state_lock.read();
         if state.mini_buffer_store.kind == MiniBufferStoreTypes::Kind::Prompt {
             return;
@@ -87,8 +87,6 @@ impl MiniBufferProtocol {
 
         self.close(id);
 
-        let _ = self.action_tx.send(ActionCommand::InsertAt { view, text: message, offset: 0 });
-
         let (floating_tx, floating_rx) = oneshot::channel();
         let _ = self.view_tx.send(ViewCommand::CreateRawFloating {
             doc,
@@ -98,6 +96,9 @@ impl MiniBufferProtocol {
             tx: floating_tx,
         });
         let Ok((_, window)) = floating_rx.await else { return };
+
+        let _ = self.action_tx.send(ActionCommand::InsertAt { view, text: message, offset: 0 });
+        let _ = self.action_tx.send(ActionCommand::Saved { doc });
 
         let id = MiniBufferId(self.next_id.fetch_add(1, Ordering::Relaxed));
 
@@ -112,7 +113,7 @@ impl MiniBufferProtocol {
     }
 
     async fn prompt(
-        &mut self, prompt: String, id_tx: oneshot::Sender<MiniBufferId>,
+        &self, prompt: String, id_tx: oneshot::Sender<MiniBufferId>,
         res_tx: oneshot::Sender<String>,
     ) {
         let state = self.state_lock.read();
@@ -167,7 +168,7 @@ impl MiniBufferProtocol {
         let _ = id_tx.send(id);
     }
 
-    fn submit(&mut self) {
+    fn submit(&self) {
         let mut guard = self.state_lock.write();
         // Fix the borrow checker.
         let state = &mut *guard;
@@ -196,7 +197,7 @@ impl MiniBufferProtocol {
         self.close(id);
     }
 
-    fn close(&mut self, id: MiniBufferId) {
+    fn close(&self, id: MiniBufferId) {
         let mut guard = self.state_lock.write();
         // Fix the borrow checker.
         let state = &mut *guard;
@@ -225,7 +226,7 @@ impl MiniBufferProtocol {
             debug_panic!();
             return;
         };
-        let Some(dse) = state.doc_store.get(&doc) else {
+        let Some(dse) = state.doc_store.get_mut(&doc) else {
             debug_panic!();
             return;
         };
@@ -240,6 +241,7 @@ impl MiniBufferProtocol {
             let _ = self.action_tx.send(ActionCommand::RemoveCursor { view, offset });
         }
         let _ = self.action_tx.send(ActionCommand::Remove { view, offset: 0, len });
+        let _ = self.action_tx.send(ActionCommand::Saved { doc });
     }
 
     fn resize(&mut self, width: usize, height: usize) {

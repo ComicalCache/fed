@@ -32,9 +32,10 @@ use crate::{
         normal::{NormalKeyInput, NormalMouseInput},
     },
     protocols::{
-        action::ActionProtocol,
+        action::{ActionCommand, ActionProtocol},
         io::{IoCommand, IoProtocol},
         mini_buffer::{MiniBufferProtocol, MiniBufferResizeInput},
+        quit::QuitProtocol,
         screen::{ScreenProtocol, ScreenResizeInput},
         view::{ViewCommand, ViewProtocol, ViewResizeInput},
     },
@@ -68,6 +69,7 @@ fn setup(
     let (mini_buffer_tx, mini_buffer_rx) = unbounded_channel();
     let (screen_tx, screen_rx) = unbounded_channel();
     let (quit_tx, quit_rx) = unbounded_channel();
+    let (shutdown_tx, shutdown_rx) = unbounded_channel();
 
     // Initialize application state.
     let mut state =
@@ -95,8 +97,27 @@ fn setup(
         view_tx.clone(),
         screen_tx.clone(),
     );
+    let mut quit = QuitProtocol::new(quit_rx, mini_buffer_tx.clone(), shutdown_tx.clone());
     let screen = ScreenProtocol::new(state_lock.clone(), width, height, screen_rx);
     let view = ViewProtocol::new(state_lock.clone(), view_rx, screen_tx.clone());
+
+    // Quit callbacks.
+    let action_tx_clone = action_tx.clone();
+    quit.add_callback(Box::new(move || {
+        let (tx, rx) = oneshot::channel();
+        let _ = action_tx_clone.send(ActionCommand::CanQuit { tx });
+
+        rx
+    }));
+
+    // Register IO Protocol to block quit if writing
+    let io_tx_clone = io_tx.clone();
+    quit.add_callback(Box::new(move || {
+        let (tx, rx) = oneshot::channel();
+        let _ = io_tx_clone.send(IoCommand::CanQuit { tx });
+
+        rx
+    }));
 
     // Input handlers.
     let mut input_router = InputRouter::new(state_lock.clone(), input_rx);
@@ -163,7 +184,7 @@ fn setup(
         state_lock.write().workspace.active_window = Some(window);
     });
 
-    (Fed::new(input_router, action, io, mini_buffer, screen, view), quit_rx)
+    (Fed::new(input_router, action, io, mini_buffer, quit, screen, view), shutdown_rx)
 }
 
 #[tokio::main]
@@ -179,13 +200,13 @@ async fn main() -> std::io::Result<()> {
     let (input_tx, input_rx) = unbounded_channel();
 
     let (width, height) = crossterm::terminal::size()?;
-    let (mut fed, mut quit_rx) = setup(input_rx, width as usize, height as usize);
+    let (mut fed, mut shutdown_rx) = setup(input_rx, width as usize, height as usize);
 
     // Main loop.
     tokio::select! {
         _ = input_events(input_tx) => {}
         _ = fed.run() => {}
-        _ = quit_rx.recv() => {} // TODO: proper quit protocol.
+        _ = shutdown_rx.recv() => {}
     }
 
     execute!(stdout, Show)?;

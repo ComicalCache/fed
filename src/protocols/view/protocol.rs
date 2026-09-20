@@ -127,7 +127,7 @@ impl ViewProtocol {
         }
     }
 
-    fn init(&mut self, window: WindowId, view: ViewId, doc: DocumentId) {
+    fn init(&self, window: WindowId, view: ViewId, doc: DocumentId) {
         let state = self.state_lock.read();
         debug_assert!(state.index.window_to_view(window) == Some(view));
         debug_assert!(state.index.view_to_doc(view) == Some(doc));
@@ -150,7 +150,7 @@ impl ViewProtocol {
         }
     }
 
-    fn update(&mut self, view: ViewId) {
+    fn update(&self, view: ViewId) {
         let state = self.state_lock.read();
         let Some(windows) = state.index.view_to_windows(view) else { return };
         let Some(vse) = state.view_store.get(&view) else {
@@ -182,7 +182,7 @@ impl ViewProtocol {
         }
     }
 
-    fn scroll_to(&mut self, view: ViewId, pos: Pos) {
+    fn scroll_to(&self, view: ViewId, pos: Pos) {
         let mut guard = self.state_lock.write();
         // Fix the borrow checker.
         let state = &mut *guard;
@@ -218,7 +218,7 @@ impl ViewProtocol {
         }
     }
 
-    fn scroll_if_needed(&mut self, window: WindowId, view: ViewId, pos: Pos) {
+    fn scroll_if_needed(&self, window: WindowId, view: ViewId, pos: Pos) {
         let state = self.state_lock.read();
         let Some(windows) = state.index.view_to_windows(view) else { return };
 
@@ -297,8 +297,8 @@ impl ViewProtocol {
     }
 
     fn create_tile(
-        &mut self, doc: DocumentId, view: Option<ViewId>, split_window: WindowId,
-        direction: RectSplit, tx: oneshot::Sender<(ViewId, WindowId)>, raw: bool,
+        &self, doc: DocumentId, view: Option<ViewId>, split_window: WindowId, direction: RectSplit,
+        tx: oneshot::Sender<(ViewId, WindowId)>, raw: bool,
     ) {
         let mut state = self.state_lock.write();
         let view = view.unwrap_or_else(|| state.create_view(doc));
@@ -334,7 +334,7 @@ impl ViewProtocol {
     }
 
     fn create_floating(
-        &mut self, doc: DocumentId, view: Option<ViewId>, rect: Rect, z: ZLayer,
+        &self, doc: DocumentId, view: Option<ViewId>, rect: Rect, z: ZLayer,
         tx: oneshot::Sender<(ViewId, WindowId)>, raw: bool,
     ) {
         let mut state = self.state_lock.write();
@@ -360,7 +360,7 @@ impl ViewProtocol {
         let _ = tx.send((view, window));
     }
 
-    fn destroy_view(&mut self, view: ViewId) {
+    fn destroy_view(&self, view: ViewId) {
         let mut state = self.state_lock.write();
         let mut local_store = self.local_store.write().unwrap();
 
@@ -374,7 +374,7 @@ impl ViewProtocol {
         drop(state);
     }
 
-    fn resize(&mut self) {
+    fn resize(&self) {
         let state = self.state_lock.read();
 
         let mappings: Vec<_> = state.index.window_to_view.iter().map(|(&w, &v)| (w, v)).collect();

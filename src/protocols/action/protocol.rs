@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
 use piece_table::{PieceTable, Slice};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use tokio::sync::{
+    mpsc::{UnboundedReceiver, UnboundedSender},
+    oneshot,
+};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
@@ -31,6 +34,7 @@ pub enum ActionCommand {
 
     StartCommit { doc: DocumentId },
     EndCommit { doc: DocumentId },
+    Saved { doc: DocumentId },
 
     Insert { view: ViewId, text: String },
     InsertAt { view: ViewId, text: String, offset: usize },
@@ -40,6 +44,8 @@ pub enum ActionCommand {
 
     SetDocumentMode { doc: DocumentId, mode: DocumentMode },
     SetViewMode { view: ViewId, mode: ViewMode },
+
+    CanQuit { tx: oneshot::Sender<Result<(), String>> },
 }
 
 pub struct ActionProtocol {
@@ -72,6 +78,7 @@ impl ActionProtocol {
 
                 ActionCommand::StartCommit { doc } => self.start_commit(doc),
                 ActionCommand::EndCommit { doc } => self.end_commit(doc),
+                ActionCommand::Saved { doc } => self.saved(doc),
 
                 ActionCommand::Insert { view, text } => self.insert(view, text),
                 ActionCommand::InsertAt { view, text, offset } => {
@@ -83,6 +90,8 @@ impl ActionProtocol {
 
                 ActionCommand::SetDocumentMode { doc, mode } => self.set_doc_mode(doc, mode),
                 ActionCommand::SetViewMode { view, mode } => self.set_view_mode(view, mode),
+
+                ActionCommand::CanQuit { tx } => self.can_quit(tx),
             }
         }
     }
@@ -260,7 +269,7 @@ impl ActionProtocol {
         let _ = self.screen_tx.send(ScreenCommand::Render);
     }
 
-    fn remove_cursor(&mut self, view: ViewId, offset: usize) {
+    fn remove_cursor(&self, view: ViewId, offset: usize) {
         let mut state = self.state_lock.write();
         let Some(vse) = state.view_store.get_mut(&view) else {
             debug_panic!();
@@ -274,7 +283,7 @@ impl ActionProtocol {
         let _ = self.screen_tx.send(ScreenCommand::Render);
     }
 
-    fn start_commit(&mut self, doc: DocumentId) {
+    fn start_commit(&self, doc: DocumentId) {
         let mut state = self.state_lock.write();
         let Some(dse) = state.doc_store.get_mut(&doc) else {
             debug_panic!();
@@ -285,7 +294,7 @@ impl ActionProtocol {
         drop(state);
     }
 
-    fn end_commit(&mut self, doc: DocumentId) {
+    fn end_commit(&self, doc: DocumentId) {
         let mut state = self.state_lock.write();
         let Some(dse) = state.doc_store.get_mut(&doc) else {
             debug_panic!();
@@ -294,6 +303,38 @@ impl ActionProtocol {
 
         dse.doc.data.end_commit();
         drop(state);
+    }
+
+    fn saved(&self, doc: DocumentId) {
+        let mut guard = self.state_lock.write();
+        // Fix the borrow checker.
+        let state = &mut *guard;
+
+        let Some(dse) = state.doc_store.get_mut(&doc) else {
+            debug_panic!();
+            return;
+        };
+
+        if !dse.doc.modified {
+            return;
+        }
+
+        dse.doc.modified = false;
+
+        let tx = state.doc_event_tx.clone();
+        let path = dse.doc.path.clone();
+        let bytes_written = dse.doc.data.len();
+        drop(guard);
+
+        if let Some(path) = path {
+            let _ = tx.send(DocumentStoreTypes::DocumentEvent::Written {
+                id: doc,
+                path,
+                bytes_written,
+            });
+        }
+
+        let _ = self.screen_tx.send(ScreenCommand::Render);
     }
 
     fn insert(&self, view: ViewId, text: String) {
@@ -379,7 +420,7 @@ impl ActionProtocol {
         let _ = self.screen_tx.send(ScreenCommand::Render);
     }
 
-    fn set_view_mode(&mut self, view: ViewId, mode: ViewMode) {
+    fn set_view_mode(&self, view: ViewId, mode: ViewMode) {
         let mut state = self.state_lock.write();
         let Some(vse) = state.view_store.get_mut(&view) else {
             debug_panic!();
@@ -391,6 +432,29 @@ impl ActionProtocol {
 
         // Mode changes may include mode-line changes.
         let _ = self.screen_tx.send(ScreenCommand::Render);
+    }
+
+    fn can_quit(&self, tx: oneshot::Sender<Result<(), String>>) {
+        let state = self.state_lock.read();
+        for dse in state.doc_store.values() {
+            if !dse.doc.modified {
+                continue;
+            }
+
+            let name = dse
+                .doc
+                .path
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "SCRATCHPAD".to_string());
+
+            let _ = tx.send(Err(format!("'{name}' has unsaved changes")));
+
+            return;
+        }
+        drop(state);
+
+        let _ = tx.send(Ok(()));
     }
 
     fn execute_insert<F: Fn(&Cursor) -> String>(&self, view: ViewId, text: F) {

@@ -2,7 +2,7 @@ use crate::{
     input::InputRouter,
     protocols::{
         action::ActionProtocol, io::IoProtocol, mini_buffer::MiniBufferProtocol,
-        screen::ScreenProtocol, view::ViewProtocol,
+        quit::QuitProtocol, screen::ScreenProtocol, view::ViewProtocol,
     },
 };
 
@@ -12,6 +12,7 @@ pub struct Fed {
     action: ActionProtocol,
     io: IoProtocol,
     mini_buffer: MiniBufferProtocol,
+    quit: QuitProtocol,
     screen: ScreenProtocol,
     view: ViewProtocol,
 }
@@ -19,9 +20,10 @@ pub struct Fed {
 impl Fed {
     pub fn new(
         input_router: InputRouter, action: ActionProtocol, io: IoProtocol,
-        mini_buffer: MiniBufferProtocol, screen: ScreenProtocol, view: ViewProtocol,
+        mini_buffer: MiniBufferProtocol, quit: QuitProtocol, screen: ScreenProtocol,
+        view: ViewProtocol,
     ) -> Self {
-        Self { input_router, action, io, mini_buffer, screen, view }
+        Self { input_router, action, io, mini_buffer, quit, screen, view }
     }
 
     pub async fn run(&mut self) {
@@ -30,6 +32,7 @@ impl Fed {
             self.action.run(),
             self.io.run(),
             self.mini_buffer.run(),
+            self.quit.run(),
             self.screen.run(),
             self.view.run(),
         );
