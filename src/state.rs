@@ -15,6 +15,7 @@ use std::{
 pub use document::{DocumentId, DocumentStore, DocumentStoreEntry, types as DocumentStoreTypes};
 pub use mini_buffer::{MiniBufferId, MiniBufferStore, types as MiniBufferStoreTypes};
 use piece_table::PieceTable;
+use tokio::sync::broadcast;
 pub use view::{ViewId, ViewStore, ViewStoreEntry, types as ViewStoreTypes};
 
 use crate::{
@@ -35,7 +36,6 @@ impl StateLock {
     pub fn write(&self) -> RwLockWriteGuard<'_, State> { self.state.write().unwrap() }
 }
 
-#[derive(Default)]
 pub struct State {
     pub index: Index,
     pub workspace: Workspace,
@@ -43,9 +43,24 @@ pub struct State {
     pub doc_store: DocumentStore,
     pub view_store: ViewStore,
     pub mini_buffer_store: MiniBufferStore,
+
+    pub doc_event_tx: broadcast::Sender<DocumentStoreTypes::DocumentEvent>,
 }
 
 impl State {
+    pub fn new(
+        workspace: Workspace, doc_event_tx: broadcast::Sender<DocumentStoreTypes::DocumentEvent>,
+    ) -> Self {
+        Self {
+            index: Index::default(),
+            workspace,
+            doc_store: DocumentStore::default(),
+            view_store: ViewStore::default(),
+            mini_buffer_store: MiniBufferStore::default(),
+            doc_event_tx,
+        }
+    }
+
     pub fn create_doc(&mut self, path: Option<PathBuf>, data: String) -> DocumentId {
         static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
         let doc = DocumentId(NEXT_ID.fetch_add(1, Ordering::Relaxed));
@@ -56,14 +71,19 @@ impl State {
         };
         self.doc_store.insert(doc, entry);
 
+        let _ = self.doc_event_tx.send(DocumentStoreTypes::DocumentEvent::Created { id: doc });
+
         doc
     }
 
     /// Returns all views which contained the document.
     pub fn destroy_doc(&mut self, doc: DocumentId) -> HashSet<ViewId> {
         self.doc_store.remove(&doc);
+        let views = self.index.unlink_doc(doc);
 
-        self.index.unlink_doc(doc)
+        let _ = self.doc_event_tx.send(DocumentStoreTypes::DocumentEvent::Destroyed { id: doc });
+
+        views
     }
 
     pub fn create_view(&mut self, doc: DocumentId) -> ViewId {
@@ -89,18 +109,21 @@ impl State {
         self.workspace.active_window.and_then(|w| self.index.window_to_view(w))
     }
 
-    pub fn vse_and_dse(&self, view: ViewId) -> Option<(&ViewStoreEntry, &DocumentStoreEntry)> {
-        let vse = self.view_store.get(&view)?;
-        let dse = self.doc_store.get(&self.index.view_to_doc(view)?)?;
+    pub fn vse_and_dse<'a>(
+        view_store: &'a ViewStore, doc_store: &'a DocumentStore, index: &Index, view: ViewId,
+    ) -> Option<(&'a ViewStoreEntry, &'a DocumentStoreEntry)> {
+        let vse = view_store.get(&view)?;
+        let dse = doc_store.get(&index.view_to_doc(view)?)?;
 
         Some((vse, dse))
     }
 
-    pub fn vse_and_dse_mut(
-        &mut self, view: ViewId,
-    ) -> Option<(&mut ViewStoreEntry, &mut DocumentStoreEntry)> {
-        let vse = self.view_store.get_mut(&view)?;
-        let dse = self.doc_store.get_mut(&self.index.view_to_doc(view)?)?;
+    pub fn vse_and_dse_mut<'a>(
+        view_store: &'a mut ViewStore, doc_store: &'a mut DocumentStore, index: &Index,
+        view: ViewId,
+    ) -> Option<(&'a mut ViewStoreEntry, &'a mut DocumentStoreEntry)> {
+        let vse = view_store.get_mut(&view)?;
+        let dse = doc_store.get_mut(&index.view_to_doc(view)?)?;
 
         Some((vse, dse))
     }

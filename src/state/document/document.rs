@@ -4,6 +4,7 @@ use piece_table::PieceTable;
 
 use crate::state::DocumentId;
 
+#[derive(Clone)]
 pub enum DocumentEvent {
     Created { id: DocumentId },
     Destroyed { id: DocumentId },

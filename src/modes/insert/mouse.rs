@@ -5,7 +5,7 @@ use crate::{
     debug_panic::debug_panic,
     input::{MouseInputHandler, priorities::MouseInputPriority},
     protocols::action::ActionCommand,
-    state::{StateLock, ViewStoreTypes},
+    state::{State, StateLock, ViewStoreTypes},
     types::Pos,
 };
 
@@ -40,7 +40,9 @@ impl MouseInputHandler for InsertMouseInput {
             debug_panic!();
             return false;
         };
-        let Some((vse, dse)) = state.vse_and_dse(view) else {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        else {
             debug_panic!();
             return false;
         };

@@ -10,7 +10,7 @@ use crate::{
     render,
     state::{
         DocumentId,
-        DocumentStoreTypes::Mode as DocumentMode,
+        DocumentStoreTypes::{self, Mode as DocumentMode},
         State, StateLock, ViewId,
         ViewStoreTypes::{Mode as ViewMode, TabWidth},
     },
@@ -88,8 +88,13 @@ impl ActionProtocol {
     }
 
     fn move_cursors(&self, view: ViewId, direction: Direction) {
-        let mut state = self.state_lock.write();
-        let Some((vse, dse)) = state.vse_and_dse_mut(view) else {
+        let mut guard = self.state_lock.write();
+        // Fix the borrow checker.
+        let state = &mut *guard;
+
+        let Some((vse, dse)) =
+            State::vse_and_dse_mut(&mut state.view_store, &mut state.doc_store, &state.index, view)
+        else {
             debug_panic!();
             return;
         };
@@ -217,7 +222,7 @@ impl ActionProtocol {
         let pos = self
             .offset_to_pos(&state, view, cursor.offset)
             .expect("Beginning of function checks it");
-        drop(state);
+        drop(guard);
 
         let _ = self.view_tx.send(ViewCommand::ScrollIfNeeded { window, view, pos });
     }
@@ -293,15 +298,23 @@ impl ActionProtocol {
 
     fn insert(&self, view: ViewId, text: String) {
         if text == " " || text == "\n" || text == "\t" {
-            let mut state = self.state_lock.write();
-            let Some((_, dse)) = state.vse_and_dse_mut(view) else {
+            let mut guard = self.state_lock.write();
+            // Fix the borrow checker.
+            let state = &mut *guard;
+
+            let Some((_, dse)) = State::vse_and_dse_mut(
+                &mut state.view_store,
+                &mut state.doc_store,
+                &state.index,
+                view,
+            ) else {
                 debug_panic!();
                 return;
             };
 
             dse.doc.data.end_commit();
             dse.doc.data.start_commit();
-            drop(state);
+            drop(guard);
         }
 
         if text != "\t" {
@@ -459,7 +472,13 @@ impl ActionProtocol {
         // Fix the borrow checker.
         let state = &mut *guard;
 
-        let Some((vse, dse)) = state.vse_and_dse_mut(view) else {
+        let Some((vse, dse)) =
+            State::vse_and_dse_mut(&mut state.view_store, &mut state.doc_store, &state.index, view)
+        else {
+            debug_panic!();
+            return;
+        };
+        let Some(doc_id) = state.index.view_to_doc(view) else {
             debug_panic!();
             return;
         };
@@ -473,13 +492,29 @@ impl ActionProtocol {
 
         for edit in &edits {
             if edit.remove > 0 {
+                let str = dse.doc.data.slice(edit.offset..edit.offset + edit.remove);
+
                 dse.doc.data.remove(edit.offset, edit.remove);
                 dse.doc.modified = true;
+
+                let _ = state.doc_event_tx.send(DocumentStoreTypes::DocumentEvent::Removed {
+                    id: doc_id,
+                    pos: edit.offset,
+                    n: edit.remove,
+                    str,
+                });
             }
 
             if !edit.insert.is_empty() {
                 dse.doc.data.insert(edit.offset, &edit.insert);
                 dse.doc.modified = true;
+
+                let _ = state.doc_event_tx.send(DocumentStoreTypes::DocumentEvent::Inserted {
+                    id: doc_id,
+                    pos: edit.offset,
+                    n: edit.insert.len(),
+                    str: edit.insert.clone(),
+                });
             }
 
             dse.decs.edit(edit.offset, edit.remove, edit.insert.len());
@@ -533,7 +568,9 @@ impl ActionProtocol {
     }
 
     fn pos_to_offset(&self, state: &State, view: ViewId, pos: Pos) -> Option<usize> {
-        let Some((vse, dse)) = state.vse_and_dse(view) else {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        else {
             debug_panic!();
             return None;
         };
@@ -560,7 +597,9 @@ impl ActionProtocol {
     }
 
     fn offset_to_pos(&self, state: &State, view: ViewId, offset: usize) -> Option<Pos> {
-        let Some((vse, dse)) = state.vse_and_dse(view) else {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        else {
             debug_panic!();
             return None;
         };

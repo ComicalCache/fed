@@ -20,7 +20,7 @@ use crate::{
         view_decorator::ViewDecoratorRenderer,
     },
     render::{WindowId, ZLayer},
-    state::{DocumentId, StateLock, ViewId, ViewStoreTypes},
+    state::{DocumentId, State, StateLock, ViewId, ViewStoreTypes},
     types::{Pos, Rect, RectSplit},
 };
 
@@ -227,7 +227,9 @@ impl ViewProtocol {
             return;
         }
 
-        let Some((vse, dse)) = state.vse_and_dse(view) else {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        else {
             debug_panic!();
             return;
         };

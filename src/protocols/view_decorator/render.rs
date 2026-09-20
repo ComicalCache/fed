@@ -27,7 +27,9 @@ impl Renderer for ViewDecoratorRenderer {
             return;
         }
 
-        let Some((vse, dse)) = state.vse_and_dse(self.view) else {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, self.view)
+        else {
             debug_panic!();
             return;
         };
@@ -58,7 +60,9 @@ impl Renderer for ViewDecoratorRenderer {
 impl ViewDecoratorRenderer {
     fn render_gutter(&self, state: &State, viewport: &mut Viewport, width: usize) {
         // The render function checks for existance.
-        let (vse, dse) = state.vse_and_dse(self.view).unwrap();
+        let (vse, dse) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, self.view)
+                .unwrap();
 
         let lines = dse.doc.data.lines();
         let scroll = vse.scroll;
@@ -84,7 +88,9 @@ impl ViewDecoratorRenderer {
 
     fn render_mode_line(&self, state: &State, viewport: &mut Viewport) {
         // The render function checks for existance.
-        let (vse, dse) = state.vse_and_dse(self.view).unwrap();
+        let (vse, dse) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, self.view)
+                .unwrap();
 
         // Force left padding.
         let mut left = Vec::new();

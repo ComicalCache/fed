@@ -60,7 +60,7 @@ fn setup(
     input_rx: UnboundedReceiver<Event>, width: usize, height: usize,
 ) -> (Fed, UnboundedReceiver<()>) {
     // Channels.
-    // let (doc_event_tx, doc_event_rx) = broadcast::channel(32);
+    let (doc_event_tx, doc_event_rx) = broadcast::channel(32);
 
     let (view_tx, view_rx) = unbounded_channel();
     let (io_tx, io_rx) = unbounded_channel();
@@ -70,10 +70,8 @@ fn setup(
     let (quit_tx, quit_rx) = unbounded_channel();
 
     // Initialize application state.
-    let mut state = State {
-        workspace: Workspace::new(Rect::new(Pos::default(), width, height)),
-        ..Default::default()
-    };
+    let mut state =
+        State::new(Workspace::new(Rect::new(Pos::default(), width, height)), doc_event_tx);
     state.mini_buffer_store.doc = state.create_doc(None, String::new());
     state.mini_buffer_store.view = state.create_view(state.mini_buffer_store.doc);
 

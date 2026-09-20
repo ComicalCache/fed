@@ -5,7 +5,7 @@ mod mode;
 pub mod types {
     pub use crate::state::document::{
         decorations::{Decorations, DocumentDecoration},
-        document::Document,
+        document::{Document, DocumentEvent},
         mode::Mode,
     };
 }

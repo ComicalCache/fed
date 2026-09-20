@@ -38,7 +38,9 @@ impl Renderer for ViewRenderer {
         };
         drop(store);
 
-        let Some((vse, dse)) = state.vse_and_dse(self.view) else {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, self.view)
+        else {
             debug_panic!();
             return;
         };

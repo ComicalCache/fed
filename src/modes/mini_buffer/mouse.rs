@@ -5,7 +5,7 @@ use crate::{
     debug_panic::debug_panic,
     input::{MouseInputHandler, priorities::MouseInputPriority},
     protocols::action::ActionCommand,
-    state::{MiniBufferStoreTypes, StateLock},
+    state::{MiniBufferStoreTypes, State, StateLock},
     types::Pos,
 };
 
@@ -55,7 +55,9 @@ impl MouseInputHandler for MiniBufferMouseInput {
             return false;
         };
         let view = state.mini_buffer_store.view;
-        let Some((vse, dse)) = state.vse_and_dse(view) else {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        else {
             debug_panic!();
             return false;
         };
