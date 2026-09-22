@@ -5,6 +5,7 @@ use std::{
 
 use piece_table::Slice;
 use tokio::sync::{
+    broadcast,
     mpsc::{UnboundedReceiver, UnboundedSender},
     oneshot,
 };
@@ -34,11 +35,6 @@ pub enum ViewCommand {
         view: ViewId,
     },
     ScrollTo {
-        view: ViewId,
-        pos: Pos,
-    },
-    ScrollIfNeeded {
-        window: WindowId,
         view: ViewId,
         pos: Pos,
     },
@@ -84,46 +80,70 @@ pub struct ViewProtocol {
     state_lock: StateLock,
 
     rx: UnboundedReceiver<ViewCommand>,
+    event_rx: broadcast::Receiver<ViewStoreTypes::ViewEvent>,
     screen_tx: UnboundedSender<ScreenCommand>,
 }
 
 impl ViewProtocol {
     pub fn new(
         state_lock: StateLock, rx: UnboundedReceiver<ViewCommand>,
+        event_rx: broadcast::Receiver<ViewStoreTypes::ViewEvent>,
         screen_tx: UnboundedSender<ScreenCommand>,
     ) -> Self {
-        Self { local_store: Arc::new(RwLock::new(HashMap::new())), state_lock, rx, screen_tx }
+        Self {
+            local_store: Arc::new(RwLock::new(HashMap::new())),
+            state_lock,
+            rx,
+            event_rx,
+            screen_tx,
+        }
     }
 
     pub async fn run(&mut self) {
-        while let Some(cmd) = self.rx.recv().await {
-            match cmd {
-                ViewCommand::Init { window, view, doc } => self.init(window, view, doc),
-                ViewCommand::Update { view } => self.update(view),
-                ViewCommand::ScrollTo { view, pos } => self.scroll_to(view, pos),
-                ViewCommand::ScrollIfNeeded { window, view, pos } => {
-                    self.scroll_if_needed(window, view, pos)
+        loop {
+            tokio::select! {
+                cmd = self.rx.recv() => {
+                    let Some(cmd) = cmd else { break; };
+                    self.handle_command(cmd);
                 }
-
-                ViewCommand::CreateRawTile { doc, view, split_window, direction, tx } => {
-                    self.create_tile(doc, view, split_window, direction, tx, true)
+                event = self.event_rx.recv() => {
+                    let Ok(event) = event else { continue; };
+                    self.handle_event(event);
                 }
-                ViewCommand::CreateTile { doc, view, split_window, direction, tx } => {
-                    self.create_tile(doc, view, split_window, direction, tx, false)
-                }
-                ViewCommand::CreateRawFloating { doc, view, rect, z, tx } => {
-                    self.create_floating(doc, view, rect, z, tx, true)
-                }
-                ViewCommand::CreateFloating { doc, view, rect, z, tx } => {
-                    self.create_floating(doc, view, rect, z, tx, false)
-                }
-                ViewCommand::DestroyView { view } => self.destroy_view(view),
-
-                ViewCommand::Resize => self.resize(),
             }
 
-            // Always redraw the screen after any view command.
+            // Always redraw the screen after any view command or event.
             let _ = self.screen_tx.send(ScreenCommand::Render);
+        }
+    }
+
+    fn handle_command(&mut self, cmd: ViewCommand) {
+        match cmd {
+            ViewCommand::Init { window, view, doc } => self.init(window, view, doc),
+            ViewCommand::Update { view } => self.update(view),
+            ViewCommand::ScrollTo { view, pos } => self.scroll_to(view, pos),
+
+            ViewCommand::CreateRawTile { doc, view, split_window, direction, tx } => {
+                self.create_tile(doc, view, split_window, direction, tx, true)
+            }
+            ViewCommand::CreateTile { doc, view, split_window, direction, tx } => {
+                self.create_tile(doc, view, split_window, direction, tx, false)
+            }
+            ViewCommand::CreateRawFloating { doc, view, rect, z, tx } => {
+                self.create_floating(doc, view, rect, z, tx, true)
+            }
+            ViewCommand::CreateFloating { doc, view, rect, z, tx } => {
+                self.create_floating(doc, view, rect, z, tx, false)
+            }
+            ViewCommand::DestroyView { view } => self.destroy_view(view),
+
+            ViewCommand::Resize => self.resize(),
+        }
+    }
+
+    fn handle_event(&mut self, event: ViewStoreTypes::ViewEvent) {
+        match event {
+            ViewStoreTypes::ViewEvent::CursorMoved { view } => self.cursor_moved(view),
         }
     }
 
@@ -215,84 +235,6 @@ impl ViewProtocol {
 
         if height > 0 {
             self.fetch(view, doc, ViewStoreTypes::Scroll(pos), height);
-        }
-    }
-
-    fn scroll_if_needed(&self, window: WindowId, view: ViewId, pos: Pos) {
-        let state = self.state_lock.read();
-        let Some(windows) = state.index.view_to_windows(view) else { return };
-
-        if !windows.contains(&window) {
-            debug_panic!();
-            return;
-        }
-
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
-        else {
-            debug_panic!();
-            return;
-        };
-        let Some(doc) = state.index.view_to_doc(view) else {
-            debug_panic!();
-            return;
-        };
-        let Some(rect) = state.workspace.get_rect(window) else {
-            debug_panic!();
-            return;
-        };
-
-        let lines = dse.doc.data.lines();
-        let mut scroll = vse.scroll;
-        let layout = vse.layout;
-        let max_height = windows
-            .iter()
-            .map(|&w| {
-                let rect = state.workspace.get_rect(w);
-                debug_assert!(rect.is_some());
-                rect
-            })
-            .flatten()
-            .map(|r| r.height.saturating_sub(layout.mode_line))
-            .max()
-            .unwrap_or(0);
-        drop(state);
-
-        let width = rect.width.saturating_sub(layout.gutter_width(lines));
-        let height = rect.height.saturating_sub(layout.mode_line);
-        if width == 0 || height == 0 {
-            return;
-        }
-
-        let mut scroll_needed = false;
-
-        if pos.y < scroll.y {
-            scroll.y = pos.y;
-            scroll_needed = true;
-        } else if pos.y >= scroll.y + height {
-            scroll.y = pos.y.saturating_sub(height).saturating_add(1);
-            scroll_needed = true;
-        }
-
-        if pos.x < scroll.x {
-            scroll.x = pos.x;
-            scroll_needed = true;
-        } else if pos.x >= scroll.x + width {
-            scroll.x = pos.x.saturating_sub(width).saturating_add(1);
-            scroll_needed = true;
-        }
-
-        if scroll_needed {
-            let mut state = self.state_lock.write();
-            let Some(vse) = state.view_store.get_mut(&view) else {
-                debug_panic!();
-                return;
-            };
-
-            vse.scroll = scroll;
-            drop(state);
-
-            self.fetch(view, doc, scroll, max_height);
         }
     }
 
@@ -410,6 +352,32 @@ impl ViewProtocol {
         }
     }
 
+    fn cursor_moved(&self, view: ViewId) {
+        let state = self.state_lock.read();
+        let Some(window) = state.workspace.active_window else { return };
+
+        if state.index.window_to_view(window) != Some(view) {
+            return;
+        }
+
+        let Some(vse) = state.view_store.get(&view) else {
+            debug_panic!();
+            return;
+        };
+        let Some(cursor) = vse.cursors.list.first() else {
+            debug_panic!();
+            return;
+        };
+
+        let Some(pos) = state.offset_to_pos(view, cursor.offset) else {
+            debug_panic!();
+            return;
+        };
+        drop(state);
+
+        self.scroll_if_needed(window, view, pos);
+    }
+
     fn fetch(&self, view: ViewId, doc: DocumentId, scroll: ViewStoreTypes::Scroll, height: usize) {
         let mut guard = self.state_lock.write();
         // Fix the borrow checker.
@@ -440,5 +408,83 @@ impl ViewProtocol {
         }
 
         self.local_store.write().unwrap().insert(view, LocalViewData { offset: start, lines });
+    }
+
+    fn scroll_if_needed(&self, window: WindowId, view: ViewId, pos: Pos) {
+        let state = self.state_lock.read();
+        let Some(windows) = state.index.view_to_windows(view) else { return };
+
+        if !windows.contains(&window) {
+            debug_panic!();
+            return;
+        }
+
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        else {
+            debug_panic!();
+            return;
+        };
+        let Some(doc) = state.index.view_to_doc(view) else {
+            debug_panic!();
+            return;
+        };
+        let Some(rect) = state.workspace.get_rect(window) else {
+            debug_panic!();
+            return;
+        };
+
+        let lines = dse.doc.data.lines();
+        let mut scroll = vse.scroll;
+        let layout = vse.layout;
+        let max_height = windows
+            .iter()
+            .map(|&w| {
+                let rect = state.workspace.get_rect(w);
+                debug_assert!(rect.is_some());
+                rect
+            })
+            .flatten()
+            .map(|r| r.height.saturating_sub(layout.mode_line))
+            .max()
+            .unwrap_or(0);
+        drop(state);
+
+        let width = rect.width.saturating_sub(layout.gutter_width(lines));
+        let height = rect.height.saturating_sub(layout.mode_line);
+        if width == 0 || height == 0 {
+            return;
+        }
+
+        let mut scroll_needed = false;
+
+        if pos.y < scroll.y {
+            scroll.y = pos.y;
+            scroll_needed = true;
+        } else if pos.y >= scroll.y + height {
+            scroll.y = pos.y.saturating_sub(height).saturating_add(1);
+            scroll_needed = true;
+        }
+
+        if pos.x < scroll.x {
+            scroll.x = pos.x;
+            scroll_needed = true;
+        } else if pos.x >= scroll.x + width {
+            scroll.x = pos.x.saturating_sub(width).saturating_add(1);
+            scroll_needed = true;
+        }
+
+        if scroll_needed {
+            let mut state = self.state_lock.write();
+            let Some(vse) = state.view_store.get_mut(&view) else {
+                debug_panic!();
+                return;
+            };
+
+            vse.scroll = scroll;
+            drop(state);
+
+            self.fetch(view, doc, scroll, max_height);
+        }
     }
 }

@@ -1,11 +1,13 @@
 mod decorations;
 mod document;
+mod events;
 mod mode;
 
 pub mod types {
     pub use crate::state::document::{
         decorations::{Decorations, DocumentDecoration},
-        document::{Document, DocumentEvent},
+        document::Document,
+        events::DocumentEvent,
         mode::Mode,
     };
 }

@@ -61,7 +61,8 @@ fn setup(
     input_rx: UnboundedReceiver<Event>, width: usize, height: usize,
 ) -> (Fed, UnboundedReceiver<()>) {
     // Channels.
-    let (doc_event_tx, doc_event_rx) = broadcast::channel(32);
+    let (doc_event_tx, _) = broadcast::channel(32);
+    let (view_event_tx, _) = broadcast::channel(32);
 
     let (view_tx, view_rx) = unbounded_channel();
     let (io_tx, io_rx) = unbounded_channel();
@@ -72,8 +73,11 @@ fn setup(
     let (shutdown_tx, shutdown_rx) = unbounded_channel();
 
     // Initialize application state.
-    let mut state =
-        State::new(Workspace::new(Rect::new(Pos::default(), width, height)), doc_event_tx);
+    let mut state = State::new(
+        Workspace::new(Rect::new(Pos::default(), width, height)),
+        doc_event_tx.clone(),
+        view_event_tx.clone(),
+    );
     state.mini_buffer_store.doc = state.create_doc(None, String::new());
     state.mini_buffer_store.view = state.create_view(state.mini_buffer_store.doc);
 
@@ -99,7 +103,12 @@ fn setup(
     );
     let mut quit = QuitProtocol::new(quit_rx, mini_buffer_tx.clone(), shutdown_tx.clone());
     let screen = ScreenProtocol::new(state_lock.clone(), width, height, screen_rx);
-    let view = ViewProtocol::new(state_lock.clone(), view_rx, screen_tx.clone());
+    let view = ViewProtocol::new(
+        state_lock.clone(),
+        view_rx,
+        view_event_tx.subscribe(),
+        screen_tx.clone(),
+    );
 
     // Quit callbacks.
     let action_tx_clone = action_tx.clone();

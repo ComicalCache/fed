@@ -15,7 +15,7 @@ use crate::{
         DocumentId,
         DocumentStoreTypes::{self, Mode as DocumentMode},
         State, StateLock, ViewId,
-        ViewStoreTypes::{Mode as ViewMode, TabWidth},
+        ViewStoreTypes::{Mode as ViewMode, TabWidth, ViewEvent},
     },
     types::{Cursor, Direction, Pos},
 };
@@ -220,43 +220,36 @@ impl ActionProtocol {
         cursors.list.sort_by_key(|c| c.offset);
         cursors.list.dedup_by_key(|c| c.offset);
 
+        if cursors.list.is_empty() {
+            return;
+        }
+
         vse.cursors = cursors.clone();
 
-        let Some(cursor) = cursors.list.first() else { return };
-        let Some(window) = state.workspace.active_window else {
-            // If no active window, nothing needs to scroll.
-            return;
-        };
-
-        let pos = self
-            .offset_to_pos(&state, view, cursor.offset)
-            .expect("Beginning of function checks it");
+        let view_event_tx = state.view_event_tx.clone();
         drop(guard);
 
-        let _ = self.view_tx.send(ViewCommand::ScrollIfNeeded { window, view, pos });
+        let _ = view_event_tx.send(ViewEvent::CursorMoved { view });
     }
 
     fn move_cursor_to_pos(&self, view: ViewId, pos: Pos) {
         let mut state = self.state_lock.write();
-        let Some(offset) = self.pos_to_offset(&state, view, pos) else { return };
+        let Some(offset) = state.pos_to_offset(view, pos) else { return };
         let vse = state.view_store.get_mut(&view).expect("self.pos_to_offset checks it");
 
         vse.cursors.list.clear();
         vse.cursors.list.push(Cursor::new(offset, pos.x));
 
-        let Some(window) = state.workspace.active_window else {
-            // If no active window, nothing needs to scroll.
-            return;
-        };
+        let view_event_tx = state.view_event_tx.clone();
         drop(state);
 
-        let _ = self.view_tx.send(ViewCommand::ScrollIfNeeded { window, view, pos });
+        let _ = view_event_tx.send(ViewEvent::CursorMoved { view });
     }
 
     fn create_cursor_at_pos(&self, view: ViewId, pos: Pos) {
         let mut state = self.state_lock.write();
 
-        let Some(offset) = self.pos_to_offset(&state, view, pos) else { return };
+        let Some(offset) = state.pos_to_offset(view, pos) else { return };
         let vse = state.view_store.get_mut(&view).expect("self.pos_to_offset checks it");
 
         vse.cursors.list.push(Cursor::new(offset, pos.x));
@@ -369,7 +362,7 @@ impl ActionProtocol {
 
             let mut cursor_xs = HashMap::new();
             for offset in vse.cursors.list.iter().map(|c| c.offset) {
-                if let Some(pos) = self.offset_to_pos(&state, view, offset) {
+                if let Some(pos) = state.offset_to_pos(view, offset) {
                     cursor_xs.insert(offset, pos.x);
                 }
             }
@@ -604,100 +597,17 @@ impl ActionProtocol {
         cursors.list.sort_by_key(|c| c.offset);
         cursors.list.dedup_by_key(|c| c.offset);
 
+        if cursors.list.is_empty() {
+            return;
+        }
+
         vse.cursors = cursors.clone();
 
-        let window = state.workspace.active_window;
+        let view_event_tx = state.view_event_tx.clone();
         drop(guard);
 
         let _ = self.view_tx.send(ViewCommand::Update { view });
 
-        let mut state = self.state_lock.write();
-        let Some(cursor) = cursors.list.first() else { return };
-
-        let pos = self
-            .offset_to_pos(&state, view, cursor.offset)
-            .expect("Beginning of function checks it");
-
-        let Some(vse) = state.view_store.get_mut(&view) else { return };
-
-        vse.cursors.list[0].pref_x = pos.x;
-        drop(state);
-
-        let Some(window) = window else {
-            // If no active window, nothing needs to scroll.
-            return;
-        };
-
-        let _ = self.view_tx.send(ViewCommand::ScrollIfNeeded { window, view, pos });
-    }
-
-    fn pos_to_offset(&self, state: &State, view: ViewId, pos: Pos) -> Option<usize> {
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
-        else {
-            debug_panic!();
-            return None;
-        };
-
-        let lines = dse.doc.data.lines();
-        let tab_width = vse.tab_width;
-
-        // lines are one indexed.
-        let y = pos.y.min(lines.saturating_sub(1));
-
-        let start = dse.doc.data.get_line_start_byte(y);
-        let end = dse.doc.data.get_line_end_byte(y);
-        let line = dse.doc.data.slice(start..end);
-
-        let mut decs = Vec::new();
-        dse.decs.range(start, end, &mut decs);
-        vse.decs.range(start, end, &mut decs);
-
-        let (vom, _) = render::layout_vom(&line, start, tab_width, &decs);
-        let offset =
-            vom.iter().rev().find(|vo| vo.visual_x <= pos.x).map(|vo| vo.offset).unwrap_or(start);
-
-        Some(offset)
-    }
-
-    fn offset_to_pos(&self, state: &State, view: ViewId, offset: usize) -> Option<Pos> {
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
-        else {
-            debug_panic!();
-            return None;
-        };
-
-        let tab_width = vse.tab_width;
-        let lines = dse.doc.data.lines();
-
-        let mut target = lines.saturating_sub(1);
-        for y in 0..lines {
-            let start = dse.doc.data.get_line_start_byte(y);
-            let end = dse.doc.data.get_line_end_byte(y);
-
-            if offset >= start && (offset < end || y == lines - 1) {
-                target = y;
-
-                break;
-            }
-        }
-
-        let start = dse.doc.data.get_line_start_byte(target);
-        let end = dse.doc.data.get_line_end_byte(target);
-        let line = dse.doc.data.slice(start..end);
-
-        let mut decs = Vec::new();
-        dse.decs.range(start, end, &mut decs);
-        vse.decs.range(start, end, &mut decs);
-
-        let (vom, _) = render::layout_vom(&line, start, tab_width, &decs);
-        let x = vom
-            .iter()
-            .find(|vo| vo.offset >= offset)
-            .map(|vo| vo.visual_x)
-            .unwrap_or_else(|| vom.last().map(|vo| vo.visual_x).unwrap_or(0));
-
-        Some(Pos::new(x, target))
+        let _ = view_event_tx.send(ViewEvent::CursorMoved { view });
     }
 }

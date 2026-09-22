@@ -14,13 +14,15 @@ use std::{
 
 pub use document::{DocumentId, DocumentStore, DocumentStoreEntry, types as DocumentStoreTypes};
 pub use mini_buffer::{MiniBufferId, MiniBufferStore, types as MiniBufferStoreTypes};
-use piece_table::PieceTable;
+use piece_table::{PieceTable, Slice};
 use tokio::sync::broadcast;
 pub use view::{ViewId, ViewStore, ViewStoreEntry, types as ViewStoreTypes};
 
 use crate::{
-    render::{WindowId, Workspace},
+    debug_panic::debug_panic,
+    render::{self, WindowId, Workspace},
     state::{DocumentStoreTypes::Document, index::Index},
+    types::Pos,
 };
 
 #[derive(Clone)]
@@ -45,11 +47,13 @@ pub struct State {
     pub mini_buffer_store: MiniBufferStore,
 
     pub doc_event_tx: broadcast::Sender<DocumentStoreTypes::DocumentEvent>,
+    pub view_event_tx: broadcast::Sender<ViewStoreTypes::ViewEvent>,
 }
 
 impl State {
     pub fn new(
         workspace: Workspace, doc_event_tx: broadcast::Sender<DocumentStoreTypes::DocumentEvent>,
+        view_event_tx: broadcast::Sender<ViewStoreTypes::ViewEvent>,
     ) -> Self {
         Self {
             index: Index::default(),
@@ -58,6 +62,7 @@ impl State {
             view_store: ViewStore::default(),
             mini_buffer_store: MiniBufferStore::default(),
             doc_event_tx,
+            view_event_tx,
         }
     }
 
@@ -126,5 +131,75 @@ impl State {
         let dse = doc_store.get_mut(&index.view_to_doc(view)?)?;
 
         Some((vse, dse))
+    }
+
+    pub fn pos_to_offset(&self, view: ViewId, pos: Pos) -> Option<usize> {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&self.view_store, &self.doc_store, &self.index, view)
+        else {
+            debug_panic!();
+            return None;
+        };
+
+        let lines = dse.doc.data.lines();
+        let tab_width = vse.tab_width;
+
+        // lines are one indexed.
+        let y = pos.y.min(lines.saturating_sub(1));
+
+        let start = dse.doc.data.get_line_start_byte(y);
+        let end = dse.doc.data.get_line_end_byte(y);
+        let line = dse.doc.data.slice(start..end);
+
+        let mut decs = Vec::new();
+        dse.decs.range(start, end, &mut decs);
+        vse.decs.range(start, end, &mut decs);
+
+        let (vom, _) = render::layout_vom(&line, start, tab_width, &decs);
+        let offset =
+            vom.iter().rev().find(|vo| vo.visual_x <= pos.x).map(|vo| vo.offset).unwrap_or(start);
+
+        Some(offset)
+    }
+
+    pub fn offset_to_pos(&self, view: ViewId, offset: usize) -> Option<Pos> {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&self.view_store, &self.doc_store, &self.index, view)
+        else {
+            debug_panic!();
+            return None;
+        };
+
+        let tab_width = vse.tab_width;
+        let lines = dse.doc.data.lines();
+
+        let mut target = lines.saturating_sub(1);
+        for y in 0..lines {
+            let start = dse.doc.data.get_line_start_byte(y);
+            let end = dse.doc.data.get_line_end_byte(y);
+
+            if offset >= start && (offset < end || y == lines - 1) {
+                target = y;
+
+                break;
+            }
+        }
+
+        let start = dse.doc.data.get_line_start_byte(target);
+        let end = dse.doc.data.get_line_end_byte(target);
+        let line = dse.doc.data.slice(start..end);
+
+        let mut decs = Vec::new();
+        dse.decs.range(start, end, &mut decs);
+        vse.decs.range(start, end, &mut decs);
+
+        let (vom, _) = render::layout_vom(&line, start, tab_width, &decs);
+        let x = vom
+            .iter()
+            .find(|vo| vo.offset >= offset)
+            .map(|vo| vo.visual_x)
+            .unwrap_or_else(|| vom.last().map(|vo| vo.visual_x).unwrap_or(0));
+
+        Some(Pos::new(x, target))
     }
 }
