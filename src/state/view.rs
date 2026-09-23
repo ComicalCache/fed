@@ -9,8 +9,8 @@ mod tab_width;
 pub mod types {
     pub use crate::state::view::{
         cursors::Cursors,
-        decorations::{Decorations, ViewDecoration},
-        events::ViewEvent,
+        decorations::{DecorationId, Decorations},
+        events::Event,
         layout::Layout,
         mode::Mode,
         scroll::Scroll,

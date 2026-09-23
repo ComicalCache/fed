@@ -9,11 +9,10 @@ use tokio::sync::{
 use crate::{
     debug_panic::debug_panic,
     protocols::{
-        action::ActionCommand, mini_buffer::MiniBufferDecorationProvider, screen::ScreenCommand,
-        view::ViewCommand,
+        action::ActionCommand, mini_buffer::MiniBufferDecorationProvider, view::ViewCommand,
     },
     render::ZLayer,
-    state::{MiniBufferId, MiniBufferStoreTypes, StateLock, ViewStoreTypes::ViewDecoration},
+    state::{MiniBufferId, MiniBufferStoreTypes, StateLock, ViewStoreTypes},
     types::{Face, Pos, Rect},
 };
 
@@ -36,25 +35,15 @@ pub struct MiniBufferProtocol {
     rx: UnboundedReceiver<MiniBufferCommand>,
     action_tx: UnboundedSender<ActionCommand>,
     view_tx: UnboundedSender<ViewCommand>,
-    screen_tx: UnboundedSender<ScreenCommand>,
 }
 
 impl MiniBufferProtocol {
     pub fn new(
         width: usize, height: usize, state_lock: StateLock,
         rx: UnboundedReceiver<MiniBufferCommand>, action_tx: UnboundedSender<ActionCommand>,
-        view_tx: UnboundedSender<ViewCommand>, screen_tx: UnboundedSender<ScreenCommand>,
+        view_tx: UnboundedSender<ViewCommand>,
     ) -> Self {
-        Self {
-            next_id: AtomicUsize::new(1),
-            width,
-            height,
-            state_lock,
-            rx,
-            action_tx,
-            view_tx,
-            screen_tx,
-        }
+        Self { next_id: AtomicUsize::new(1), width, height, state_lock, rx, action_tx, view_tx }
     }
 
     pub async fn run(&mut self) {
@@ -68,9 +57,6 @@ impl MiniBufferProtocol {
                 MiniBufferCommand::Close { id } => self.close(id),
                 MiniBufferCommand::Resize { width, height } => self.resize(width, height),
             }
-
-            // Always redraw the screen after any mini buffer command.
-            let _ = self.screen_tx.send(ScreenCommand::Render);
         }
     }
 
@@ -152,7 +138,7 @@ impl MiniBufferProtocol {
         };
 
         vse.decs.layers.insert(
-            ViewDecoration::MiniBuffer,
+            ViewStoreTypes::DecorationId::MiniBuffer,
             Box::new(MiniBufferDecorationProvider::new(prompt, Face::default())),
         );
 
@@ -231,7 +217,7 @@ impl MiniBufferProtocol {
             return;
         };
 
-        vse.decs.layers.remove(&ViewDecoration::MiniBuffer);
+        vse.decs.layers.remove(&ViewStoreTypes::DecorationId::MiniBuffer);
 
         let len = dse.doc.data.len();
         let cursors: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();

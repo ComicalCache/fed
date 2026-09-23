@@ -1,4 +1,4 @@
-mod document;
+mod doc;
 mod index;
 mod mini_buffer;
 mod view;
@@ -12,7 +12,7 @@ use std::{
     },
 };
 
-pub use document::{DocumentId, DocumentStore, DocumentStoreEntry, types as DocumentStoreTypes};
+pub use doc::{DocId, DocStore, DocStoreEntry, types as DocStoreTypes};
 pub use mini_buffer::{MiniBufferId, MiniBufferStore, types as MiniBufferStoreTypes};
 use piece_table::{PieceTable, Slice};
 use tokio::sync::broadcast;
@@ -21,7 +21,7 @@ pub use view::{ViewId, ViewStore, ViewStoreEntry, types as ViewStoreTypes};
 use crate::{
     debug_panic::debug_panic,
     render::{self, WindowId, Workspace},
-    state::{DocumentStoreTypes::Document, index::Index},
+    state::{DocStoreTypes::Doc, index::Index},
     types::Pos,
 };
 
@@ -42,23 +42,23 @@ pub struct State {
     pub index: Index,
     pub workspace: Workspace,
 
-    pub doc_store: DocumentStore,
+    pub doc_store: DocStore,
     pub view_store: ViewStore,
     pub mini_buffer_store: MiniBufferStore,
 
-    pub doc_event_tx: broadcast::Sender<DocumentStoreTypes::DocumentEvent>,
-    pub view_event_tx: broadcast::Sender<ViewStoreTypes::ViewEvent>,
+    pub doc_event_tx: broadcast::Sender<DocStoreTypes::Event>,
+    pub view_event_tx: broadcast::Sender<ViewStoreTypes::Event>,
 }
 
 impl State {
     pub fn new(
-        workspace: Workspace, doc_event_tx: broadcast::Sender<DocumentStoreTypes::DocumentEvent>,
-        view_event_tx: broadcast::Sender<ViewStoreTypes::ViewEvent>,
+        workspace: Workspace, doc_event_tx: broadcast::Sender<DocStoreTypes::Event>,
+        view_event_tx: broadcast::Sender<ViewStoreTypes::Event>,
     ) -> Self {
         Self {
             index: Index::default(),
             workspace,
-            doc_store: DocumentStore::default(),
+            doc_store: DocStore::default(),
             view_store: ViewStore::default(),
             mini_buffer_store: MiniBufferStore::default(),
             doc_event_tx,
@@ -66,32 +66,30 @@ impl State {
         }
     }
 
-    pub fn create_doc(&mut self, path: Option<PathBuf>, data: String) -> DocumentId {
+    pub fn create_doc(&mut self, path: Option<PathBuf>, data: String) -> DocId {
         static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
-        let doc = DocumentId(NEXT_ID.fetch_add(1, Ordering::Relaxed));
+        let doc = DocId(NEXT_ID.fetch_add(1, Ordering::Relaxed));
 
-        let entry = DocumentStoreEntry {
-            doc: Document::new(path, PieceTable::from(data)),
-            ..Default::default()
-        };
+        let entry =
+            DocStoreEntry { doc: Doc::new(path, PieceTable::from(data)), ..Default::default() };
         self.doc_store.insert(doc, entry);
 
-        let _ = self.doc_event_tx.send(DocumentStoreTypes::DocumentEvent::Created { id: doc });
+        let _ = self.doc_event_tx.send(DocStoreTypes::Event::Created { id: doc });
 
         doc
     }
 
     /// Returns all views which contained the document.
-    pub fn destroy_doc(&mut self, doc: DocumentId) -> HashSet<ViewId> {
+    pub fn destroy_doc(&mut self, doc: DocId) -> HashSet<ViewId> {
         self.doc_store.remove(&doc);
         let views = self.index.unlink_doc(doc);
 
-        let _ = self.doc_event_tx.send(DocumentStoreTypes::DocumentEvent::Destroyed { id: doc });
+        let _ = self.doc_event_tx.send(DocStoreTypes::Event::Destroyed { id: doc });
 
         views
     }
 
-    pub fn create_view(&mut self, doc: DocumentId) -> ViewId {
+    pub fn create_view(&mut self, doc: DocId) -> ViewId {
         static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
         let view = ViewId(NEXT_ID.fetch_add(1, Ordering::Relaxed));
 
@@ -115,8 +113,8 @@ impl State {
     }
 
     pub fn vse_and_dse<'a>(
-        view_store: &'a ViewStore, doc_store: &'a DocumentStore, index: &Index, view: ViewId,
-    ) -> Option<(&'a ViewStoreEntry, &'a DocumentStoreEntry)> {
+        view_store: &'a ViewStore, doc_store: &'a DocStore, index: &Index, view: ViewId,
+    ) -> Option<(&'a ViewStoreEntry, &'a DocStoreEntry)> {
         let vse = view_store.get(&view)?;
         let dse = doc_store.get(&index.view_to_doc(view)?)?;
 
@@ -124,9 +122,8 @@ impl State {
     }
 
     pub fn vse_and_dse_mut<'a>(
-        view_store: &'a mut ViewStore, doc_store: &'a mut DocumentStore, index: &Index,
-        view: ViewId,
-    ) -> Option<(&'a mut ViewStoreEntry, &'a mut DocumentStoreEntry)> {
+        view_store: &'a mut ViewStore, doc_store: &'a mut DocStore, index: &Index, view: ViewId,
+    ) -> Option<(&'a mut ViewStoreEntry, &'a mut DocStoreEntry)> {
         let vse = view_store.get_mut(&view)?;
         let dse = doc_store.get_mut(&index.view_to_doc(view)?)?;
 

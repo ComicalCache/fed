@@ -89,8 +89,7 @@ fn setup(
     let state_lock = StateLock::new(state);
 
     // Protocols.
-    let action =
-        ActionProtocol::new(state_lock.clone(), action_rx, view_tx.clone(), screen_tx.clone());
+    let action = ActionProtocol::new(state_lock.clone(), action_rx);
     let io = IoProtocol::new(io_rx);
     let mini_buffer = MiniBufferProtocol::new(
         width,
@@ -99,13 +98,13 @@ fn setup(
         mini_buffer_rx,
         action_tx.clone(),
         view_tx.clone(),
-        screen_tx.clone(),
     );
     let mut quit = QuitProtocol::new(quit_rx, mini_buffer_tx.clone(), shutdown_tx.clone());
     let screen = ScreenProtocol::new(state_lock.clone(), width, height, screen_rx);
     let view = ViewProtocol::new(
         state_lock.clone(),
         view_rx,
+        doc_event_tx.subscribe(),
         view_event_tx.subscribe(),
         screen_tx.clone(),
     );

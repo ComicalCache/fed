@@ -4,19 +4,19 @@ use crate::{
     debug_panic::debug_panic,
     protocols::view::store::LocalViewStore,
     render::{self, Cell, Renderer, Viewport, WindowId},
-    state::{DocumentId, State, ViewId},
+    state::{DocId, State, ViewId},
     types::{Face, Pos},
 };
 
 pub struct ViewRenderer {
-    doc: DocumentId,
+    doc: DocId,
     view: ViewId,
 
     store: Arc<RwLock<LocalViewStore>>,
 }
 
 impl ViewRenderer {
-    pub fn new(doc: DocumentId, view: ViewId, store: Arc<RwLock<LocalViewStore>>) -> Self {
+    pub fn new(doc: DocId, view: ViewId, store: Arc<RwLock<LocalViewStore>>) -> Self {
         Self { doc, view, store }
     }
 }

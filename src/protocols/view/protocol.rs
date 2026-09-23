@@ -21,7 +21,7 @@ use crate::{
         view_decorator::ViewDecoratorRenderer,
     },
     render::{WindowId, ZLayer},
-    state::{DocumentId, State, StateLock, ViewId, ViewStoreTypes},
+    state::{DocId, DocStoreTypes, State, StateLock, ViewId, ViewStoreTypes},
     types::{Pos, Rect, RectSplit},
 };
 
@@ -29,7 +29,7 @@ pub enum ViewCommand {
     Init {
         window: WindowId,
         view: ViewId,
-        doc: DocumentId,
+        doc: DocId,
     },
     Update {
         view: ViewId,
@@ -40,28 +40,28 @@ pub enum ViewCommand {
     },
 
     CreateRawTile {
-        doc: DocumentId,
+        doc: DocId,
         view: Option<ViewId>,
         split_window: WindowId,
         direction: RectSplit,
         tx: oneshot::Sender<(ViewId, WindowId)>,
     },
     CreateTile {
-        doc: DocumentId,
+        doc: DocId,
         view: Option<ViewId>,
         split_window: WindowId,
         direction: RectSplit,
         tx: oneshot::Sender<(ViewId, WindowId)>,
     },
     CreateFloating {
-        doc: DocumentId,
+        doc: DocId,
         view: Option<ViewId>,
         rect: Rect,
         z: ZLayer,
         tx: oneshot::Sender<(ViewId, WindowId)>,
     },
     CreateRawFloating {
-        doc: DocumentId,
+        doc: DocId,
         view: Option<ViewId>,
         rect: Rect,
         z: ZLayer,
@@ -80,21 +80,24 @@ pub struct ViewProtocol {
     state_lock: StateLock,
 
     rx: UnboundedReceiver<ViewCommand>,
-    event_rx: broadcast::Receiver<ViewStoreTypes::ViewEvent>,
+    doc_event_rx: broadcast::Receiver<DocStoreTypes::Event>,
+    view_event_rx: broadcast::Receiver<ViewStoreTypes::Event>,
     screen_tx: UnboundedSender<ScreenCommand>,
 }
 
 impl ViewProtocol {
     pub fn new(
         state_lock: StateLock, rx: UnboundedReceiver<ViewCommand>,
-        event_rx: broadcast::Receiver<ViewStoreTypes::ViewEvent>,
+        doc_event_rx: broadcast::Receiver<DocStoreTypes::Event>,
+        view_event_rx: broadcast::Receiver<ViewStoreTypes::Event>,
         screen_tx: UnboundedSender<ScreenCommand>,
     ) -> Self {
         Self {
             local_store: Arc::new(RwLock::new(HashMap::new())),
             state_lock,
             rx,
-            event_rx,
+            doc_event_rx,
+            view_event_rx,
             screen_tx,
         }
     }
@@ -103,12 +106,16 @@ impl ViewProtocol {
         loop {
             tokio::select! {
                 cmd = self.rx.recv() => {
-                    let Some(cmd) = cmd else { break; };
+                    let Some(cmd) = cmd else { break };
                     self.handle_command(cmd);
                 }
-                event = self.event_rx.recv() => {
-                    let Ok(event) = event else { continue; };
-                    self.handle_event(event);
+                event = self.doc_event_rx.recv() => {
+                    let Ok(event) = event else { continue };
+                    self.handle_doc_event(event);
+                }
+                event = self.view_event_rx.recv() => {
+                    let Ok(event) = event else { continue };
+                    self.handle_view_event(event);
                 }
             }
 
@@ -141,13 +148,38 @@ impl ViewProtocol {
         }
     }
 
-    fn handle_event(&mut self, event: ViewStoreTypes::ViewEvent) {
-        match event {
-            ViewStoreTypes::ViewEvent::CursorMoved { view } => self.cursor_moved(view),
+    fn handle_doc_event(&mut self, event: DocStoreTypes::Event) {
+        let doc = match event {
+            DocStoreTypes::Event::Created { .. } => return,
+            DocStoreTypes::Event::Destroyed { .. } => return,
+            DocStoreTypes::Event::Inserted { id, .. } => id,
+            DocStoreTypes::Event::Removed { id, .. } => id,
+            DocStoreTypes::Event::Written { .. } => return,
+            DocStoreTypes::Event::ModeChanged { .. } => return,
+        };
+
+        let state = self.state_lock.read();
+        let views: Vec<ViewId> = state
+            .index
+            .doc_to_views(doc)
+            .map(|views| views.iter().copied().collect())
+            .unwrap_or_default();
+        drop(state);
+
+        for view in views {
+            self.update(view);
         }
     }
 
-    fn init(&self, window: WindowId, view: ViewId, doc: DocumentId) {
+    fn handle_view_event(&mut self, event: ViewStoreTypes::Event) {
+        match event {
+            ViewStoreTypes::Event::CursorMoved { view } => self.cursor_moved(view),
+            ViewStoreTypes::Event::CursorsChanged { .. } => {}
+            ViewStoreTypes::Event::ModeChanged { .. } => {}
+        }
+    }
+
+    fn init(&self, window: WindowId, view: ViewId, doc: DocId) {
         let state = self.state_lock.read();
         debug_assert!(state.index.window_to_view(window) == Some(view));
         debug_assert!(state.index.view_to_doc(view) == Some(doc));
@@ -239,7 +271,7 @@ impl ViewProtocol {
     }
 
     fn create_tile(
-        &self, doc: DocumentId, view: Option<ViewId>, split_window: WindowId, direction: RectSplit,
+        &self, doc: DocId, view: Option<ViewId>, split_window: WindowId, direction: RectSplit,
         tx: oneshot::Sender<(ViewId, WindowId)>, raw: bool,
     ) {
         let mut state = self.state_lock.write();
@@ -276,7 +308,7 @@ impl ViewProtocol {
     }
 
     fn create_floating(
-        &self, doc: DocumentId, view: Option<ViewId>, rect: Rect, z: ZLayer,
+        &self, doc: DocId, view: Option<ViewId>, rect: Rect, z: ZLayer,
         tx: oneshot::Sender<(ViewId, WindowId)>, raw: bool,
     ) {
         let mut state = self.state_lock.write();
@@ -378,7 +410,7 @@ impl ViewProtocol {
         self.scroll_if_needed(window, view, pos);
     }
 
-    fn fetch(&self, view: ViewId, doc: DocumentId, scroll: ViewStoreTypes::Scroll, height: usize) {
+    fn fetch(&self, view: ViewId, doc: DocId, scroll: ViewStoreTypes::Scroll, height: usize) {
         let mut guard = self.state_lock.write();
         // Fix the borrow checker.
         let state = &mut *guard;

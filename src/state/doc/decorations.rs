@@ -3,11 +3,11 @@ use std::collections::BTreeMap;
 use crate::types::{Decoration, DecorationProvider, Span};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
-pub enum DocumentDecoration {}
+pub enum DecorationId {}
 
 #[derive(Default)]
 pub struct Decorations {
-    pub layers: BTreeMap<DocumentDecoration, Box<dyn DecorationProvider>>,
+    pub layers: BTreeMap<DecorationId, Box<dyn DecorationProvider>>,
 }
 
 impl Decorations {

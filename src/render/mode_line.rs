@@ -2,7 +2,7 @@ use piece_table::Slice;
 
 use crate::{
     render,
-    state::{DocumentStoreEntry, ViewStoreEntry},
+    state::{DocStoreEntry, ViewStoreEntry},
     types::Face,
 };
 
@@ -11,11 +11,11 @@ pub enum ModeLineWidget {
     FilePath { face: Face },
     CursorPos { face: Face },
     Text { text: String, face: Face },
-    Custom(fn(&ViewStoreEntry, &DocumentStoreEntry) -> Vec<(String, Face)>),
+    Custom(fn(&ViewStoreEntry, &DocStoreEntry) -> Vec<(String, Face)>),
 }
 
 impl ModeLineWidget {
-    pub fn render(&self, vse: &ViewStoreEntry, dse: &DocumentStoreEntry) -> Vec<(String, Face)> {
+    pub fn render(&self, vse: &ViewStoreEntry, dse: &DocStoreEntry) -> Vec<(String, Face)> {
         match self {
             ModeLineWidget::Mode { face } => {
                 vec![(format!("[{}]", vse.mode.to_string().to_uppercase()), *face)]

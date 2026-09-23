@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{
     render::WindowId,
-    state::{DocumentId, ViewId},
+    state::{DocId, ViewId},
 };
 
 #[derive(Default)]
@@ -10,8 +10,8 @@ pub struct Index {
     pub window_to_view: HashMap<WindowId, ViewId>,
     pub view_to_windows: HashMap<ViewId, HashSet<WindowId>>,
 
-    pub view_to_doc: HashMap<ViewId, DocumentId>,
-    pub doc_to_views: HashMap<DocumentId, HashSet<ViewId>>,
+    pub view_to_doc: HashMap<ViewId, DocId>,
+    pub doc_to_views: HashMap<DocId, HashSet<ViewId>>,
 }
 
 impl Index {
@@ -34,7 +34,7 @@ impl Index {
         }
     }
 
-    pub fn link_view_to_doc(&mut self, view: ViewId, doc: DocumentId) {
+    pub fn link_view_to_doc(&mut self, view: ViewId, doc: DocId) {
         if let Some(doc) = self.view_to_doc.remove(&view) {
             if let Some(views) = self.doc_to_views.get_mut(&doc) {
                 views.remove(&view);
@@ -70,7 +70,7 @@ impl Index {
     }
 
     /// Returns all views which contained the document.
-    pub fn unlink_doc(&mut self, doc: DocumentId) -> HashSet<ViewId> {
+    pub fn unlink_doc(&mut self, doc: DocId) -> HashSet<ViewId> {
         let views = self.doc_to_views.remove(&doc).unwrap_or_default();
         for view in &views {
             self.view_to_doc.remove(view);
@@ -102,7 +102,7 @@ impl Index {
         windows
     }
 
-    pub fn view_to_doc(&self, view: ViewId) -> Option<DocumentId> {
+    pub fn view_to_doc(&self, view: ViewId) -> Option<DocId> {
         let doc = self.view_to_doc.get(&view).cloned();
 
         if cfg!(debug_assertions) && doc.is_some() {
@@ -113,7 +113,7 @@ impl Index {
         doc
     }
 
-    pub fn doc_to_views(&self, doc: DocumentId) -> Option<&HashSet<ViewId>> {
+    pub fn doc_to_views(&self, doc: DocId) -> Option<&HashSet<ViewId>> {
         let views = self.doc_to_views.get(&doc);
 
         if cfg!(debug_assertions) && views.is_some() {

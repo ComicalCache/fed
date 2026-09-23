@@ -1,22 +1,13 @@
 use std::collections::HashMap;
 
 use piece_table::{PieceTable, Slice};
-use tokio::sync::{
-    mpsc::{UnboundedReceiver, UnboundedSender},
-    oneshot,
-};
+use tokio::sync::{mpsc::UnboundedReceiver, oneshot};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     debug_panic::debug_panic,
-    protocols::{screen::ScreenCommand, view::ViewCommand},
     render,
-    state::{
-        DocumentId,
-        DocumentStoreTypes::{self, Mode as DocumentMode},
-        State, StateLock, ViewId,
-        ViewStoreTypes::{Mode as ViewMode, TabWidth, ViewEvent},
-    },
+    state::{DocId, DocStoreTypes, State, StateLock, ViewId, ViewStoreTypes},
     types::{Cursor, Direction, Pos},
 };
 
@@ -32,9 +23,9 @@ pub enum ActionCommand {
     CreateCursorAtPos { view: ViewId, pos: Pos },
     RemoveCursor { view: ViewId, offset: usize },
 
-    StartCommit { doc: DocumentId },
-    EndCommit { doc: DocumentId },
-    Saved { doc: DocumentId },
+    StartCommit { doc: DocId },
+    EndCommit { doc: DocId },
+    Saved { doc: DocId },
 
     Insert { view: ViewId, text: String },
     InsertAt { view: ViewId, text: String, offset: usize },
@@ -42,8 +33,8 @@ pub enum ActionCommand {
     Delete { view: ViewId },
     Remove { view: ViewId, offset: usize, len: usize },
 
-    SetDocumentMode { doc: DocumentId, mode: DocumentMode },
-    SetViewMode { view: ViewId, mode: ViewMode },
+    SetDocMode { doc: DocId, mode: DocStoreTypes::Mode },
+    SetViewMode { view: ViewId, mode: ViewStoreTypes::Mode },
 
     CanQuit { tx: oneshot::Sender<Result<(), String>> },
 }
@@ -52,16 +43,11 @@ pub struct ActionProtocol {
     state_lock: StateLock,
 
     rx: UnboundedReceiver<ActionCommand>,
-    view_tx: UnboundedSender<ViewCommand>,
-    screen_tx: UnboundedSender<ScreenCommand>,
 }
 
 impl ActionProtocol {
-    pub fn new(
-        state_lock: StateLock, rx: UnboundedReceiver<ActionCommand>,
-        view_tx: UnboundedSender<ViewCommand>, screen_tx: UnboundedSender<ScreenCommand>,
-    ) -> Self {
-        Self { state_lock, rx, view_tx, screen_tx }
+    pub fn new(state_lock: StateLock, rx: UnboundedReceiver<ActionCommand>) -> Self {
+        Self { state_lock, rx }
     }
 
     pub async fn run(&mut self) {
@@ -88,7 +74,7 @@ impl ActionProtocol {
                 ActionCommand::Delete { view } => self.delete(view),
                 ActionCommand::Remove { view, offset, len } => self.remove(view, offset, len),
 
-                ActionCommand::SetDocumentMode { doc, mode } => self.set_doc_mode(doc, mode),
+                ActionCommand::SetDocMode { doc, mode } => self.set_doc_mode(doc, mode),
                 ActionCommand::SetViewMode { view, mode } => self.set_view_mode(view, mode),
 
                 ActionCommand::CanQuit { tx } => self.can_quit(tx),
@@ -229,7 +215,7 @@ impl ActionProtocol {
         let view_event_tx = state.view_event_tx.clone();
         drop(guard);
 
-        let _ = view_event_tx.send(ViewEvent::CursorMoved { view });
+        let _ = view_event_tx.send(ViewStoreTypes::Event::CursorMoved { view });
     }
 
     fn move_cursor_to_pos(&self, view: ViewId, pos: Pos) {
@@ -243,7 +229,7 @@ impl ActionProtocol {
         let view_event_tx = state.view_event_tx.clone();
         drop(state);
 
-        let _ = view_event_tx.send(ViewEvent::CursorMoved { view });
+        let _ = view_event_tx.send(ViewStoreTypes::Event::CursorMoved { view });
     }
 
     fn create_cursor_at_pos(&self, view: ViewId, pos: Pos) {
@@ -256,10 +242,10 @@ impl ActionProtocol {
         vse.cursors.list.sort_by_key(|c| c.offset);
         vse.cursors.list.dedup_by_key(|c| c.offset);
 
+        let view_event_tx = state.view_event_tx.clone();
         drop(state);
 
-        // Explicitly redraw the screen after creating new cursors.
-        let _ = self.screen_tx.send(ScreenCommand::Render);
+        let _ = view_event_tx.send(ViewStoreTypes::Event::CursorsChanged { view });
     }
 
     fn remove_cursor(&self, view: ViewId, offset: usize) {
@@ -270,13 +256,14 @@ impl ActionProtocol {
         };
 
         vse.cursors.list.retain(|c| c.offset != offset);
+
+        let view_event_tx = state.view_event_tx.clone();
         drop(state);
 
-        // Explicitly redraw the screen after removing cursors.
-        let _ = self.screen_tx.send(ScreenCommand::Render);
+        let _ = view_event_tx.send(ViewStoreTypes::Event::CursorsChanged { view });
     }
 
-    fn start_commit(&self, doc: DocumentId) {
+    fn start_commit(&self, doc: DocId) {
         let mut state = self.state_lock.write();
         let Some(dse) = state.doc_store.get_mut(&doc) else {
             debug_panic!();
@@ -287,7 +274,7 @@ impl ActionProtocol {
         drop(state);
     }
 
-    fn end_commit(&self, doc: DocumentId) {
+    fn end_commit(&self, doc: DocId) {
         let mut state = self.state_lock.write();
         let Some(dse) = state.doc_store.get_mut(&doc) else {
             debug_panic!();
@@ -298,7 +285,7 @@ impl ActionProtocol {
         drop(state);
     }
 
-    fn saved(&self, doc: DocumentId) {
+    fn saved(&self, doc: DocId) {
         let mut guard = self.state_lock.write();
         // Fix the borrow checker.
         let state = &mut *guard;
@@ -320,14 +307,8 @@ impl ActionProtocol {
         drop(guard);
 
         if let Some(path) = path {
-            let _ = tx.send(DocumentStoreTypes::DocumentEvent::Written {
-                id: doc,
-                path,
-                bytes_written,
-            });
+            let _ = tx.send(DocStoreTypes::Event::Written { id: doc, path, bytes_written });
         }
-
-        let _ = self.screen_tx.send(ScreenCommand::Render);
     }
 
     fn insert(&self, view: ViewId, text: String) {
@@ -399,7 +380,7 @@ impl ActionProtocol {
         });
     }
 
-    fn set_doc_mode(&mut self, doc: DocumentId, mode: DocumentMode) {
+    fn set_doc_mode(&mut self, doc: DocId, mode: DocStoreTypes::Mode) {
         let mut state = self.state_lock.write();
         let Some(dse) = state.doc_store.get_mut(&doc) else {
             debug_panic!();
@@ -407,13 +388,14 @@ impl ActionProtocol {
         };
 
         dse.mode = mode;
+
+        let doc_event_tx = state.doc_event_tx.clone();
         drop(state);
 
-        // Mode changes may include mode-line changes.
-        let _ = self.screen_tx.send(ScreenCommand::Render);
+        let _ = doc_event_tx.send(DocStoreTypes::Event::ModeChanged { id: doc, mode });
     }
 
-    fn set_view_mode(&self, view: ViewId, mode: ViewMode) {
+    fn set_view_mode(&self, view: ViewId, mode: ViewStoreTypes::Mode) {
         let mut state = self.state_lock.write();
         let Some(vse) = state.view_store.get_mut(&view) else {
             debug_panic!();
@@ -421,10 +403,12 @@ impl ActionProtocol {
         };
 
         vse.mode = mode;
+
+        let view_event_tx = state.view_event_tx.clone();
         drop(state);
 
         // Mode changes may include mode-line changes.
-        let _ = self.screen_tx.send(ScreenCommand::Render);
+        let _ = view_event_tx.send(ViewStoreTypes::Event::ModeChanged { id: view, mode });
     }
 
     fn can_quit(&self, tx: oneshot::Sender<Result<(), String>>) {
@@ -523,7 +507,7 @@ impl ActionProtocol {
 
     fn execute_transaction(
         &self, view: ViewId,
-        edits: impl FnOnce(&mut PieceTable, &Vec<Cursor>, TabWidth) -> Vec<Edit>,
+        edits: impl FnOnce(&mut PieceTable, &Vec<Cursor>, ViewStoreTypes::TabWidth) -> Vec<Edit>,
     ) {
         let mut guard = self.state_lock.write();
         // Fix the borrow checker.
@@ -554,7 +538,7 @@ impl ActionProtocol {
                 dse.doc.data.remove(edit.offset, edit.remove);
                 dse.doc.modified = true;
 
-                let _ = state.doc_event_tx.send(DocumentStoreTypes::DocumentEvent::Removed {
+                let _ = state.doc_event_tx.send(DocStoreTypes::Event::Removed {
                     id: doc_id,
                     pos: edit.offset,
                     n: edit.remove,
@@ -566,7 +550,7 @@ impl ActionProtocol {
                 dse.doc.data.insert(edit.offset, &edit.insert);
                 dse.doc.modified = true;
 
-                let _ = state.doc_event_tx.send(DocumentStoreTypes::DocumentEvent::Inserted {
+                let _ = state.doc_event_tx.send(DocStoreTypes::Event::Inserted {
                     id: doc_id,
                     pos: edit.offset,
                     n: edit.insert.len(),
@@ -606,8 +590,6 @@ impl ActionProtocol {
         let view_event_tx = state.view_event_tx.clone();
         drop(guard);
 
-        let _ = self.view_tx.send(ViewCommand::Update { view });
-
-        let _ = view_event_tx.send(ViewEvent::CursorMoved { view });
+        let _ = view_event_tx.send(ViewStoreTypes::Event::CursorMoved { view });
     }
 }

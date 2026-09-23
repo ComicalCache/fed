@@ -9,7 +9,7 @@ use tokio::sync::oneshot;
 use crate::{
     newtype::newtype,
     render::WindowId,
-    state::{DocumentId, ViewId},
+    state::{DocId, ViewId},
 };
 
 newtype!(MiniBufferId, usize);
@@ -22,7 +22,7 @@ pub struct MiniBufferStore {
     pub window: Option<WindowId>,
     pub prev_window: Option<WindowId>,
 
-    pub doc: DocumentId,
+    pub doc: DocId,
     pub view: ViewId,
 
     pub res_tx: Option<oneshot::Sender<String>>,
