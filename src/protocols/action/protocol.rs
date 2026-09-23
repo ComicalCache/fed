@@ -312,26 +312,6 @@ impl ActionProtocol {
     }
 
     fn insert(&self, view: ViewId, text: String) {
-        if text == " " || text == "\n" || text == "\t" {
-            let mut guard = self.state_lock.write();
-            // Fix the borrow checker.
-            let state = &mut *guard;
-
-            let Some((_, dse)) = State::vse_and_dse_mut(
-                &mut state.view_store,
-                &mut state.doc_store,
-                &state.index,
-                view,
-            ) else {
-                debug_panic!();
-                return;
-            };
-
-            dse.doc.data.end_commit();
-            dse.doc.data.start_commit();
-            drop(guard);
-        }
-
         if text != "\t" {
             self.execute_insert(view, |_| text.clone());
         } else {

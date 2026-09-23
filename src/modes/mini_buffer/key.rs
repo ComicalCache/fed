@@ -2,13 +2,18 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
+    debug_panic::debug_panic,
     input::{KeyInputHandler, priorities::KeyInputPriority},
+    modes::mini_buffer::command::Command,
     protocols::{action::ActionCommand, mini_buffer::MiniBufferCommand},
     state::{MiniBufferStoreTypes, StateLock},
-    types::Direction,
+    types::{Direction, KeyChord, KeyNode, Keymap},
 };
 
 pub struct MiniBufferKeyInput {
+    keymap: Keymap<Command>,
+    pending_keys: Vec<KeyChord>,
+
     state_lock: StateLock,
 
     action_tx: UnboundedSender<ActionCommand>,
@@ -20,7 +25,65 @@ impl MiniBufferKeyInput {
         state_lock: StateLock, action_tx: UnboundedSender<ActionCommand>,
         mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
     ) -> Self {
-        Self { state_lock, action_tx, mini_buffer_tx }
+        let mut keymap = Keymap::new();
+
+        keymap.bind(
+            &[KeyChord::new(KeyCode::Left, KeyModifiers::empty())],
+            Command::Move(Direction::Left),
+        );
+        keymap.bind(
+            &[KeyChord::new(KeyCode::Right, KeyModifiers::empty())],
+            Command::Move(Direction::Right),
+        );
+
+        keymap
+            .bind(&[KeyChord::new(KeyCode::Backspace, KeyModifiers::empty())], Command::Backspace);
+        keymap.bind(&[KeyChord::new(KeyCode::Delete, KeyModifiers::empty())], Command::Delete);
+
+        keymap.bind(&[KeyChord::new(KeyCode::Enter, KeyModifiers::empty())], Command::Submit);
+        keymap.bind(
+            &[KeyChord::new(KeyCode::Tab, KeyModifiers::empty())],
+            Command::Input("\t".to_string()),
+        );
+        keymap.bind(&[KeyChord::new(KeyCode::Esc, KeyModifiers::empty())], Command::Close);
+
+        Self { state_lock, action_tx, mini_buffer_tx, keymap, pending_keys: Vec::new() }
+    }
+
+    fn execute(&self, cmd: &Command) {
+        let state = self.state_lock.read();
+        if state.workspace.active_window != state.mini_buffer_store.window {
+            return;
+        }
+        if state.mini_buffer_store.kind != MiniBufferStoreTypes::Kind::Prompt {
+            return;
+        }
+
+        let id = state.mini_buffer_store.id;
+        let view = state.mini_buffer_store.view;
+        drop(state);
+
+        match cmd {
+            Command::Move(direction) => {
+                let _ =
+                    self.action_tx.send(ActionCommand::MoveCursors { view, direction: *direction });
+            }
+            Command::Backspace => {
+                let _ = self.action_tx.send(ActionCommand::Backspace { view });
+            }
+            Command::Delete => {
+                let _ = self.action_tx.send(ActionCommand::Delete { view });
+            }
+            Command::Submit => {
+                let _ = self.mini_buffer_tx.send(MiniBufferCommand::Submit);
+            }
+            Command::Close => {
+                let _ = self.mini_buffer_tx.send(MiniBufferCommand::Close { id });
+            }
+            Command::Input(text) => {
+                let _ = self.action_tx.send(ActionCommand::Insert { view, text: text.clone() });
+            }
+        }
     }
 }
 
@@ -35,31 +98,28 @@ impl KeyInputHandler for MiniBufferKeyInput {
         if state.mini_buffer_store.kind != MiniBufferStoreTypes::Kind::Prompt {
             return false;
         }
-
-        let id = state.mini_buffer_store.id;
-        let view = state.mini_buffer_store.view;
         drop(state);
 
-        match event.code {
-            KeyCode::Left => {
-                let _ = self
-                    .action_tx
-                    .send(ActionCommand::MoveCursors { view, direction: Direction::Left });
-            }
-            KeyCode::Right => {
-                let _ = self
-                    .action_tx
-                    .send(ActionCommand::MoveCursors { view, direction: Direction::Right });
-            }
-            KeyCode::Up => {}   // TODO: Prompt history previous/next auto complete?
-            KeyCode::Down => {} // TODO: Prompt history next/previous auto complete?
-            KeyCode::Backspace => {
-                let _ = self.action_tx.send(ActionCommand::Backspace { view });
-            }
-            KeyCode::Delete => {
-                let _ = self.action_tx.send(ActionCommand::Delete { view });
-            }
-            KeyCode::Char(ch) => {
+        let chord = KeyChord::from(event);
+        self.pending_keys.push(chord);
+
+        let mut curr = &self.keymap.root;
+        let mut target = None;
+        for (idx, key_chord) in self.pending_keys.iter().enumerate() {
+            if let Some(node) = curr.get(key_chord) {
+                if idx == self.pending_keys.len() - 1 {
+                    target = Some(node);
+                } else if let KeyNode::Prefix(next_map) = node {
+                    curr = next_map;
+                } else {
+                    debug_panic!();
+                }
+            } else {
+                // Invalid sequence.
+                self.pending_keys.clear();
+
+                // If it's a character input, insert it.
+                let KeyCode::Char(ch) = event.code else { return false };
                 let modifiers = event
                     .modifiers
                     .iter_names()
@@ -75,26 +135,28 @@ impl KeyInputHandler for MiniBufferKeyInput {
                     .join("-");
 
                 if !modifiers.is_empty() {
-                    let _ = self
-                        .action_tx
-                        .send(ActionCommand::Insert { view, text: format!("<{modifiers}-{ch}>") });
+                    self.execute(&Command::Input(format!("<{modifiers}-{ch}>")));
                 } else {
-                    let _ =
-                        self.action_tx.send(ActionCommand::Insert { view, text: ch.to_string() });
+                    self.execute(&Command::Input(ch.to_string()));
                 }
+
+                return true;
             }
-            KeyCode::Enter => {
-                let _ = self.mini_buffer_tx.send(MiniBufferCommand::Submit);
-            }
-            KeyCode::Tab => {
-                let _ = self.action_tx.send(ActionCommand::Insert { view, text: "\t".to_string() });
-            }
-            KeyCode::Esc => {
-                let _ = self.mini_buffer_tx.send(MiniBufferCommand::Close { id });
-            }
-            _ => return false,
         }
 
-        true
+        match target {
+            Some(KeyNode::Leaf(cmd)) => {
+                self.execute(cmd);
+                self.pending_keys.clear();
+
+                true
+            }
+            Some(KeyNode::Prefix(_)) => true,
+            None => {
+                self.pending_keys.clear();
+
+                false
+            }
+        }
     }
 }

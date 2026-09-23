@@ -1,3 +1,4 @@
+mod command;
 mod key;
 mod mouse;
 
