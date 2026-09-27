@@ -54,6 +54,7 @@ impl VisualKeyInput {
                     move_anchor: false,
                 });
             }
+            Command::SwapLineDown | Command::SwapLineUp => self.swap_operation(view, doc, cmd),
             Command::EnterSearchMode => self.enter_search_mode(view, doc),
             Command::Escape => {
                 let _ = self
@@ -62,6 +63,173 @@ impl VisualKeyInput {
             }
             Command::Delete | Command::Change | Command::Yank => self.operator(view, doc, cmd),
         }
+    }
+
+    fn swap_operation(&self, view: ViewId, doc: DocId, cmd: &Command) {
+        let state = self.state_lock.read();
+        let Some(vse) = state.view_store.get(&view) else {
+            debug_panic!();
+            return;
+        };
+        let Some(dse) = state.doc_store.get(&doc) else {
+            debug_panic!();
+            return;
+        };
+
+        let doc_lines = dse.doc.data.lines();
+
+        let mut lines = Vec::new();
+        for cursor in &vse.cursors.list {
+            let start = cursor.anchor.min(cursor.offset);
+            let end = cursor.anchor.max(cursor.offset);
+
+            for idx in 0..doc_lines {
+                let s = dse.doc.data.get_line_start_byte(idx);
+                let e = dse.doc.data.get_line_end_byte(idx);
+
+                if start == end {
+                    if start >= s && (start < e || idx == doc_lines - 1) {
+                        lines.push(idx);
+                    }
+                } else if start < e && end > s {
+                    lines.push(idx);
+                }
+            }
+        }
+        lines.sort_unstable();
+        lines.dedup();
+
+        if lines.is_empty() {
+            return;
+        }
+
+        // Group contiguous lines into blocks and move them together.
+        let mut blocks: Vec<(usize, usize)> = Vec::new();
+        for &y in &lines {
+            if let Some(last) = blocks.last_mut()
+                && last.1 + 1 == y
+            {
+                last.1 = y;
+                continue;
+            }
+
+            blocks.push((y, y));
+        }
+
+        let mut actions = Vec::new();
+        match cmd {
+            Command::SwapLineDown => {
+                for &(start, end) in blocks.iter().rev() {
+                    if end + 1 >= doc_lines {
+                        continue;
+                    }
+
+                    let block_start = dse.doc.data.get_line_start_byte(start);
+                    let block_end = dse.doc.data.get_line_end_byte(end);
+
+                    let target = end + 1;
+                    let target_start = dse.doc.data.get_line_start_byte(target);
+                    let target_end = dse.doc.data.get_line_end_byte(target);
+                    let target_text = dse.doc.data.slice(target_start..target_end);
+
+                    // Target line is the last line of the document.
+                    if target + 1 == doc_lines {
+                        let mut target_text = target_text;
+                        target_text.push('\n');
+
+                        actions.push(ActionCommand::Remove {
+                            view,
+                            offset: target_start,
+                            len: target_end - target_start,
+                        });
+
+                        // Remove the newline of not the block since it will be
+                        // at the end. This will break for Windows CRLF line
+                        // endings.
+                        actions.push(ActionCommand::Remove { view, offset: block_end - 1, len: 1 });
+                        actions.push(ActionCommand::InsertAt {
+                            view,
+                            text: target_text,
+                            offset: block_start,
+                        });
+                    } else {
+                        actions.push(ActionCommand::Remove {
+                            view,
+                            offset: target_start,
+                            len: target_end - target_start,
+                        });
+                        actions.push(ActionCommand::InsertAt {
+                            view,
+                            text: target_text,
+                            offset: block_start,
+                        });
+                    }
+                }
+            }
+            Command::SwapLineUp => {
+                for &(start, end) in blocks.iter().rev() {
+                    if start == 0 {
+                        continue;
+                    }
+
+                    let block_end = dse.doc.data.get_line_end_byte(end);
+
+                    let target = start - 1;
+                    let target_start = dse.doc.data.get_line_start_byte(target);
+                    let target_end = dse.doc.data.get_line_end_byte(target);
+                    let target_text = dse.doc.data.slice(target_start..target_end);
+                    let target_len = target_text.len();
+
+                    // Block is the last line(s) of the document.
+                    if end + 1 == doc_lines {
+                        // Remove the newline of not block since it wont be
+                        // at the end. This will break for Windows CRLF line
+                        // endings.
+                        let mut target_text = target_text;
+                        target_text.truncate(target_text.len() - 1);
+
+                        actions.push(ActionCommand::Remove {
+                            view,
+                            offset: target_start,
+                            len: target_len,
+                        });
+                        actions.push(ActionCommand::InsertAt {
+                            view,
+                            text: "\n".to_string(),
+                            offset: block_end - target_len,
+                        });
+                        actions.push(ActionCommand::InsertAt {
+                            view,
+                            text: target_text,
+                            offset: block_end - target_len + 1,
+                        });
+                    } else {
+                        actions.push(ActionCommand::Remove {
+                            view,
+                            offset: target_start,
+                            len: target_len,
+                        });
+                        actions.push(ActionCommand::InsertAt {
+                            view,
+                            text: target_text,
+                            offset: block_end - target_len,
+                        });
+                    }
+                }
+            }
+            _ => {}
+        }
+        drop(state);
+
+        if actions.is_empty() {
+            return;
+        }
+
+        let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
+        for action in actions {
+            let _ = self.action_tx.send(action);
+        }
+        let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
     }
 
     fn enter_search_mode(&self, view: ViewId, doc: DocId) {

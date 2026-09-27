@@ -15,7 +15,7 @@ use crate::{
     },
     render::ZLayer,
     state::{MiniBufferId, MiniBufferStoreTypes, StateLock, ViewStoreTypes},
-    types::{Face, Pos, Rect},
+    types::{Pos, Rect},
 };
 
 pub struct MiniBufferProtocol {
@@ -126,7 +126,10 @@ impl MiniBufferProtocol {
 
         let id = MiniBufferId(self.next_id.fetch_add(1, Ordering::Relaxed));
 
-        let mut state = self.state_lock.write();
+        let mut guard = self.state_lock.write();
+        // Fix the borrow checker.
+        let state = &mut *guard;
+
         let Some(vse) = state.view_store.get_mut(&view) else {
             state.workspace.destroy_window(window);
 
@@ -137,7 +140,7 @@ impl MiniBufferProtocol {
 
         vse.decs.layers.insert(
             ViewStoreTypes::DecorationId::MiniBuffer,
-            Box::new(MiniBufferDecorationProvider::new(prompt, Face::default())),
+            Box::new(MiniBufferDecorationProvider::new(prompt, state.theme.mini_buffer)),
         );
 
         state.mini_buffer_store.id = id;
@@ -147,7 +150,7 @@ impl MiniBufferProtocol {
         state.mini_buffer_store.res_tx = Some(res_tx);
 
         state.workspace.active_window = Some(window);
-        drop(state);
+        drop(guard);
 
         let _ = id_tx.send(id);
     }

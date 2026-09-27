@@ -466,11 +466,11 @@ impl NormalKeyInput {
         // Group contiguous lines into blocks and move them together.
         let mut blocks: Vec<(usize, usize)> = Vec::new();
         for &y in &lines {
-            if let Some(last) = blocks.last_mut() {
-                if last.1 + 1 == y {
-                    last.1 = y;
-                    continue;
-                }
+            if let Some(last) = blocks.last_mut()
+                && last.1 + 1 == y
+            {
+                last.1 = y;
+                continue;
             }
 
             blocks.push((y, y));

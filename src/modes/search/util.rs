@@ -6,7 +6,6 @@ use crate::{
     debug_panic::debug_panic,
     protocols::{mini_buffer::MiniBufferCommand, view::decorations::SearchDecorationProvider},
     state::{DocId, StateLock, ViewId, ViewStoreTypes},
-    types::Face,
 };
 
 pub fn start_search(
@@ -75,23 +74,23 @@ pub fn execute_search(
         return;
     }
 
-    let mut state = state_lock.write();
+    let mut guard = state_lock.write();
+    // Fix the borrow checker.
+    let state = &mut *guard;
+
     let Some(vse) = state.view_store.get_mut(&view) else {
         debug_panic!();
         return;
     };
 
-    let mut face = Face::default();
-    face.reverse = Some(true);
-
     vse.decs.layers.insert(
         ViewStoreTypes::DecorationId::Search,
-        Box::new(SearchDecorationProvider::new(query, matches, face)),
+        Box::new(SearchDecorationProvider::new(query, matches, state.theme.search_match)),
     );
     vse.mode = ViewStoreTypes::Mode::Search;
 
     let view_event_tx = state.view_event_tx.clone();
-    drop(state);
+    drop(guard);
 
     let _ = view_event_tx
         .send(ViewStoreTypes::Event::ModeChanged { id: view, mode: ViewStoreTypes::Mode::Search });

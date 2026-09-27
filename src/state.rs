@@ -22,7 +22,7 @@ use crate::{
     debug_panic::debug_panic,
     render::{self, WindowId, Workspace},
     state::{DocStoreTypes::Doc, index::Index},
-    types::Pos,
+    types::{Pos, Theme},
 };
 
 #[derive(Clone)]
@@ -48,6 +48,8 @@ pub struct State {
 
     pub doc_event_tx: broadcast::Sender<DocStoreTypes::Event>,
     pub view_event_tx: broadcast::Sender<ViewStoreTypes::Event>,
+
+    pub theme: Theme,
 }
 
 impl State {
@@ -63,6 +65,7 @@ impl State {
             mini_buffer_store: MiniBufferStore::default(),
             doc_event_tx,
             view_event_tx,
+            theme: Theme::default(),
         }
     }
 

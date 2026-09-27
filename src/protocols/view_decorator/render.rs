@@ -6,7 +6,7 @@ use crate::{
     protocols::view::ViewRenderer,
     render::{Cell, Renderer, Viewport, WindowId},
     state::{State, ViewId},
-    types::{Face, Pos, Rect},
+    types::{Pos, Rect},
 };
 
 pub struct ViewDecoratorRenderer {
@@ -67,7 +67,6 @@ impl ViewDecoratorRenderer {
         let lines = dse.doc.data.lines();
         let scroll = vse.scroll;
 
-        let face = Face::default();
         for y in 0..viewport.height() {
             let num = y + scroll.y + 1;
             let num = if num <= lines {
@@ -81,7 +80,7 @@ impl ViewDecoratorRenderer {
                     break;
                 }
 
-                viewport.set(Pos::new(x, y), Cell::new(ch.to_string(), 1, face));
+                viewport.set(Pos::new(x, y), Cell::new(ch.to_string(), 1, state.theme.gutter));
             }
         }
     }
@@ -98,7 +97,7 @@ impl ViewDecoratorRenderer {
             left.extend(widget.render(vse, dse));
 
             // Add padding.
-            left.push((" ".to_string(), Face::default()));
+            left.push((" ".to_string(), state.theme.mode_line));
         }
         // Removing trailing padding.
         left.pop();
@@ -108,16 +107,13 @@ impl ViewDecoratorRenderer {
             right.extend(widget.render(vse, dse));
 
             // Add padding. Keep the trailing padding as right padding.
-            right.push((" ".to_string(), Face::default()));
+            right.push((" ".to_string(), state.theme.mode_line));
         }
-
-        let mut base_face = Face::default();
-        base_face.reverse = Some(true);
 
         let mut x = 0;
 
         for (text, span_face) in left {
-            let mut face = base_face;
+            let mut face = state.theme.mode_line;
             face.merge(span_face);
 
             for grapheme in text.graphemes(true) {
@@ -150,12 +146,12 @@ impl ViewDecoratorRenderer {
         let right_start = viewport.width().saturating_sub(right_width);
 
         while x < right_start {
-            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), 1, base_face));
+            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), 1, state.theme.mode_line));
             x += 1;
         }
 
         for (text, span_face) in right {
-            let mut face = base_face;
+            let mut face = state.theme.mode_line;
             face.merge(span_face);
 
             for grapheme in text.graphemes(true) {
@@ -181,7 +177,7 @@ impl ViewDecoratorRenderer {
         }
 
         while x < viewport.width() {
-            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), 1, base_face));
+            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), 1, state.theme.mode_line));
             x += 1;
         }
     }

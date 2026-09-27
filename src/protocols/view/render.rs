@@ -4,21 +4,18 @@ use crate::{
     debug_panic::debug_panic,
     protocols::view::store::LocalViewStore,
     render::{self, Cell, Renderer, Viewport, WindowId},
-    state::{DocId, State, ViewId, ViewStoreTypes},
-    types::{Face, Pos},
+    state::{State, ViewId, ViewStoreTypes},
+    types::Pos,
 };
 
 pub struct ViewRenderer {
-    doc: DocId,
     view: ViewId,
 
     store: Arc<RwLock<LocalViewStore>>,
 }
 
 impl ViewRenderer {
-    pub fn new(doc: DocId, view: ViewId, store: Arc<RwLock<LocalViewStore>>) -> Self {
-        Self { doc, view, store }
-    }
+    pub fn new(view: ViewId, store: Arc<RwLock<LocalViewStore>>) -> Self { Self { view, store } }
 }
 
 impl Renderer for ViewRenderer {
@@ -30,7 +27,10 @@ impl Renderer for ViewRenderer {
         let Some(lvd) = store.get(&self.view).cloned() else {
             for y in 0..height {
                 for x in 0..width {
-                    viewport.set(Pos::new(x, y), Cell::default());
+                    let mut cell = Cell::default();
+                    cell.face = state.theme.default;
+
+                    viewport.set(Pos::new(x, y), cell);
                 }
             }
 
@@ -88,7 +88,7 @@ impl Renderer for ViewRenderer {
 
             let mut x = 0;
             let mut visual_x = 0;
-            for mut cell in cells {
+            for cell in cells {
                 if visual_x < scroll.x {
                     visual_x += 1;
                     continue;
@@ -98,18 +98,27 @@ impl Renderer for ViewRenderer {
                     break;
                 }
 
-                if cursor_xs.contains(&visual_x) || selected_xs.contains(&visual_x) {
-                    cell.face.reverse = Some(true);
+                let mut face = if state.mini_buffer_store.view == self.view {
+                    state.theme.mini_buffer
+                } else {
+                    state.theme.default
+                };
+                face.merge(cell.face);
+
+                if cursor_xs.contains(&visual_x) {
+                    face.merge(state.theme.cursor);
+                } else if selected_xs.contains(&visual_x) {
+                    face.merge(state.theme.selection);
                 }
 
                 if visual_x == scroll.x && cell.width == 0 {
                     // A wide char's first section is off-screen.
-                    viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), 1, cell.face));
+                    viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), 1, face));
                 } else if x + cell.width > width {
                     // A wide char's trailing section is off-screen.
-                    viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), 1, cell.face));
+                    viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), 1, face));
                 } else {
-                    viewport.set(Pos::new(x, y), cell);
+                    viewport.set(Pos::new(x, y), Cell::new(cell.ch, cell.width, face));
                 }
 
                 x += 1;
@@ -118,9 +127,15 @@ impl Renderer for ViewRenderer {
 
             // Undrawn tail of line.
             while x < width {
-                let mut face = Face::default();
-                if cursor_xs.contains(&visual_x) || selected_xs.contains(&visual_x) {
-                    face.reverse = Some(true);
+                let mut face = if state.mini_buffer_store.view == self.view {
+                    state.theme.mini_buffer
+                } else {
+                    state.theme.default
+                };
+                if cursor_xs.contains(&visual_x) {
+                    face.merge(state.theme.cursor);
+                } else if selected_xs.contains(&visual_x) {
+                    face.merge(state.theme.selection);
                 }
 
                 viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), 1, face));
@@ -132,9 +147,14 @@ impl Renderer for ViewRenderer {
         }
 
         // Undrawn trailing lines.
+        let face = if state.mini_buffer_store.view == self.view {
+            state.theme.mini_buffer
+        } else {
+            state.theme.default
+        };
         for y in lines_drawn..height {
             for x in 0..width {
-                viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), 1, Face::default()));
+                viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), 1, face));
             }
         }
     }

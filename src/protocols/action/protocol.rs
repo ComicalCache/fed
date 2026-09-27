@@ -516,6 +516,17 @@ impl ActionProtocol {
                     // On cursor.
                     cursor.offset += edit.insert.len();
                 }
+
+                if edit.offset < cursor.anchor {
+                    if cursor.anchor < edit.offset + edit.remove {
+                        cursor.anchor = edit.offset;
+                    } else {
+                        cursor.anchor = cursor.anchor + edit.insert.len() - edit.remove;
+                    }
+                } else if edit.offset == cursor.anchor {
+                    // On cursor.
+                    cursor.anchor += edit.insert.len();
+                }
             }
         }
 

@@ -6,6 +6,8 @@ pub enum Command {
     Delete,
     Change,
     Yank,
+    SwapLineDown,
+    SwapLineUp,
     EnterSearchMode,
     Escape,
 }

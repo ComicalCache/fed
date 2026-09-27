@@ -229,13 +229,13 @@ impl ViewProtocol {
         let view = view.unwrap_or_else(|| state.create_view(doc));
 
         let window = if raw {
-            let renderer = Box::new(ViewRenderer::new(doc, view, self.local_store.clone()));
+            let renderer = Box::new(ViewRenderer::new(view, self.local_store.clone()));
 
             state.workspace.create_tile(split_window, direction, renderer)
         } else {
             let renderer = Box::new(ViewDecoratorRenderer::new(
                 view,
-                ViewRenderer::new(doc, view, self.local_store.clone()),
+                ViewRenderer::new(view, self.local_store.clone()),
             ));
 
             state.workspace.create_tile(split_window, direction, renderer)
@@ -266,13 +266,13 @@ impl ViewProtocol {
         let view = view.unwrap_or_else(|| state.create_view(doc));
 
         let window = if raw {
-            let renderer = Box::new(ViewRenderer::new(doc, view, self.local_store.clone()));
+            let renderer = Box::new(ViewRenderer::new(view, self.local_store.clone()));
 
             state.workspace.create_floating(rect, z, renderer)
         } else {
             let renderer = Box::new(ViewDecoratorRenderer::new(
                 view,
-                ViewRenderer::new(doc, view, self.local_store.clone()),
+                ViewRenderer::new(view, self.local_store.clone()),
             ));
 
             state.workspace.create_floating(rect, z, renderer)

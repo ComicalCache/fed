@@ -116,7 +116,6 @@ impl Screen {
             return;
         }
 
-        let mut reset = false;
         if (active.bold == Some(true) && target.bold != Some(true))
             || (active.italic == Some(true) && target.italic != Some(true))
             || (active.underline == Some(true) && target.underline != Some(true))
@@ -124,10 +123,6 @@ impl Screen {
             || (active.strikethrough == Some(true) && target.strikethrough != Some(true))
             || (active.reverse == Some(true) && target.reverse != Some(true))
         {
-            reset = true;
-        }
-
-        if reset {
             queue!(stdout, SetAttribute(Attribute::Reset)).unwrap();
 
             *active = Face::default();

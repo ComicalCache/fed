@@ -8,6 +8,7 @@ mod pos;
 mod rect;
 mod rgb;
 mod span;
+mod theme;
 
 pub use cursor::Cursor;
 pub use decoration::{Decoration, DecorationProvider};
@@ -19,3 +20,4 @@ pub use pos::Pos;
 pub use rect::{Rect, RectSplit};
 pub use rgb::Rgb;
 pub use span::Span;
+pub use theme::Theme;
