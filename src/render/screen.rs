@@ -8,7 +8,6 @@ use crossterm::{
         SetUnderlineColor,
     },
 };
-use unicode_width::UnicodeWidthStr;
 
 use crate::{
     render::Cell,
@@ -74,37 +73,59 @@ impl Screen {
     }
 
     pub fn render(&mut self) {
+        // Mark the leading cells of wide characters as dirty, if the trailing
+        // cell is dirty.
+        for y in 0..self.height {
+            for x in (1..self.width).rev() {
+                let idx = (self.width * y) + x;
+                if self.dirty[idx] && self.grid[idx].width == 0 {
+                    self.dirty[idx - 1] = true;
+                }
+            }
+        }
+
         let mut stdout = std::io::stdout().lock();
-
-        let mut face = Face::default();
-        let mut cursor = Pos::new(usize::MAX, usize::MAX);
-
         queue!(stdout, SetAttribute(Attribute::Reset)).unwrap();
 
+        let mut face = Face::default();
         for y in 0..self.height {
+            let offset = self.width * y;
+
+            let line_dirty = self.dirty[offset..offset + self.width].iter().any(|&d| d);
+            if !line_dirty {
+                continue;
+            }
+
+            queue!(stdout, MoveTo(0, y as u16)).unwrap();
             for x in 0..self.width {
-                let idx = (self.width * y) + x;
+                let cell = &self.grid[offset + x];
 
-                if !self.dirty[idx] {
+                Self::render_face(&mut stdout, &mut face, &cell.face);
+                queue!(stdout, Print(" ")).unwrap();
+            }
+
+            let mut cursor_x = self.width;
+            for x in 0..self.width {
+                self.dirty[offset + x] = false;
+                let cell = &self.grid[offset + x];
+
+                if cell.width == 0 || cell.ch == " " {
                     continue;
                 }
-                self.dirty[idx] = false;
 
-                let cell = &self.grid[idx];
-                if cell.width == 0 {
-                    continue;
-                }
-
-                if cursor != Pos::new(x, y) {
+                if cursor_x != x {
                     queue!(stdout, MoveTo(x as u16, y as u16)).unwrap();
                 }
 
                 Self::render_face(&mut stdout, &mut face, &cell.face);
-
                 queue!(stdout, Print(&cell.ch)).unwrap();
 
-                cursor.x = x + cell.ch.width();
-                cursor.y = y;
+                // Some characters may not render with the same width as
+                // expected by `unicode-width`, thus don't rely on the terminal
+                // cursor moving as expected for non-ascii characters.
+                if cell.ch.is_ascii() {
+                    cursor_x = x + cell.width;
+                }
             }
         }
 
