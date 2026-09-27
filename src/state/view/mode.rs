@@ -5,6 +5,8 @@ pub enum Mode {
     #[default]
     Normal,
     Insert,
+    Visual,
+    Search,
 }
 
 impl Display for Mode {

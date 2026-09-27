@@ -26,7 +26,10 @@ pub fn layout_cells(
         let mut virtual_texts = Vec::new();
 
         for span in decs {
-            if span.start > offset + ch_len || span.end < offset {
+            let zero_width = span.start == span.end;
+            if (zero_width && (span.start < offset || span.start >= offset + ch_len))
+                || (!zero_width && (span.start >= offset + ch_len || span.end <= offset))
+            {
                 continue;
             }
 
@@ -161,7 +164,10 @@ pub fn layout_vom(
         let mut virtual_texts = Vec::new();
 
         for span in decs {
-            if span.start > offset + ch_len || span.end < offset {
+            let zero_width = span.start == span.end;
+            if (zero_width && (span.start < offset || span.start >= offset + ch_len))
+                || (!zero_width && (span.start >= offset + ch_len || span.end <= offset))
+            {
                 continue;
             }
 

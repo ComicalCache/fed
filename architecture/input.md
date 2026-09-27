@@ -28,13 +28,16 @@ protocol to ensure events are processed by the correct mode.
 Each mode lives in its own directory under `src/modes/<name>/`. A mode module is composed of
 specific, optionally included files based on its functionality:
 
+- `command.rs`: Contains the commands for this mode
 - `key.rs`: Contains the key input handler
+- `keymap.rs`: Contains the keybinds for this mode as a central place to look them up
 - `mouse.rs`: Contains the mouse input handler
 - `paste.rs`: Contains the paste input handler
 - `resize.rs`: Contains the resize input handler
 
 ### Naming Conventions
 
+- Command: `Command`
 - Key event: `<Name>KeyInput`
 - Mouse event: `<Name>MouseInput`
 - Paste event: `<Name>PasteInput`

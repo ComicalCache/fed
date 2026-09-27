@@ -1,10 +1,33 @@
-use crate::types::Direction;
+use crate::types::Motion;
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum Command {
-    Move(Direction),
+    Move(Motion),
+    Delete(Motion),
+    DeleteLine,
+    Change(Motion),
+    ChangeLine,
+    Yank(Motion),
+    YankLine,
+    ScrollView(Motion),
+    Undo,
+    HotRedo,
+    Append,
+    AppendEndOfLine,
+    InsertLineBelow,
+    InsertLineAbove,
+    SwapLineDown,
+    SwapLineUp,
+    Indent,
+    Dedent,
+    Paste,
+    DeleteChar,
+    Replace,
+    ReplaceChar(char),
+    SaveFile,
+    Jump,
     EnterInsertMode,
+    EnterVisualMode,
+    EnterSearchMode,
     Quit,
-    TestMessage,
-    TestPrompt,
 }

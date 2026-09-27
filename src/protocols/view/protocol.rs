@@ -15,7 +15,7 @@ use crate::{
     protocols::{
         screen::ScreenCommand,
         view::{
-            ViewRenderer,
+            ViewCommand, ViewRenderer,
             store::{LocalViewData, LocalViewStore},
         },
         view_decorator::ViewDecoratorRenderer,
@@ -24,55 +24,6 @@ use crate::{
     state::{DocId, DocStoreTypes, State, StateLock, ViewId, ViewStoreTypes},
     types::{Pos, Rect, RectSplit},
 };
-
-pub enum ViewCommand {
-    Init {
-        window: WindowId,
-        view: ViewId,
-        doc: DocId,
-    },
-    Update {
-        view: ViewId,
-    },
-    ScrollTo {
-        view: ViewId,
-        pos: Pos,
-    },
-
-    CreateRawTile {
-        doc: DocId,
-        view: Option<ViewId>,
-        split_window: WindowId,
-        direction: RectSplit,
-        tx: oneshot::Sender<(ViewId, WindowId)>,
-    },
-    CreateTile {
-        doc: DocId,
-        view: Option<ViewId>,
-        split_window: WindowId,
-        direction: RectSplit,
-        tx: oneshot::Sender<(ViewId, WindowId)>,
-    },
-    CreateFloating {
-        doc: DocId,
-        view: Option<ViewId>,
-        rect: Rect,
-        z: ZLayer,
-        tx: oneshot::Sender<(ViewId, WindowId)>,
-    },
-    CreateRawFloating {
-        doc: DocId,
-        view: Option<ViewId>,
-        rect: Rect,
-        z: ZLayer,
-        tx: oneshot::Sender<(ViewId, WindowId)>,
-    },
-    DestroyView {
-        view: ViewId,
-    },
-
-    Resize,
-}
 
 pub struct ViewProtocol {
     local_store: Arc<RwLock<LocalViewStore>>,
@@ -107,15 +58,15 @@ impl ViewProtocol {
             tokio::select! {
                 cmd = self.rx.recv() => {
                     let Some(cmd) = cmd else { break };
-                    self.handle_command(cmd);
+                    self.command(cmd);
                 }
                 event = self.doc_event_rx.recv() => {
                     let Ok(event) = event else { continue };
-                    self.handle_doc_event(event);
+                    self.doc_event(event);
                 }
                 event = self.view_event_rx.recv() => {
                     let Ok(event) = event else { continue };
-                    self.handle_view_event(event);
+                    self.view_event(event);
                 }
             }
 
@@ -124,7 +75,7 @@ impl ViewProtocol {
         }
     }
 
-    fn handle_command(&mut self, cmd: ViewCommand) {
+    fn command(&mut self, cmd: ViewCommand) {
         match cmd {
             ViewCommand::Init { window, view, doc } => self.init(window, view, doc),
             ViewCommand::Update { view } => self.update(view),
@@ -148,7 +99,7 @@ impl ViewProtocol {
         }
     }
 
-    fn handle_doc_event(&mut self, event: DocStoreTypes::Event) {
+    fn doc_event(&mut self, event: DocStoreTypes::Event) {
         let doc = match event {
             DocStoreTypes::Event::Created { .. } => return,
             DocStoreTypes::Event::Destroyed { .. } => return,
@@ -171,7 +122,7 @@ impl ViewProtocol {
         }
     }
 
-    fn handle_view_event(&mut self, event: ViewStoreTypes::Event) {
+    fn view_event(&mut self, event: ViewStoreTypes::Event) {
         match event {
             ViewStoreTypes::Event::CursorMoved { view } => self.cursor_moved(view),
             ViewStoreTypes::Event::CursorsChanged { .. } => {}

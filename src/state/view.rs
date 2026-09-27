@@ -1,6 +1,6 @@
 mod cursors;
 mod decorations;
-mod events;
+mod event;
 mod layout;
 mod mode;
 mod scroll;
@@ -10,7 +10,7 @@ pub mod types {
     pub use crate::state::view::{
         cursors::Cursors,
         decorations::{DecorationId, Decorations},
-        events::Event,
+        event::Event,
         layout::Layout,
         mode::Mode,
         scroll::Scroll,

@@ -31,8 +31,8 @@ impl QuitProtocol {
         while let Some(_) = self.rx.recv().await {
             let mut can_quit = true;
 
-            for cb in &self.callbacks {
-                match cb().await {
+            for callback in &self.callbacks {
+                match callback().await {
                     Ok(Ok(())) => continue,
                     Ok(Err(message)) => {
                         can_quit = false;

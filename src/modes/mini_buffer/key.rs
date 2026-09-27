@@ -4,10 +4,10 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     debug_panic::debug_panic,
     input::{KeyInputHandler, priorities::KeyInputPriority},
-    modes::mini_buffer::command::Command,
+    modes::mini_buffer::{command::Command, keymap},
     protocols::{action::ActionCommand, mini_buffer::MiniBufferCommand},
     state::{MiniBufferStoreTypes, StateLock},
-    types::{Direction, KeyChord, KeyNode, Keymap},
+    types::{KeyChord, KeyNode, Keymap},
 };
 
 pub struct MiniBufferKeyInput {
@@ -25,29 +25,8 @@ impl MiniBufferKeyInput {
         state_lock: StateLock, action_tx: UnboundedSender<ActionCommand>,
         mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
     ) -> Self {
-        let mut keymap = Keymap::new();
-
-        keymap.bind(
-            &[KeyChord::new(KeyCode::Left, KeyModifiers::empty())],
-            Command::Move(Direction::Left),
-        );
-        keymap.bind(
-            &[KeyChord::new(KeyCode::Right, KeyModifiers::empty())],
-            Command::Move(Direction::Right),
-        );
-
-        keymap
-            .bind(&[KeyChord::new(KeyCode::Backspace, KeyModifiers::empty())], Command::Backspace);
-        keymap.bind(&[KeyChord::new(KeyCode::Delete, KeyModifiers::empty())], Command::Delete);
-
-        keymap.bind(&[KeyChord::new(KeyCode::Enter, KeyModifiers::empty())], Command::Submit);
-        keymap.bind(
-            &[KeyChord::new(KeyCode::Tab, KeyModifiers::empty())],
-            Command::Input("\t".to_string()),
-        );
-        keymap.bind(&[KeyChord::new(KeyCode::Esc, KeyModifiers::empty())], Command::Close);
-
-        Self { state_lock, action_tx, mini_buffer_tx, keymap, pending_keys: Vec::new() }
+        let keymap = keymap::keymap();
+        Self { keymap, pending_keys: Vec::new(), state_lock, action_tx, mini_buffer_tx }
     }
 
     fn execute(&self, cmd: &Command) {
@@ -64,9 +43,15 @@ impl MiniBufferKeyInput {
         drop(state);
 
         match cmd {
-            Command::Move(direction) => {
-                let _ =
-                    self.action_tx.send(ActionCommand::MoveCursors { view, direction: *direction });
+            Command::Input(text) => {
+                let _ = self.action_tx.send(ActionCommand::Insert { view, text: text.clone() });
+            }
+            Command::Move(motion) => {
+                let _ = self.action_tx.send(ActionCommand::MoveCursors {
+                    view,
+                    motion: *motion,
+                    move_anchor: true,
+                });
             }
             Command::Backspace => {
                 let _ = self.action_tx.send(ActionCommand::Backspace { view });
@@ -79,9 +64,6 @@ impl MiniBufferKeyInput {
             }
             Command::Close => {
                 let _ = self.mini_buffer_tx.send(MiniBufferCommand::Close { id });
-            }
-            Command::Input(text) => {
-                let _ = self.action_tx.send(ActionCommand::Insert { view, text: text.clone() });
             }
         }
     }

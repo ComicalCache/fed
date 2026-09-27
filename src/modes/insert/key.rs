@@ -4,15 +4,17 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::{
     debug_panic::debug_panic,
     input::{KeyInputHandler, priorities::KeyInputPriority},
-    modes::insert::command::Command,
+    modes::insert::{command::Command, keymap},
     protocols::action::ActionCommand,
-    state::{StateLock, ViewStoreTypes},
-    types::{Direction, KeyChord, KeyNode, Keymap},
+    state::{DocId, StateLock, ViewId, ViewStoreTypes},
+    types::{KeyChord, KeyNode, Keymap},
 };
 
 pub struct InsertKeyInput {
     keymap: Keymap<Command>,
     pending_keys: Vec<KeyChord>,
+
+    whitespace: bool,
 
     state_lock: StateLock,
 
@@ -21,69 +23,59 @@ pub struct InsertKeyInput {
 
 impl InsertKeyInput {
     pub fn new(state_lock: StateLock, action_tx: UnboundedSender<ActionCommand>) -> Self {
-        let mut keymap = Keymap::new();
-
-        keymap.bind(
-            &[KeyChord::new(KeyCode::Left, KeyModifiers::empty())],
-            Command::Move(Direction::Left),
-        );
-        keymap.bind(
-            &[KeyChord::new(KeyCode::Right, KeyModifiers::empty())],
-            Command::Move(Direction::Right),
-        );
-        keymap.bind(
-            &[KeyChord::new(KeyCode::Up, KeyModifiers::empty())],
-            Command::Move(Direction::Up),
-        );
-        keymap.bind(
-            &[KeyChord::new(KeyCode::Down, KeyModifiers::empty())],
-            Command::Move(Direction::Down),
-        );
-
-        keymap
-            .bind(&[KeyChord::new(KeyCode::Backspace, KeyModifiers::empty())], Command::Backspace);
-        keymap.bind(&[KeyChord::new(KeyCode::Delete, KeyModifiers::empty())], Command::Delete);
-
-        keymap.bind(
-            &[KeyChord::new(KeyCode::Enter, KeyModifiers::empty())],
-            Command::Input("\n".to_string()),
-        );
-        keymap.bind(
-            &[KeyChord::new(KeyCode::Tab, KeyModifiers::empty())],
-            Command::Input("\t".to_string()),
-        );
-        keymap.bind(&[KeyChord::new(KeyCode::Esc, KeyModifiers::empty())], Command::Escape);
-
-        Self { state_lock, action_tx, keymap, pending_keys: Vec::new() }
+        let keymap = keymap::keymap();
+        Self { keymap, pending_keys: Vec::new(), whitespace: false, state_lock, action_tx }
     }
 
-    fn execute(&self, cmd: &Command) {
+    fn execute(&mut self, cmd: &Command) {
         let state = self.state_lock.read();
-        let Some(view) = state.active_view() else { return };
-        let Some(doc) = state.index.view_to_doc(view) else { return };
+        let Some(view) = state.active_view() else {
+            // Click active view, just abort.
+            return;
+        };
+        let Some(doc) = state.index.view_to_doc(view) else {
+            debug_panic!();
+            return;
+        };
         drop(state);
 
         match cmd {
-            Command::Move(direction) => {
-                let _ =
-                    self.action_tx.send(ActionCommand::MoveCursors { view, direction: *direction });
+            Command::Input(text) => self.input(view, doc, text),
+            Command::Move(motion) => {
+                self.whitespace = false;
+                let _ = self.action_tx.send(ActionCommand::MoveCursors {
+                    view,
+                    motion: *motion,
+                    move_anchor: true,
+                });
             }
             Command::Backspace => {
+                self.whitespace = false;
                 let _ = self.action_tx.send(ActionCommand::Backspace { view });
             }
             Command::Delete => {
+                self.whitespace = false;
                 let _ = self.action_tx.send(ActionCommand::Delete { view });
             }
             Command::Escape => {
+                self.whitespace = false;
                 let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
                 let _ = self
                     .action_tx
                     .send(ActionCommand::SetViewMode { view, mode: ViewStoreTypes::Mode::Normal });
             }
-            Command::Input(text) => {
-                let _ = self.action_tx.send(ActionCommand::Insert { view, text: text.clone() });
-            }
         }
+    }
+
+    fn input(&mut self, view: ViewId, doc: DocId, text: &str) {
+        let whitespace = text.chars().all(|c| c.is_whitespace());
+        if whitespace && !self.whitespace {
+            let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
+            let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
+        }
+        self.whitespace = whitespace;
+
+        let _ = self.action_tx.send(ActionCommand::Insert { view, text: text.to_string() });
     }
 }
 
@@ -93,7 +85,7 @@ impl KeyInputHandler for InsertKeyInput {
     fn key(&mut self, event: &KeyEvent) -> bool {
         let state = self.state_lock.read();
         let Some(view) = state.active_view() else {
-            // Click active view, just abort.
+            // No active view, just abort.
             return false;
         };
         let Some(vse) = state.view_store.get(&view) else {
@@ -153,7 +145,7 @@ impl KeyInputHandler for InsertKeyInput {
 
         match target {
             Some(KeyNode::Leaf(cmd)) => {
-                self.execute(cmd);
+                self.execute(&cmd.clone());
                 self.pending_keys.clear();
 
                 true

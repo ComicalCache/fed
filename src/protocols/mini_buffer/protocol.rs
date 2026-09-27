@@ -9,20 +9,14 @@ use tokio::sync::{
 use crate::{
     debug_panic::debug_panic,
     protocols::{
-        action::ActionCommand, mini_buffer::MiniBufferDecorationProvider, view::ViewCommand,
+        action::ActionCommand,
+        mini_buffer::{MiniBufferCommand, decorations::MiniBufferDecorationProvider},
+        view::ViewCommand,
     },
     render::ZLayer,
     state::{MiniBufferId, MiniBufferStoreTypes, StateLock, ViewStoreTypes},
     types::{Face, Pos, Rect},
 };
-
-pub enum MiniBufferCommand {
-    Message { message: String, tx: oneshot::Sender<MiniBufferId> },
-    Prompt { prompt: String, id_tx: oneshot::Sender<MiniBufferId>, res_tx: oneshot::Sender<String> },
-    Submit,
-    Close { id: MiniBufferId },
-    Resize { width: usize, height: usize },
-}
 
 pub struct MiniBufferProtocol {
     next_id: AtomicUsize,
@@ -50,8 +44,8 @@ impl MiniBufferProtocol {
         while let Some(cmd) = self.rx.recv().await {
             match cmd {
                 MiniBufferCommand::Message { message, tx } => self.message(message, tx).await,
-                MiniBufferCommand::Prompt { prompt, id_tx, res_tx } => {
-                    self.prompt(prompt, id_tx, res_tx).await
+                MiniBufferCommand::Prompt { prompt, initial_text, id_tx, res_tx } => {
+                    self.prompt(prompt, initial_text, id_tx, res_tx).await
                 }
                 MiniBufferCommand::Submit => self.submit(),
                 MiniBufferCommand::Close { id } => self.close(id),
@@ -99,7 +93,7 @@ impl MiniBufferProtocol {
     }
 
     async fn prompt(
-        &self, prompt: String, id_tx: oneshot::Sender<MiniBufferId>,
+        &self, prompt: String, initial_text: Option<String>, id_tx: oneshot::Sender<MiniBufferId>,
         res_tx: oneshot::Sender<String>,
     ) {
         let state = self.state_lock.read();
@@ -115,6 +109,10 @@ impl MiniBufferProtocol {
         self.close(id);
 
         let _ = self.action_tx.send(ActionCommand::CreateCursorAtPos { view, pos: Pos::new(0, 0) });
+
+        if let Some(text) = initial_text {
+            let _ = self.action_tx.send(ActionCommand::InsertAt { view, text, offset: 0 });
+        }
 
         let (floating_tx, floating_rx) = oneshot::channel();
         let _ = self.view_tx.send(ViewCommand::CreateRawFloating {
@@ -224,7 +222,8 @@ impl MiniBufferProtocol {
         drop(guard);
 
         for offset in cursors {
-            let _ = self.action_tx.send(ActionCommand::RemoveCursor { view, offset });
+            let _ =
+                self.action_tx.send(ActionCommand::RemoveCursors { view, offsets: vec![offset] });
         }
         let _ = self.action_tx.send(ActionCommand::Remove { view, offset: 0, len });
         let _ = self.action_tx.send(ActionCommand::Saved { doc });

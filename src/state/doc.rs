@@ -1,13 +1,13 @@
 mod decorations;
 mod doc;
-mod events;
+mod event;
 mod mode;
 
 pub mod types {
     pub use crate::state::doc::{
         decorations::{DecorationId, Decorations},
         doc::Doc,
-        events::Event,
+        event::Event,
         mode::Mode,
     };
 }

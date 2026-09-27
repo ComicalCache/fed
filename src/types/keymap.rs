@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
-use crate::types::KeyChord;
+use crate::{debug_panic::debug_panic, types::KeyChord};
 
+#[derive(Clone)]
 pub enum KeyNode<Command: Clone> {
     Leaf(Command),
     Prefix(HashMap<KeyChord, KeyNode<Command>>),
@@ -24,7 +25,8 @@ impl<Command: Clone> Keymap<Command> {
                 if let KeyNode::Prefix(next_map) = node {
                     curr = next_map;
                 } else {
-                    panic!("Attempted to bind a prefix over a leaf node");
+                    debug_panic!();
+                    return;
                 }
             }
         }

@@ -8,12 +8,7 @@ use std::{
 
 use tokio::sync::{mpsc::UnboundedReceiver, oneshot};
 
-pub enum IoCommand {
-    Read { path: PathBuf, tx: oneshot::Sender<Result<String, String>> },
-    Write { path: PathBuf, data: String, tx: oneshot::Sender<Result<(), String>> },
-
-    CanQuit { tx: oneshot::Sender<Result<(), String>> },
-}
+use crate::protocols::io::IoCommand;
 
 pub struct IoProtocol {
     writers: Arc<AtomicUsize>,

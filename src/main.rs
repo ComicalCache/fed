@@ -1,3 +1,5 @@
+#![feature(path_absolute_method)]
+
 mod debug_panic;
 mod fed;
 mod input;
@@ -7,6 +9,7 @@ mod protocols;
 mod render;
 mod state;
 mod types;
+mod util;
 
 use std::{io::stdout, path::PathBuf};
 
@@ -30,6 +33,8 @@ use crate::{
         insert::{InsertKeyInput, InsertMouseInput},
         mini_buffer::{MiniBufferKeyInput, MiniBufferMouseInput},
         normal::{NormalKeyInput, NormalMouseInput},
+        search::{SearchKeyInput, SearchMouseInput},
+        visual::{VisualKeyInput, VisualMouseInput},
     },
     protocols::{
         action::{ActionCommand, ActionProtocol},
@@ -132,12 +137,24 @@ fn setup(
     input_router.add_key_handler(Box::new(NormalKeyInput::new(
         state_lock.clone(),
         action_tx.clone(),
+        io_tx.clone(),
         mini_buffer_tx.clone(),
         quit_tx.clone(),
+        view_tx.clone(),
     )));
     input_router
         .add_key_handler(Box::new(InsertKeyInput::new(state_lock.clone(), action_tx.clone())));
     input_router.add_key_handler(Box::new(MiniBufferKeyInput::new(
+        state_lock.clone(),
+        action_tx.clone(),
+        mini_buffer_tx.clone(),
+    )));
+    input_router.add_key_handler(Box::new(VisualKeyInput::new(
+        state_lock.clone(),
+        action_tx.clone(),
+        mini_buffer_tx.clone(),
+    )));
+    input_router.add_key_handler(Box::new(SearchKeyInput::new(
         state_lock.clone(),
         action_tx.clone(),
         mini_buffer_tx.clone(),
@@ -151,6 +168,10 @@ fn setup(
         state_lock.clone(),
         action_tx.clone(),
     )));
+    input_router
+        .add_mouse_handler(Box::new(VisualMouseInput::new(state_lock.clone(), action_tx.clone())));
+    input_router
+        .add_mouse_handler(Box::new(SearchMouseInput::new(state_lock.clone(), action_tx.clone())));
 
     input_router.add_resize_handler(Box::new(ViewResizeInput::new(view_tx.clone())));
     input_router.add_resize_handler(Box::new(MiniBufferResizeInput::new(mini_buffer_tx.clone())));
@@ -181,7 +202,7 @@ fn setup(
         let _ = view_tx.send(ViewCommand::CreateTile {
             doc,
             view: None,
-            // This is kind of a hack, but since no other windows exist, we can pass anything since
+            // This is kind of a hack: since no other windows exist, we can pass anything because
             // a new root window will be created in any case.
             split_window: WindowId(0),
             direction: RectSplit::Vertical,

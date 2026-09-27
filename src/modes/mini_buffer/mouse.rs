@@ -37,29 +37,29 @@ impl MouseInputHandler for MiniBufferMouseInput {
         debug_assert!(state.mini_buffer_store.kind != MiniBufferStoreTypes::Kind::None);
 
         if state.mini_buffer_store.kind == MiniBufferStoreTypes::Kind::Message {
-            // Consume the click but ignore it to avoid tiles under the message to move the
-            // cursor bellow the floating message.
+            // Consume the click but ignore it to avoid tiles under the message
+            // to move the cursor bellow the floating message.
             return true;
         }
 
         if event.kind != MouseEventKind::Down(MouseButton::Left) {
-            return false;
+            return true;
         }
 
         let Some(window) = state.mini_buffer_store.window else {
             debug_panic!();
-            return false;
+            return true;
         };
         let Some(rect) = state.workspace.get_rect(window) else {
             debug_panic!();
-            return false;
+            return true;
         };
         let view = state.mini_buffer_store.view;
         let Some((vse, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
         else {
             debug_panic!();
-            return false;
+            return true;
         };
 
         let lines = dse.doc.data.lines();
@@ -72,16 +72,21 @@ impl MouseInputHandler for MiniBufferMouseInput {
         if pos.x < layout.gutter_width(lines)
             || pos.y >= rect.height.saturating_sub(layout.mode_line)
         {
-            return false;
+            return true;
         }
 
-        // Offset the physical x by the gutter width to get the actual text column.
+        // Offset the physical x by the gutter width to get the actual text
+        // column.
         pos = Pos::new(pos.x.saturating_sub(layout.gutter_width(lines)), pos.y) + *scroll;
 
         if event.modifiers.contains(KeyModifiers::ALT) {
             let _ = self.action_tx.send(ActionCommand::CreateCursorAtPos { view, pos });
         } else {
-            let _ = self.action_tx.send(ActionCommand::MoveCursorToPos { view, pos });
+            let _ = self.action_tx.send(ActionCommand::MoveCursorToPos {
+                view,
+                pos,
+                move_anchor: true,
+            });
         }
 
         true

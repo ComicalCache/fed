@@ -6,6 +6,8 @@
 pub enum KeyInputPriority {
     NormalMode,
     InsertMode,
+    VisualMode,
+    SearchMode,
 
     // Needs the highest priority for intercepting with active mini buffer.
     MiniBufferMode,
@@ -15,6 +17,8 @@ pub enum KeyInputPriority {
 pub enum MouseInputPriority {
     NormalMode,
     InsertMode,
+    VisualMode,
+    SearchMode,
 
     // Needs the highest priority for intercepting with active mini buffer.
     MiniBufferMode,

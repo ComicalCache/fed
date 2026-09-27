@@ -1,3 +1,5 @@
+mod command;
 mod protocol;
 
-pub use protocol::{IoCommand, IoProtocol};
+pub use command::IoCommand;
+pub use protocol::IoProtocol;

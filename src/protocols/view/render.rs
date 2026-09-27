@@ -4,7 +4,7 @@ use crate::{
     debug_panic::debug_panic,
     protocols::view::store::LocalViewStore,
     render::{self, Cell, Renderer, Viewport, WindowId},
-    state::{DocId, State, ViewId},
+    state::{DocId, State, ViewId, ViewStoreTypes},
     types::{Face, Pos},
 };
 
@@ -68,9 +68,21 @@ impl Renderer for ViewRenderer {
             offset = next_offset;
 
             let mut cursor_xs = Vec::new();
+            let mut selected_xs = Vec::new();
             for vo in &vom {
-                if cursors.list.iter().any(|c| c.offset == vo.offset) {
-                    cursor_xs.push(vo.visual_x);
+                for cursor in &cursors.list {
+                    if cursor.offset == vo.offset {
+                        cursor_xs.push(vo.visual_x);
+                    }
+
+                    if vse.mode == ViewStoreTypes::Mode::Visual {
+                        let start = cursor.offset.min(cursor.anchor);
+                        let end = cursor.offset.max(cursor.anchor);
+
+                        if start <= vo.offset && vo.offset <= end {
+                            selected_xs.push(vo.visual_x);
+                        }
+                    }
                 }
             }
 
@@ -86,7 +98,7 @@ impl Renderer for ViewRenderer {
                     break;
                 }
 
-                if cursor_xs.contains(&visual_x) {
+                if cursor_xs.contains(&visual_x) || selected_xs.contains(&visual_x) {
                     cell.face.reverse = Some(true);
                 }
 
@@ -107,7 +119,7 @@ impl Renderer for ViewRenderer {
             // Undrawn tail of line.
             while x < width {
                 let mut face = Face::default();
-                if cursor_xs.contains(&visual_x) {
+                if cursor_xs.contains(&visual_x) || selected_xs.contains(&visual_x) {
                     face.reverse = Some(true);
                 }
 

@@ -1,0 +1,20 @@
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Motion {
+    Left,
+    Right,
+    Up,
+    Down,
+    BeginningOfLine,
+    EndOfLine,
+    BeginningOfFile,
+    EndOfFile,
+    NextWord,
+    NextWordEnd,
+    PrevWord,
+    PrevWordEnd,
+    NextWhitespace,
+    PrevWhitespace,
+    NextEmptyLine,
+    PrevEmptyLine,
+    MatchingOpposite,
+}

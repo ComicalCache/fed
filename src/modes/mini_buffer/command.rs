@@ -1,11 +1,11 @@
-use crate::types::Direction;
+use crate::types::Motion;
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum Command {
-    Move(Direction),
+    Input(String),
+    Move(Motion),
     Backspace,
     Delete,
     Submit,
     Close,
-    Input(String),
 }

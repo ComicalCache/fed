@@ -2,7 +2,7 @@ use crate::{
     newtype::newtype,
     render::{Renderer, Screen, Viewport, ZLayer, workspace::Tile::Dummy},
     state::State,
-    types::{Direction, Pos, Rect, RectSplit},
+    types::{Motion, Pos, Rect, RectSplit},
 };
 
 newtype!(WindowId, u64);
@@ -217,7 +217,7 @@ impl Workspace {
             _ => {
                 if let Some(parent) = root.find_parent(id) {
                     let survivor = if let Tile::Split { first, second, .. } = parent {
-                        if matches!(**first, Tile::Window { id, .. } if id == id) {
+                        if matches!(**first, Tile::Window { id: first_id, .. } if first_id == id) {
                             std::mem::replace(&mut **second, Tile::Dummy)
                         } else {
                             std::mem::replace(&mut **first, Tile::Dummy)
@@ -289,7 +289,7 @@ impl Workspace {
         None
     }
 
-    pub fn navigate(&self, direction: Direction) -> Option<WindowId> {
+    pub fn navigate(&self, motion: Motion) -> Option<WindowId> {
         let Some(active) = self.active_window else { return None };
         let Some(root) = &self.root else { return None };
 
@@ -307,11 +307,12 @@ impl Workspace {
             }
 
             let (x, y) = rect.intersects(active_rect);
-            let valid = match direction {
-                Direction::Left => rect.pos.x < active_rect.pos.x && y,
-                Direction::Right => rect.pos.x > active_rect.pos.x && y,
-                Direction::Up => rect.pos.y < active_rect.pos.y && x,
-                Direction::Down => rect.pos.y > active_rect.pos.y && x,
+            let valid = match motion {
+                Motion::Left => rect.pos.x < active_rect.pos.x && y,
+                Motion::Right => rect.pos.x > active_rect.pos.x && y,
+                Motion::Up => rect.pos.y < active_rect.pos.y && x,
+                Motion::Down => rect.pos.y > active_rect.pos.y && x,
+                _ => unreachable!(),
             };
 
             if valid {

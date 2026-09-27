@@ -1,11 +1,6 @@
 use tokio::sync::mpsc::UnboundedReceiver;
 
-use crate::{render::Screen, state::StateLock};
-
-pub enum ScreenCommand {
-    Resize(usize, usize),
-    Render,
-}
+use crate::{protocols::screen::ScreenCommand, render::Screen, state::StateLock};
 
 pub struct ScreenProtocol {
     screen: Screen,

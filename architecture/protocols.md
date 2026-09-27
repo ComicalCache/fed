@@ -8,8 +8,8 @@ and communicated with each other.
 Each protocol lives in its own directory under `src/protocols/<name>/`. A protocol module is
 composed of specific, optionally included files based on its functionality:
 
-- `protocol.rs`: Contains the main protocol struct, its asynchronous run loop, and the `Command`
-  enum that defines its message API
+- `command.rs`: Contains the `Command` enum that defines its message API
+- `protocol.rs`: Contains the main protocol struct and its asynchronous run loop
 - `input/<input type>.rs` (optional): Implements the input handler traits if the protocol needs to
   intercept raw input events. This is generally discouraged except for resize events since modes are
   generally resposible for input handling
@@ -17,7 +17,7 @@ composed of specific, optionally included files based on its functionality:
   that needs to be drawn
 - `store.rs` (optional): Contains internal caching data structures owned exclusively by the
   protocol
-- `decoration_provider.rs` (optional): Contains the protocol's decoration provider
+- `decoration/<name>.rs` (optional): Contains the protocol's decoration providers
 
 ## Naming Conventions
 

@@ -7,7 +7,7 @@ pub struct KeyChord {
 }
 
 impl KeyChord {
-    pub fn new(code: KeyCode, modifiers: KeyModifiers) -> Self { Self { code, modifiers } }
+    pub const fn new(code: KeyCode, modifiers: KeyModifiers) -> Self { Self { code, modifiers } }
 }
 
 impl From<&KeyEvent> for KeyChord {

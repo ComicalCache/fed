@@ -52,7 +52,7 @@ impl MouseInputHandler for InsertMouseInput {
         }
 
         if event.kind != MouseEventKind::Down(MouseButton::Left) {
-            return false;
+            return true;
         }
 
         let lines = dse.doc.data.lines();
@@ -65,16 +65,21 @@ impl MouseInputHandler for InsertMouseInput {
         if pos.x < layout.gutter_width(lines)
             || pos.y >= rect.height.saturating_sub(layout.mode_line)
         {
-            return false;
+            return true;
         }
 
-        // Offset the physical x by the gutter width to get the actual text column.
+        // Offset the physical x by the gutter width to get the actual text
+        // column.
         pos = Pos::new(pos.x.saturating_sub(layout.gutter_width(lines)), pos.y) + *scroll;
 
         if event.modifiers.contains(KeyModifiers::ALT) {
             let _ = self.action_tx.send(ActionCommand::CreateCursorAtPos { view, pos });
         } else {
-            let _ = self.action_tx.send(ActionCommand::MoveCursorToPos { view, pos });
+            let _ = self.action_tx.send(ActionCommand::MoveCursorToPos {
+                view,
+                pos,
+                move_anchor: true,
+            });
         }
 
         true

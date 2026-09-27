@@ -1,8 +1,11 @@
+mod command;
+pub mod decorations;
 mod input;
 mod protocol;
 mod render;
 mod store;
 
+pub use command::ViewCommand;
 pub use input::ViewResizeInput;
-pub use protocol::{ViewCommand, ViewProtocol};
+pub use protocol::ViewProtocol;
 pub use render::ViewRenderer;
