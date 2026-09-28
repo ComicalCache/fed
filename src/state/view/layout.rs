@@ -1,8 +1,12 @@
-#[derive(Clone, Copy, PartialEq, Eq)]
+use crate::types::{Face, Rgb};
+
+#[derive(Clone, PartialEq, Eq)]
 pub struct Layout {
     pub gutter: bool,
     // FIXME: should this also just be a flag?
     pub mode_line: usize,
+    pub replacements: Replacements,
+    pub rulers: Vec<usize>,
 }
 
 impl Layout {
@@ -17,5 +21,33 @@ impl Layout {
 }
 
 impl Default for Layout {
-    fn default() -> Self { Self { gutter: true, mode_line: 1 } }
+    fn default() -> Self {
+        Self {
+            gutter: true,
+            mode_line: 1,
+            replacements: Replacements::default(),
+            rulers: vec![100],
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct Replacements {
+    pub space: Option<(char, Face)>,
+    pub tab: Option<((char, char), Face)>,
+    pub newline: Option<(char, Face)>,
+}
+
+impl Replacements {
+    pub fn none() -> Self { Self { space: None, tab: None, newline: None } }
+}
+
+impl Default for Replacements {
+    fn default() -> Self {
+        Self {
+            space: Some(('·', Face { fg: Some(Rgb::new(68, 71, 79)), ..Face::default() })),
+            tab: Some((('›', '—'), Face { fg: Some(Rgb::new(68, 71, 79)), ..Face::default() })),
+            newline: Some(('¬', Face { fg: Some(Rgb::new(68, 71, 79)), ..Face::default() })),
+        }
+    }
 }

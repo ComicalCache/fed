@@ -11,7 +11,7 @@ pub mod types {
         cursors::Cursors,
         decorations::{DecorationId, Decorations},
         event::Event,
-        layout::Layout,
+        layout::{Layout, Replacements},
         mode::Mode,
         scroll::Scroll,
         tab_width::TabWidth,

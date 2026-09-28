@@ -2,7 +2,7 @@ use piece_table::Slice;
 
 use crate::{
     render,
-    state::{DocStoreEntry, ViewStoreEntry},
+    state::{DocStoreEntry, State, ViewStoreEntry},
     types::Face,
 };
 
@@ -11,11 +11,13 @@ pub enum ModeLineWidget {
     FilePath { face: Face },
     CursorPos { face: Face },
     Text { text: String, face: Face },
-    Custom(fn(&ViewStoreEntry, &DocStoreEntry) -> Vec<(String, Face)>),
+    Custom(fn(&State, &ViewStoreEntry, &DocStoreEntry) -> Vec<(String, Face)>),
 }
 
 impl ModeLineWidget {
-    pub fn render(&self, vse: &ViewStoreEntry, dse: &DocStoreEntry) -> Vec<(String, Face)> {
+    pub fn render(
+        &self, state: &State, vse: &ViewStoreEntry, dse: &DocStoreEntry,
+    ) -> Vec<(String, Face)> {
         match self {
             ModeLineWidget::Mode { face } => {
                 vec![(format!("[{}]", vse.mode.to_string().to_uppercase()), *face)]
@@ -54,14 +56,20 @@ impl ModeLineWidget {
                 dse.decs.range(start, end, &mut decs);
                 vse.decs.range(start, end, &mut decs);
 
-                let (vom, _) = render::layout_vom(&line, start, vse.tab_width, &decs);
+                let (vom, _) = render::layout_vom(
+                    &line,
+                    start,
+                    &decs,
+                    &vse.layout.replacements,
+                    vse.tab_width,
+                );
                 let x =
                     vom.iter().find(|vo| vo.offset >= offset).map(|vo| vo.visual_x).unwrap_or(0);
 
                 vec![(format!("[{}:{} {}]", y + 1, x + 1, vse.cursors.list.len()), *face)]
             }
             ModeLineWidget::Text { text, face } => vec![(text.clone(), *face)],
-            ModeLineWidget::Custom(f) => f(vse, dse),
+            ModeLineWidget::Custom(f) => f(state, vse, dse),
         }
     }
 }

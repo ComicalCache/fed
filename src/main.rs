@@ -45,7 +45,7 @@ use crate::{
         view::{ViewCommand, ViewProtocol, ViewResizeInput},
     },
     render::{WindowId, Workspace},
-    state::{State, StateLock, ViewStoreTypes::Layout},
+    state::{State, StateLock, ViewStoreTypes},
     types::{Pos, Rect, RectSplit},
 };
 
@@ -88,7 +88,12 @@ fn setup(
 
     let mini_buffer_view = state.mini_buffer_store.view;
     let mini_buffer_vse = state.view_store.get_mut(&mini_buffer_view).unwrap();
-    mini_buffer_vse.layout = Layout { gutter: false, mode_line: 0 };
+    mini_buffer_vse.layout = ViewStoreTypes::Layout {
+        gutter: false,
+        mode_line: 0,
+        replacements: ViewStoreTypes::Replacements::none(),
+        rulers: Vec::new(),
+    };
     mini_buffer_vse.cursors.list.clear();
 
     let state_lock = StateLock::new(state);

@@ -83,9 +83,8 @@ impl ActionProtocol {
         };
 
         let mut cursors = vse.cursors.clone();
-        let tab_width = vse.tab_width;
         for cursor in &mut cursors.list {
-            util::apply_motion(cursor, motion, &dse.doc.data, tab_width, &vse.decs, &dse.decs);
+            util::apply_motion(cursor, motion, &vse, &dse);
 
             if move_anchor {
                 cursor.anchor = cursor.offset;

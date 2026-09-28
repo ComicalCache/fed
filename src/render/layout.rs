@@ -1,9 +1,9 @@
 use unicode_segmentation::UnicodeSegmentation;
-use unicode_width::UnicodeWidthStr;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     render::Cell,
-    state::ViewStoreTypes::TabWidth,
+    state::ViewStoreTypes,
     types::{Decoration, Face, Span},
 };
 
@@ -13,7 +13,8 @@ pub struct VisualOffsetMapping {
 }
 
 pub fn layout_cells(
-    line: &str, mut offset: usize, tab_width: TabWidth, decs: &[Span<Decoration>],
+    line: &str, mut offset: usize, decs: &[Span<Decoration>],
+    replacements: &ViewStoreTypes::Replacements, tab_width: ViewStoreTypes::TabWidth,
 ) -> Vec<Cell> {
     let mut cells = Vec::new();
 
@@ -94,20 +95,65 @@ pub fn layout_cells(
         let ch_width = if ch == "\t" {
             *tab_width - (visual_x % *tab_width)
         } else if ch == "\n" {
-            // "\n".width() == 1!
-            0
+            if let Some((newline, _)) = replacements.newline {
+                newline.width().unwrap_or_default()
+            } else {
+                // "\n".width() == 1!
+                0
+            }
         } else {
             ch.width()
         };
 
         if ch_width > 0 {
             if ch == "\t" {
-                for _ in 0..ch_width {
+                if let Some(((start, fill), tab_face)) = replacements.tab {
+                    let mut face = face;
+                    face.merge(tab_face);
+
+                    cells.push(Cell::new(
+                        start.to_string(),
+                        start.width().unwrap_or_default(),
+                        face,
+                    ));
+                    for _ in 1..ch_width {
+                        cells.push(Cell::new(
+                            fill.to_string(),
+                            fill.width().unwrap_or_default(),
+                            face,
+                        ));
+                    }
+                } else {
+                    for _ in 0..ch_width {
+                        cells.push(Cell::new(" ".to_string(), 1, face));
+                    }
+                }
+            } else if ch == "\n" {
+                if let Some((newline, newline_face)) = replacements.newline {
+                    let mut face = face;
+                    face.merge(newline_face);
+
+                    cells.push(Cell::new(
+                        newline.to_string(),
+                        newline.width().unwrap_or_default(),
+                        face,
+                    ));
+                }
+            } else if ch == " " {
+                if let Some((space, space_face)) = replacements.space {
+                    let mut face = face;
+                    face.merge(space_face);
+
+                    cells.push(Cell::new(
+                        space.to_string(),
+                        space.width().unwrap_or_default(),
+                        face,
+                    ));
+                } else {
                     cells.push(Cell::new(" ".to_string(), 1, face));
                 }
             } else {
                 cells.push(Cell::new(ch.to_string(), ch_width, face));
-
                 for _ in 1..ch_width {
                     cells.push(Cell::new(String::new(), 0, face));
                 }
@@ -152,7 +198,8 @@ pub fn layout_cells(
 }
 
 pub fn layout_vom(
-    line: &str, mut offset: usize, tab_width: TabWidth, decs: &[Span<Decoration>],
+    line: &str, mut offset: usize, decs: &[Span<Decoration>],
+    replacements: &ViewStoreTypes::Replacements, tab_width: ViewStoreTypes::TabWidth,
 ) -> (Vec<VisualOffsetMapping>, usize) {
     let mut vom = Vec::new();
 
@@ -218,7 +265,11 @@ pub fn layout_vom(
             *tab_width - (visual_x % *tab_width)
         } else if ch == "\n" {
             // "\n".width() == 1!
-            0
+            if let Some((newline, _)) = replacements.newline {
+                newline.width().unwrap_or_default()
+            } else {
+                0
+            }
         } else {
             ch.width()
         };

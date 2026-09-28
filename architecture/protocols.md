@@ -15,6 +15,8 @@ composed of specific, optionally included files based on its functionality:
   generally resposible for input handling
 - `render.rs` (optional): Implements the `Renderer` trait if the protocol has a visual component
   that needs to be drawn
+- `layers/<name>.rs` (optional): Implements the protocol's render layers. Those should be owned by
+  the protocol's `Renderer` and called after initial state rendering.
 - `store.rs` (optional): Contains internal caching data structures owned exclusively by the
   protocol
 - `decoration/<name>.rs` (optional): Contains the protocol's decoration providers
@@ -25,6 +27,7 @@ composed of specific, optionally included files based on its functionality:
 - Message API: `<Name>Command`
 - Input handler: `<Name><Input Type>Input`
 - Renderer: `<Name>Renderer`
+- Layer: `<Name>Layer`
 - Decoration Provider: `<Name>DecorationProvier`
 
 ## Communication

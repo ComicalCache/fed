@@ -35,21 +35,23 @@ impl Renderer for ViewDecoratorRenderer {
         };
 
         let lines = dse.doc.data.lines();
-        let layout = vse.layout;
 
-        let buffer_height = height.saturating_sub(layout.mode_line);
-        let buffer_width = width.saturating_sub(layout.gutter_width(lines));
+        let buffer_height = height.saturating_sub(vse.layout.mode_line);
+        let buffer_width = width.saturating_sub(vse.layout.gutter_width(lines));
 
-        let mut gutter =
-            viewport.sub_view(Rect::new(Pos::new(0, 0), layout.gutter_width(lines), buffer_height));
-        self.render_gutter(state, &mut gutter, layout.gutter_width(lines));
+        let mut gutter = viewport.sub_view(Rect::new(
+            Pos::new(0, 0),
+            vse.layout.gutter_width(lines),
+            buffer_height,
+        ));
+        self.render_gutter(state, &mut gutter, vse.layout.gutter_width(lines));
 
         let mut mode_line =
-            viewport.sub_view(Rect::new(Pos::new(0, buffer_height), width, layout.mode_line));
+            viewport.sub_view(Rect::new(Pos::new(0, buffer_height), width, vse.layout.mode_line));
         self.render_mode_line(state, &mut mode_line);
 
         let mut view = viewport.sub_view(Rect::new(
-            Pos::new(layout.gutter_width(lines), 0),
+            Pos::new(vse.layout.gutter_width(lines), 0),
             buffer_width,
             buffer_height,
         ));
@@ -94,7 +96,7 @@ impl ViewDecoratorRenderer {
         // Force left padding.
         let mut left = Vec::new();
         for widget in &vse.mode_line_config.left {
-            left.extend(widget.render(vse, dse));
+            left.extend(widget.render(state, vse, dse));
 
             // Add padding.
             left.push((" ".to_string(), state.theme.mode_line));
@@ -104,7 +106,7 @@ impl ViewDecoratorRenderer {
 
         let mut right = Vec::new();
         for widget in &vse.mode_line_config.right {
-            right.extend(widget.render(vse, dse));
+            right.extend(widget.render(state, vse, dse));
 
             // Add padding. Keep the trailing padding as right padding.
             right.push((" ".to_string(), state.theme.mode_line));

@@ -2,20 +2,35 @@ use std::sync::{Arc, RwLock};
 
 use crate::{
     debug_panic::debug_panic,
-    protocols::view::store::LocalViewStore,
-    render::{self, Cell, Renderer, Viewport, WindowId},
-    state::{State, ViewId, ViewStoreTypes},
+    protocols::view::{
+        layers::{CursorLayer, RulerLayer, SelectionLayer},
+        store::LocalViewStore,
+    },
+    render::{self, Cell, Layer, Renderer, Viewport, WindowId},
+    state::{State, ViewId},
     types::Pos,
 };
 
 pub struct ViewRenderer {
     view: ViewId,
 
+    layers: [Box<dyn Layer>; 3],
+
     store: Arc<RwLock<LocalViewStore>>,
 }
 
 impl ViewRenderer {
-    pub fn new(view: ViewId, store: Arc<RwLock<LocalViewStore>>) -> Self { Self { view, store } }
+    pub fn new(view: ViewId, store: Arc<RwLock<LocalViewStore>>) -> Self {
+        Self {
+            view,
+            layers: [
+                Box::new(SelectionLayer {}),
+                Box::new(RulerLayer {}),
+                Box::new(CursorLayer {}),
+            ],
+            store,
+        }
+    }
 }
 
 impl Renderer for ViewRenderer {
@@ -45,10 +60,6 @@ impl Renderer for ViewRenderer {
             return;
         };
 
-        let cursors = vse.cursors.clone();
-        let scroll = vse.scroll;
-        let tab_width = vse.tab_width;
-
         let start = lvd.offset;
         let end = start + lvd.lines.iter().take(height).map(|l| l.len()).sum::<usize>();
 
@@ -63,33 +74,18 @@ impl Renderer for ViewRenderer {
                 break;
             }
 
-            let (vom, next_offset) = render::layout_vom(line, offset, tab_width, &decs);
-            let cells = render::layout_cells(line, offset, tab_width, &decs);
+            let (vom, next_offset) =
+                render::layout_vom(line, offset, &decs, &vse.layout.replacements, vse.tab_width);
+            let cells =
+                render::layout_cells(line, offset, &decs, &vse.layout.replacements, vse.tab_width);
             offset = next_offset;
 
-            let mut cursor_xs = Vec::new();
-            let mut selected_xs = Vec::new();
-            for vo in &vom {
-                for cursor in &cursors.list {
-                    if cursor.offset == vo.offset {
-                        cursor_xs.push(vo.visual_x);
-                    }
-
-                    if vse.mode == ViewStoreTypes::Mode::Visual {
-                        let start = cursor.offset.min(cursor.anchor);
-                        let end = cursor.offset.max(cursor.anchor);
-
-                        if start <= vo.offset && vo.offset <= end {
-                            selected_xs.push(vo.visual_x);
-                        }
-                    }
-                }
-            }
+            let mut row = vec![Cell::default(); width];
 
             let mut x = 0;
             let mut visual_x = 0;
             for cell in cells {
-                if visual_x < scroll.x {
+                if visual_x < vse.scroll.x {
                     visual_x += 1;
                     continue;
                 }
@@ -105,20 +101,14 @@ impl Renderer for ViewRenderer {
                 };
                 face.merge(cell.face);
 
-                if cursor_xs.contains(&visual_x) {
-                    face.merge(state.theme.cursor);
-                } else if selected_xs.contains(&visual_x) {
-                    face.merge(state.theme.selection);
-                }
-
-                if visual_x == scroll.x && cell.width == 0 {
+                if visual_x == vse.scroll.x && cell.width == 0 {
                     // A wide char's first section is off-screen.
-                    viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), 1, face));
+                    row[x] = Cell::new(" ".to_string(), 1, face);
                 } else if x + cell.width > width {
                     // A wide char's trailing section is off-screen.
-                    viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), 1, face));
+                    row[x] = Cell::new(" ".to_string(), 1, face);
                 } else {
-                    viewport.set(Pos::new(x, y), Cell::new(cell.ch, cell.width, face));
+                    row[x] = Cell::new(cell.ch, cell.width, face);
                 }
 
                 x += 1;
@@ -127,20 +117,22 @@ impl Renderer for ViewRenderer {
 
             // Undrawn tail of line.
             while x < width {
-                let mut face = if state.mini_buffer_store.view == self.view {
+                let face = if state.mini_buffer_store.view == self.view {
                     state.theme.mini_buffer
                 } else {
                     state.theme.default
                 };
-                if cursor_xs.contains(&visual_x) {
-                    face.merge(state.theme.cursor);
-                } else if selected_xs.contains(&visual_x) {
-                    face.merge(state.theme.selection);
-                }
 
-                viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), 1, face));
+                row[x] = Cell::new(" ".to_string(), 1, face);
                 x += 1;
-                visual_x += 1;
+            }
+
+            for layer in &self.layers {
+                layer.apply(state, &mut row, vse.scroll.x, &vom, vse, dse);
+            }
+
+            for (idx, cell) in row.into_iter().enumerate() {
+                viewport.set(Pos::new(idx, y), cell);
             }
 
             lines_drawn += 1;
@@ -153,8 +145,14 @@ impl Renderer for ViewRenderer {
             state.theme.default
         };
         for y in lines_drawn..height {
-            for x in 0..width {
-                viewport.set(Pos::new(x, y), Cell::new(" ".to_string(), 1, face));
+            let mut row = vec![Cell::new(" ".to_string(), 1, face); width];
+
+            for layer in &self.layers {
+                layer.apply(state, &mut row, vse.scroll.x, &[], vse, dse);
+            }
+
+            for (x, cell) in row.into_iter().enumerate() {
+                viewport.set(Pos::new(x, y), cell);
             }
         }
     }

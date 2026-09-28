@@ -142,7 +142,6 @@ impl State {
         };
 
         let lines = dse.doc.data.lines();
-        let tab_width = vse.tab_width;
 
         // lines are one indexed.
         let y = pos.y.min(lines.saturating_sub(1));
@@ -155,7 +154,8 @@ impl State {
         dse.decs.range(start, end, &mut decs);
         vse.decs.range(start, end, &mut decs);
 
-        let (vom, _) = render::layout_vom(&line, start, tab_width, &decs);
+        let (vom, _) =
+            render::layout_vom(&line, start, &decs, &vse.layout.replacements, vse.tab_width);
         let offset =
             vom.iter().rev().find(|vo| vo.visual_x <= pos.x).map(|vo| vo.offset).unwrap_or(start);
 
@@ -170,7 +170,6 @@ impl State {
             return None;
         };
 
-        let tab_width = vse.tab_width;
         let lines = dse.doc.data.lines();
 
         let mut target = lines.saturating_sub(1);
@@ -193,7 +192,8 @@ impl State {
         dse.decs.range(start, end, &mut decs);
         vse.decs.range(start, end, &mut decs);
 
-        let (vom, _) = render::layout_vom(&line, start, tab_width, &decs);
+        let (vom, _) =
+            render::layout_vom(&line, start, &decs, &vse.layout.replacements, vse.tab_width);
         let x = vom
             .iter()
             .find(|vo| vo.offset >= offset)

@@ -144,10 +144,10 @@ impl ViewProtocol {
             return;
         };
 
-        let layout = vse.layout;
+        let mode_line = vse.layout.mode_line;
         drop(state);
 
-        let height = height.saturating_sub(layout.mode_line);
+        let height = height.saturating_sub(mode_line);
         if height > 0 {
             self.fetch(view, doc, ViewStoreTypes::Scroll(Pos::default()), height);
         }
@@ -166,7 +166,6 @@ impl ViewProtocol {
         };
 
         let scroll = vse.scroll;
-        let layout = vse.layout;
         let height = windows
             .iter()
             .map(|&w| {
@@ -175,7 +174,7 @@ impl ViewProtocol {
                 rect
             })
             .flatten()
-            .map(|r| r.height.saturating_sub(layout.mode_line))
+            .map(|r| r.height.saturating_sub(vse.layout.mode_line))
             .max()
             .unwrap_or(0);
         drop(state);
@@ -200,7 +199,6 @@ impl ViewProtocol {
             return;
         };
 
-        let layout = vse.layout;
         let height = windows
             .iter()
             .map(|&w| {
@@ -209,7 +207,7 @@ impl ViewProtocol {
                 rect
             })
             .flatten()
-            .map(|r| r.height.saturating_sub(layout.mode_line))
+            .map(|r| r.height.saturating_sub(vse.layout.mode_line))
             .max()
             .unwrap_or(0);
 
@@ -320,8 +318,7 @@ impl ViewProtocol {
             };
 
             let scroll = vse.scroll;
-            let layout = vse.layout;
-            let height = rect.height.saturating_sub(layout.mode_line);
+            let height = rect.height.saturating_sub(vse.layout.mode_line);
 
             entries.push((view, doc, scroll, height));
         }
@@ -419,7 +416,6 @@ impl ViewProtocol {
 
         let lines = dse.doc.data.lines();
         let mut scroll = vse.scroll;
-        let layout = vse.layout;
         let max_height = windows
             .iter()
             .map(|&w| {
@@ -428,16 +424,16 @@ impl ViewProtocol {
                 rect
             })
             .flatten()
-            .map(|r| r.height.saturating_sub(layout.mode_line))
+            .map(|r| r.height.saturating_sub(vse.layout.mode_line))
             .max()
             .unwrap_or(0);
-        drop(state);
 
-        let width = rect.width.saturating_sub(layout.gutter_width(lines));
-        let height = rect.height.saturating_sub(layout.mode_line);
+        let width = rect.width.saturating_sub(vse.layout.gutter_width(lines));
+        let height = rect.height.saturating_sub(vse.layout.mode_line);
         if width == 0 || height == 0 {
             return;
         }
+        drop(state);
 
         let mut scroll_needed = false;
 

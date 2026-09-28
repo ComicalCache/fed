@@ -55,22 +55,20 @@ impl MouseInputHandler for VisualMouseInput {
             return true;
         }
 
-        let lines = dse.doc.data.lines();
         let scroll = vse.scroll;
-        let layout = vse.layout;
+        let mode_line = vse.layout.mode_line;
+        let gutter_width = vse.layout.gutter_width(dse.doc.data.lines());
         drop(state);
 
         pos = pos.saturating_sub(rect.pos);
 
-        if pos.x < layout.gutter_width(lines)
-            || pos.y >= rect.height.saturating_sub(layout.mode_line)
-        {
+        if pos.x < gutter_width || pos.y >= rect.height.saturating_sub(mode_line) {
             return true;
         }
 
         // Offset the physical x by the gutter width to get the actual text
         // column.
-        pos = Pos::new(pos.x.saturating_sub(layout.gutter_width(lines)), pos.y) + *scroll;
+        pos = Pos::new(pos.x.saturating_sub(gutter_width), pos.y) + *scroll;
 
         if event.modifiers.contains(KeyModifiers::ALT) {
             let _ = self.action_tx.send(ActionCommand::CreateCursorAtPos { view, pos });

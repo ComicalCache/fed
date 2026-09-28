@@ -7,14 +7,24 @@ mod workspace;
 mod z_layer;
 
 pub use cell::Cell;
-pub use layout::{layout_cells, layout_vom};
+pub use layout::{VisualOffsetMapping, layout_cells, layout_vom};
 pub use mode_line::{ModeLineConfig, ModeLineWidget};
 pub use screen::Screen;
 pub use viewport::Viewport;
 pub use workspace::{WindowId, Workspace};
 pub use z_layer::ZLayer;
 
-use crate::state::State;
+use crate::state::{DocStoreEntry, State, ViewStoreEntry};
+
+/// A trait that can be implemented by additional rendering components to render
+/// visual elements post state rendering.
+pub trait Layer: Send + Sync + 'static {
+    /// Modifies a rendered line of cells before drawing to the screen.
+    fn apply(
+        &self, state: &State, row: &mut [Cell], scroll_x: usize, vom: &[VisualOffsetMapping],
+        vse: &ViewStoreEntry, dse: &DocStoreEntry,
+    );
+}
 
 /// A trait that should be implemented by protocol renderers to render state to
 /// the `Screen`.

@@ -6,6 +6,7 @@ pub struct Theme {
     pub cursor: Face,
     pub gutter: Face,
     pub mode_line: Face,
+    pub ruler: Face,
 
     pub mini_buffer: Face,
     pub selection: Face,
@@ -40,6 +41,7 @@ impl Default for Theme {
                 bg: Some(Rgb::new(59, 61, 66)),
                 ..Face::default()
             },
+            ruler: Face { bg: Some(Rgb::new(59, 61, 66)), ..Face::default() },
             search_match: Face {
                 fg: Some(Rgb::new(41, 44, 51)),
                 bg: Some(Rgb::new(229, 192, 123)),

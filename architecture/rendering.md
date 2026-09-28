@@ -39,3 +39,9 @@ Protocols can implement the `Renderer` trait. The workspace is populated using r
 During rendering it calls the protocols in the workspace to populate the screen buffer handling
 tiling and the z-Index of floating windows. Render protocols receive a viewport which is a bounded
 proxy on the screen buffer, to avoid protocols drawing to parts on the screen they don't own.
+
+## Layer
+
+Additionally, the `Layer` trait can be implemented by so called layers. In the rendering pipeline
+the `Renderer` type can call layers to additionally modify the cells rendered (e.g. draw the cursor
+positions).
