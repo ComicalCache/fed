@@ -258,6 +258,11 @@ impl PieceTable {
         if n + 1 < self.lines.len() { self.lines[n + 1] } else { self.total_length }
     }
 
+    /// Returns the line containing the byte index.
+    pub fn get_line_of_byte(&self, n: usize) -> usize {
+        self.lines.partition_point(|&x| x <= n).saturating_sub(1)
+    }
+
     /// Returns the amonut of lines of the text stored in the piece table.
     #[must_use]
     pub const fn lines(&self) -> usize { self.lines.len() }
