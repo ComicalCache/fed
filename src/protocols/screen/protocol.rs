@@ -18,12 +18,16 @@ impl ScreenProtocol {
     }
 
     pub async fn run(&mut self) {
-        while let Some(cmd) = self.rx.recv().await {
-            match cmd {
-                ScreenCommand::Resize(width, height) => self.screen.resize(width, height),
-                ScreenCommand::Render => {
-                    while matches!(self.rx.try_recv(), Ok(ScreenCommand::Render)) {}
+        while let Some(mut cmd) = self.rx.recv().await {
+            loop {
+                match cmd {
+                    ScreenCommand::Resize(width, height) => self.screen.resize(width, height),
+                    ScreenCommand::Render => {}
                 }
+
+                // Debounce.
+                let try_res = self.rx.try_recv();
+                cmd = if try_res.is_ok() { try_res.unwrap() } else { break };
             }
 
             let state = self.state_lock.read();

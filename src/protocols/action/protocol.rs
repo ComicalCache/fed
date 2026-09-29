@@ -91,9 +91,7 @@ impl ActionProtocol {
             }
         }
 
-        cursors.list.sort_by_key(|c| c.offset);
-        cursors.list.dedup_by_key(|c| c.offset);
-
+        cursors.normalize();
         if cursors.list.is_empty() {
             return;
         }
@@ -136,8 +134,7 @@ impl ActionProtocol {
         let vse = state.view_store.get_mut(&view).expect("self.pos_to_offset checks it");
 
         vse.cursors.list.push(Cursor::new(offset, pos.x));
-        vse.cursors.list.sort_by_key(|c| c.offset);
-        vse.cursors.list.dedup_by_key(|c| c.offset);
+        vse.cursors.normalize();
 
         let view_event_tx = state.view_event_tx.clone();
         drop(state);
@@ -156,8 +153,7 @@ impl ActionProtocol {
             vse.cursors.list.push(Cursor::new(offset, 0));
         }
 
-        vse.cursors.list.sort_by_key(|c| c.offset);
-        vse.cursors.list.dedup_by_key(|c| c.offset);
+        vse.cursors.normalize();
 
         let view_event_tx = state.view_event_tx.clone();
         drop(state);
@@ -581,9 +577,7 @@ impl ActionProtocol {
             }
         }
 
-        cursors.list.sort_by_key(|c| c.offset);
-        cursors.list.dedup_by_key(|c| c.offset);
-
+        cursors.normalize();
         if cursors.list.is_empty() {
             return;
         }

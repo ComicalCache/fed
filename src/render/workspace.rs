@@ -133,7 +133,7 @@ impl Workspace {
 
     /// Collects all tiled window IDs.
     pub fn tiles(&self) -> Vec<WindowId> {
-        self.root.as_ref().and_then(|t| Some(t.windows())).unwrap_or_default()
+        self.root.as_ref().map(|t| t.windows()).unwrap_or_default()
     }
 
     /// Collects all floating window IDs.

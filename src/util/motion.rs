@@ -46,7 +46,7 @@ pub fn apply_motion(
 }
 
 fn up(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
-    let y = y(cursor.offset, dse);
+    let y = dse.doc.data.get_line_of_byte(cursor.offset);
     if y == 0 {
         cursor.offset = 0;
         cursor.pref_x = 0;
@@ -77,11 +77,12 @@ fn up(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
 }
 
 fn down(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
-    let y = y(cursor.offset, dse);
+    let y = dse.doc.data.get_line_of_byte(cursor.offset);
     let lines = dse.doc.data.lines();
-    if y + 1 == lines {
+    if y + 1 >= lines {
         cursor.offset = dse.doc.data.len();
         update_pref_x(cursor, vse, dse);
+
         return;
     }
 
@@ -109,28 +110,32 @@ fn down(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
 }
 
 fn left(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
+    let mut reader = TextReader::new(dse);
+
     let mut offset = cursor.offset;
-    if step_backward(&mut offset, dse) {
+    if reader.step_backward(&mut offset) {
         cursor.offset = offset;
         update_pref_x(cursor, vse, dse);
     }
 }
 
 fn right(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
+    let mut reader = TextReader::new(dse);
+
     let mut offset = cursor.offset;
-    if step_forward(&mut offset, dse) {
+    if reader.step_forward(&mut offset) {
         cursor.offset = offset;
         update_pref_x(cursor, vse, dse);
     }
 }
 
 fn beginning_of_line(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
-    cursor.offset = dse.doc.data.get_line_start_byte(y(cursor.offset, dse));
+    cursor.offset = dse.doc.data.get_line_start_byte(dse.doc.data.get_line_of_byte(cursor.offset));
     update_pref_x(cursor, vse, dse);
 }
 
 fn end_of_line(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
-    let y = y(cursor.offset, dse);
+    let y = dse.doc.data.get_line_of_byte(cursor.offset);
     let start = dse.doc.data.get_line_start_byte(y);
     let end = dse.doc.data.get_line_end_byte(y);
 
@@ -152,30 +157,32 @@ fn end_of_file(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
 }
 
 fn next_word(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
+    let mut reader = TextReader::new(dse);
+
     let mut offset = cursor.offset;
-    let Some(ch) = char_at(offset, dse) else { return };
+    let Some(ch) = reader.char_at(offset) else { return };
 
     if ch.is_alphanumeric() {
-        while let Some(ch) = char_at(offset, dse) {
-            if !ch.is_alphanumeric() || !step_forward(&mut offset, dse) {
+        while let Some(ch) = reader.char_at(offset) {
+            if !ch.is_alphanumeric() || !reader.step_forward(&mut offset) {
                 break;
             }
         }
-        while let Some(ch) = char_at(offset, dse) {
-            if !ch.is_whitespace() || !step_forward(&mut offset, dse) {
+        while let Some(ch) = reader.char_at(offset) {
+            if !ch.is_whitespace() || !reader.step_forward(&mut offset) {
                 break;
             }
         }
     } else if ch.is_whitespace() {
-        while let Some(ch) = char_at(offset, dse) {
-            if !ch.is_whitespace() || !step_forward(&mut offset, dse) {
+        while let Some(ch) = reader.char_at(offset) {
+            if !ch.is_whitespace() || !reader.step_forward(&mut offset) {
                 break;
             }
         }
     } else {
-        step_forward(&mut offset, dse);
-        while let Some(ch) = char_at(offset, dse) {
-            if !ch.is_whitespace() || !step_forward(&mut offset, dse) {
+        reader.step_forward(&mut offset);
+        while let Some(ch) = reader.char_at(offset) {
+            if !ch.is_whitespace() || !reader.step_forward(&mut offset) {
                 break;
             }
         }
@@ -186,34 +193,37 @@ fn next_word(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
 }
 
 fn next_word_end(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
+    let mut reader = TextReader::new(dse);
+
     let mut offset = cursor.offset;
-    let Some(ch) = char_at(offset, dse) else { return };
+    let Some(ch) = reader.char_at(offset) else { return };
 
     if ch.is_alphanumeric() {
-        while let Some(ch) = char_at(offset, dse) {
-            if !ch.is_alphanumeric() || !step_forward(&mut offset, dse) {
+        while let Some(ch) = reader.char_at(offset) {
+            if !ch.is_alphanumeric() || !reader.step_forward(&mut offset) {
                 break;
             }
         }
     } else if ch.is_whitespace() {
-        while let Some(ch) = char_at(offset, dse) {
-            if !ch.is_whitespace() || !step_forward(&mut offset, dse) {
+        while let Some(ch) = reader.char_at(offset) {
+            if !ch.is_whitespace() || !reader.step_forward(&mut offset) {
                 break;
             }
         }
-        if let Some(ch) = char_at(offset, dse) {
+
+        if let Some(ch) = reader.char_at(offset) {
             if ch.is_alphanumeric() {
-                while let Some(ch) = char_at(offset, dse) {
-                    if !ch.is_alphanumeric() || !step_forward(&mut offset, dse) {
+                while let Some(ch) = reader.char_at(offset) {
+                    if !ch.is_alphanumeric() || !reader.step_forward(&mut offset) {
                         break;
                     }
                 }
             } else {
-                step_forward(&mut offset, dse);
+                reader.step_forward(&mut offset);
             }
         }
     } else {
-        step_forward(&mut offset, dse);
+        reader.step_forward(&mut offset);
     }
 
     cursor.offset = offset;
@@ -221,39 +231,40 @@ fn next_word_end(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry)
 }
 
 fn prev_word(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
+    let mut reader = TextReader::new(dse);
+
     let mut offset = cursor.offset;
-    if !step_backward(&mut offset, dse) {
+    if !reader.step_backward(&mut offset) {
         return;
     }
 
-    let ch = char_at(offset, dse).unwrap();
+    let ch = reader.char_at(offset).unwrap();
     if ch.is_alphanumeric() {
-        while step_backward(&mut offset, dse) {
-            if let Some(ch) = char_at(offset, dse) {
-                if !ch.is_alphanumeric() {
-                    step_forward(&mut offset, dse);
-                    break;
-                }
+        while reader.step_backward(&mut offset) {
+            if let Some(ch) = reader.char_at(offset)
+                && !ch.is_alphanumeric()
+            {
+                reader.step_forward(&mut offset);
+                break;
             }
         }
     } else if ch.is_whitespace() {
-        while step_backward(&mut offset, dse) {
-            if let Some(ch) = char_at(offset, dse) {
-                if !ch.is_whitespace() {
-                    break;
-                }
+        while reader.step_backward(&mut offset) {
+            if let Some(ch) = reader.char_at(offset)
+                && !ch.is_whitespace()
+            {
+                break;
             }
         }
-
-        if let Some(ch) = char_at(offset, dse)
-            && ch.is_alphanumeric()
-        {
-            while step_backward(&mut offset, dse) {
-                if let Some(ch) = char_at(offset, dse)
-                    && !ch.is_alphanumeric()
-                {
-                    step_forward(&mut offset, dse);
-                    break;
+        if let Some(ch) = reader.char_at(offset) {
+            if ch.is_alphanumeric() {
+                while reader.step_backward(&mut offset) {
+                    if let Some(ch) = reader.char_at(offset)
+                        && !ch.is_alphanumeric()
+                    {
+                        reader.step_forward(&mut offset);
+                        break;
+                    }
                 }
             }
         }
@@ -266,34 +277,36 @@ fn prev_word(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
 }
 
 fn prev_word_end(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
+    let mut reader = TextReader::new(dse);
+
     let mut offset = cursor.offset;
-    if !step_backward(&mut offset, dse) {
+    if !reader.step_backward(&mut offset) {
         return;
     }
 
-    let ch = char_at(offset, dse).unwrap();
+    let ch = reader.char_at(offset).unwrap();
     if ch.is_alphanumeric() {
-        while step_backward(&mut offset, dse) {
-            if let Some(ch) = char_at(offset, dse)
+        while reader.step_backward(&mut offset) {
+            if let Some(ch) = reader.char_at(offset)
                 && !ch.is_alphanumeric()
             {
                 break;
             }
         }
-        while step_backward(&mut offset, dse) {
-            if let Some(ch) = char_at(offset, dse)
+        while reader.step_backward(&mut offset) {
+            if let Some(ch) = reader.char_at(offset)
                 && !ch.is_whitespace()
             {
-                step_forward(&mut offset, dse);
+                reader.step_forward(&mut offset);
                 break;
             }
         }
     } else if ch.is_whitespace() {
-        while step_backward(&mut offset, dse) {
-            if let Some(ch) = char_at(offset, dse)
+        while reader.step_backward(&mut offset) {
+            if let Some(ch) = reader.char_at(offset)
                 && !ch.is_whitespace()
             {
-                step_forward(&mut offset, dse);
+                reader.step_forward(&mut offset);
                 break;
             }
         }
@@ -306,22 +319,17 @@ fn prev_word_end(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry)
 }
 
 fn next_whitespace(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
+    let mut reader = TextReader::new(dse);
     let mut offset = cursor.offset;
 
-    while let Some(ch) = char_at(offset, dse) {
-        if !ch.is_whitespace() {
-            break;
-        }
-        if !step_forward(&mut offset, dse) {
+    while let Some(ch) = reader.char_at(offset) {
+        if !ch.is_whitespace() || !reader.step_forward(&mut offset) {
             break;
         }
     }
 
-    while let Some(ch) = char_at(offset, dse) {
-        if ch.is_whitespace() {
-            break;
-        }
-        if !step_forward(&mut offset, dse) {
+    while let Some(ch) = reader.char_at(offset) {
+        if ch.is_whitespace() || !reader.step_forward(&mut offset) {
             break;
         }
     }
@@ -331,46 +339,39 @@ fn next_whitespace(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntr
 }
 
 fn prev_whitespace(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
+    let mut reader = TextReader::new(dse);
+
     let mut offset = cursor.offset;
-    if !step_backward(&mut offset, dse) {
+    if !reader.step_backward(&mut offset) {
         return;
     }
 
-    while let Some(ch) = char_at(offset, dse) {
-        if !ch.is_whitespace() {
-            break;
-        }
-        if !step_backward(&mut offset, dse) {
+    while let Some(ch) = reader.char_at(offset) {
+        if !ch.is_whitespace() || !reader.step_backward(&mut offset) {
             break;
         }
     }
 
-    while let Some(ch) = char_at(offset, dse) {
-        if ch.is_whitespace() {
-            break;
-        }
-        if !step_backward(&mut offset, dse) {
+    while let Some(ch) = reader.char_at(offset) {
+        if ch.is_whitespace() || !reader.step_backward(&mut offset) {
             break;
         }
     }
 
-    while let Some(ch) = char_at(offset, dse) {
-        if !ch.is_whitespace() {
-            break;
-        }
-        if !step_backward(&mut offset, dse) {
+    while let Some(ch) = reader.char_at(offset) {
+        if !ch.is_whitespace() || !reader.step_backward(&mut offset) {
             break;
         }
     }
 
-    step_forward(&mut offset, dse);
+    reader.step_forward(&mut offset);
 
     cursor.offset = offset;
     update_pref_x(cursor, vse, dse);
 }
 
 fn next_empty_line(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
-    let y = y(cursor.offset, dse);
+    let y = dse.doc.data.get_line_of_byte(cursor.offset);
     let lines = dse.doc.data.lines();
 
     let mut found = false;
@@ -395,7 +396,7 @@ fn next_empty_line(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntr
 }
 
 fn prev_empty_line(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
-    let y = y(cursor.offset, dse);
+    let y = dse.doc.data.get_line_of_byte(cursor.offset);
 
     if y == 0 {
         update_pref_x(cursor, vse, dse);
@@ -424,8 +425,9 @@ fn prev_empty_line(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntr
 }
 
 fn matching_opposite(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
-    let Some(start_char) = char_at(cursor.offset, dse) else { return };
+    let mut reader = TextReader::new(dse);
 
+    let Some(start_char) = reader.char_at(cursor.offset) else { return };
     let (opening, closing, forward) = match start_char {
         '(' => ('(', ')', true),
         '[' => ('[', ']', true),
@@ -443,8 +445,8 @@ fn matching_opposite(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEn
     let mut offset = cursor.offset;
     let mut depth = 1;
     if forward {
-        while step_forward(&mut offset, dse) {
-            if let Some(ch) = char_at(offset, dse) {
+        while reader.step_forward(&mut offset) {
+            if let Some(ch) = reader.char_at(offset) {
                 if ch == opening {
                     depth += 1;
                 } else if ch == closing {
@@ -458,8 +460,8 @@ fn matching_opposite(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEn
             }
         }
     } else {
-        while step_backward(&mut offset, dse) {
-            if let Some(ch) = char_at(offset, dse) {
+        while reader.step_backward(&mut offset) {
+            if let Some(ch) = reader.char_at(offset) {
                 if ch == opening {
                     depth += 1;
                 } else if ch == closing {
@@ -481,65 +483,8 @@ fn matching_opposite(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEn
     update_pref_x(cursor, vse, dse);
 }
 
-fn char_at(offset: usize, dse: &DocStoreEntry) -> Option<char> {
-    if offset >= dse.doc.data.len() {
-        return None;
-    }
-
-    let y = y(offset, dse);
-    let end = dse.doc.data.get_line_end_byte(y);
-
-    let text = dse.doc.data.slice(offset..end);
-    text.graphemes(true).next().and_then(|g| g.chars().next())
-}
-
-fn step_forward(offset: &mut usize, dse: &DocStoreEntry) -> bool {
-    if *offset >= dse.doc.data.len() {
-        return false;
-    }
-
-    let y = y(*offset, dse);
-    let end = dse.doc.data.get_line_end_byte(y);
-
-    let text = dse.doc.data.slice(*offset..end);
-    if let Some(g) = text.graphemes(true).next() {
-        *offset += g.len();
-        true
-    } else {
-        false
-    }
-}
-
-fn step_backward(offset: &mut usize, dse: &DocStoreEntry) -> bool {
-    if *offset == 0 {
-        return false;
-    }
-
-    let y = y(*offset - 1, dse);
-    let start = dse.doc.data.get_line_start_byte(y);
-
-    let text = dse.doc.data.slice(start..*offset);
-    if let Some(g) = text.graphemes(true).next_back() {
-        *offset -= g.len();
-        true
-    } else {
-        false
-    }
-}
-
-fn y(offset: usize, dse: &DocStoreEntry) -> usize {
-    let lines = dse.doc.data.lines();
-
-    (0..lines)
-        .find(|&y| {
-            offset >= dse.doc.data.get_line_start_byte(y)
-                && (offset < dse.doc.data.get_line_end_byte(y) || y == lines - 1)
-        })
-        .unwrap_or(lines.saturating_sub(1))
-}
-
 fn update_pref_x(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
-    let y = y(cursor.offset, dse);
+    let y = dse.doc.data.get_line_of_byte(cursor.offset);
     let start = dse.doc.data.get_line_start_byte(y);
     let end = dse.doc.data.get_line_end_byte(y);
     let line = dse.doc.data.slice(start..end);
@@ -551,4 +496,78 @@ fn update_pref_x(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry)
     let (vom, _) = render::layout_vom(&line, start, &decs, &vse.layout.replacements, vse.tab_width);
     cursor.pref_x =
         vom.iter().find(|vo| vo.offset == cursor.offset).map(|vo| vo.visual_x).unwrap_or(0);
+}
+
+struct TextReader<'a> {
+    dse: &'a DocStoreEntry,
+
+    y: usize,
+    start: usize,
+    end: usize,
+
+    text: String,
+}
+
+impl<'a> TextReader<'a> {
+    fn new(dse: &'a DocStoreEntry) -> Self {
+        Self { dse, y: usize::MAX, start: 0, end: 0, text: String::new() }
+    }
+
+    fn fetch(&mut self, offset: usize) {
+        let lines = self.dse.doc.data.lines();
+        let valid = self.y != usize::MAX
+            && offset >= self.start
+            && (offset < self.end || (self.y == lines.saturating_sub(1) && offset == self.end));
+
+        if valid {
+            return;
+        }
+
+        self.y = self.dse.doc.data.get_line_of_byte(offset);
+        self.start = self.dse.doc.data.get_line_start_byte(self.y);
+        self.end = self.dse.doc.data.get_line_end_byte(self.y);
+        self.text = self.dse.doc.data.slice(self.start..self.end);
+    }
+
+    fn char_at(&mut self, offset: usize) -> Option<char> {
+        if offset >= self.dse.doc.data.len() {
+            return None;
+        }
+
+        self.fetch(offset);
+
+        self.text[offset - self.start..].graphemes(true).next().and_then(|g| g.chars().next())
+    }
+
+    fn step_forward(&mut self, offset: &mut usize) -> bool {
+        if *offset >= self.dse.doc.data.len() {
+            return false;
+        }
+
+        self.fetch(*offset);
+
+        if let Some(grapheme) = self.text[*offset - self.start..].graphemes(true).next() {
+            *offset += grapheme.len();
+
+            true
+        } else {
+            false
+        }
+    }
+
+    fn step_backward(&mut self, offset: &mut usize) -> bool {
+        if *offset == 0 {
+            return false;
+        }
+
+        self.fetch(*offset - 1);
+
+        if let Some(grapheme) = self.text[..*offset - self.start].graphemes(true).next_back() {
+            *offset -= grapheme.len();
+
+            true
+        } else {
+            false
+        }
+    }
 }

@@ -34,17 +34,7 @@ impl ModeLineWidget {
             }
             ModeLineWidget::CursorPos { face } => {
                 let offset = vse.cursors.list.first().map(|c| c.offset).unwrap_or(0);
-
-                let lines = dse.doc.data.lines();
-                let mut y = lines.saturating_sub(1);
-                for idx in 0..lines {
-                    if offset >= dse.doc.data.get_line_start_byte(idx)
-                        && (offset < dse.doc.data.get_line_end_byte(idx) || idx == lines - 1)
-                    {
-                        y = idx;
-                        break;
-                    }
-                }
+                let y = dse.doc.data.get_line_of_byte(offset);
 
                 let start = dse.doc.data.get_line_start_byte(y);
                 let end = dse.doc.data.get_line_end_byte(y);

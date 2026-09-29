@@ -239,22 +239,8 @@ impl NormalKeyInput {
             return;
         };
 
-        let mut lines = Vec::new();
-        for cursor in &vse.cursors.list {
-            let doc_lines = dse.doc.data.lines();
-
-            let mut y = doc_lines.saturating_sub(1);
-            for idx in 0..doc_lines {
-                if cursor.offset >= dse.doc.data.get_line_start_byte(idx)
-                    && (cursor.offset < dse.doc.data.get_line_end_byte(idx) || idx == doc_lines - 1)
-                {
-                    y = idx;
-                    break;
-                }
-            }
-
-            lines.push(y);
-        }
+        let mut lines: Vec<_> =
+            vse.cursors.list.iter().map(|c| dse.doc.data.get_line_of_byte(c.offset)).collect();
         lines.sort_unstable();
         lines.dedup();
 
@@ -442,20 +428,8 @@ impl NormalKeyInput {
 
         let doc_lines = dse.doc.data.lines();
 
-        let mut lines = Vec::new();
-        for cursor in &vse.cursors.list {
-            let mut y = doc_lines.saturating_sub(1);
-            for idx in 0..doc_lines {
-                if cursor.offset >= dse.doc.data.get_line_start_byte(idx)
-                    && (cursor.offset < dse.doc.data.get_line_end_byte(idx) || idx == doc_lines - 1)
-                {
-                    y = idx;
-                    break;
-                }
-            }
-
-            lines.push(y);
-        }
+        let mut lines: Vec<_> =
+            vse.cursors.list.iter().map(|c| dse.doc.data.get_line_of_byte(c.offset)).collect();
         lines.sort_unstable();
         lines.dedup();
 
@@ -604,20 +578,10 @@ impl NormalKeyInput {
         };
 
         let mut edits = Vec::new();
-        let lines = dse.doc.data.lines();
         for cursor in &vse.cursors.list {
             let offset = cursor.offset;
-            let mut y = lines.saturating_sub(1);
-            for idx in 0..lines {
-                if offset >= dse.doc.data.get_line_start_byte(idx)
-                    && (offset < dse.doc.data.get_line_end_byte(idx) || idx == lines - 1)
-                {
-                    y = idx;
-                    break;
-                }
-            }
+            let end = dse.doc.data.get_line_end_byte(dse.doc.data.get_line_of_byte(offset));
 
-            let end = dse.doc.data.get_line_end_byte(y);
             if offset < end {
                 let text = dse.doc.data.slice(offset..end).to_string();
 

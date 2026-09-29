@@ -168,12 +168,7 @@ impl ViewProtocol {
         let scroll = vse.scroll;
         let height = windows
             .iter()
-            .map(|&w| {
-                let rect = state.workspace.get_rect(w);
-                debug_assert!(rect.is_some());
-                rect
-            })
-            .flatten()
+            .filter_map(|&w| state.workspace.get_rect(w))
             .map(|r| r.height.saturating_sub(vse.layout.mode_line))
             .max()
             .unwrap_or(0);
@@ -201,12 +196,7 @@ impl ViewProtocol {
 
         let height = windows
             .iter()
-            .map(|&w| {
-                let rect = state.workspace.get_rect(w);
-                debug_assert!(rect.is_some());
-                rect
-            })
-            .flatten()
+            .filter_map(|&w| state.workspace.get_rect(w))
             .map(|r| r.height.saturating_sub(vse.layout.mode_line))
             .max()
             .unwrap_or(0);
@@ -418,12 +408,7 @@ impl ViewProtocol {
         let mut scroll = vse.scroll;
         let max_height = windows
             .iter()
-            .map(|&w| {
-                let rect = state.workspace.get_rect(w);
-                debug_assert!(rect.is_some());
-                rect
-            })
-            .flatten()
+            .filter_map(|&w| state.workspace.get_rect(w))
             .map(|r| r.height.saturating_sub(vse.layout.mode_line))
             .max()
             .unwrap_or(0);
