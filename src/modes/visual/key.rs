@@ -12,7 +12,7 @@ use crate::{
     },
     protocols::{action::ActionCommand, mini_buffer::MiniBufferCommand},
     state::{DocId, StateLock, ViewId, ViewStoreTypes},
-    types::{KeyChord, KeyNode, Keymap},
+    types::{KeyChord, Keymap, ParseResult},
 };
 
 pub struct VisualKeyInput {
@@ -34,7 +34,7 @@ impl VisualKeyInput {
         Self { keymap, pending_keys: Vec::new(), state_lock, action_tx, mini_buffer_tx }
     }
 
-    fn execute(&self, cmd: &Command) {
+    fn execute(&self, cmd: Command) {
         let state = self.state_lock.read();
         let Some(view) = state.active_view() else {
             // No active view, just abort.
@@ -50,7 +50,7 @@ impl VisualKeyInput {
             Command::Move(motion) => {
                 let _ = self.action_tx.send(ActionCommand::MoveCursors {
                     view,
-                    motion: *motion,
+                    motion,
                     move_anchor: false,
                 });
             }
@@ -65,7 +65,7 @@ impl VisualKeyInput {
         }
     }
 
-    fn swap_operation(&self, view: ViewId, doc: DocId, cmd: &Command) {
+    fn swap_operation(&self, view: ViewId, doc: DocId, cmd: Command) {
         let state = self.state_lock.read();
         let Some(vse) = state.view_store.get(&view) else {
             debug_panic!();
@@ -280,7 +280,7 @@ impl VisualKeyInput {
         );
     }
 
-    fn operator(&self, view: ViewId, doc: DocId, cmd: &Command) {
+    fn operator(&self, view: ViewId, doc: DocId, cmd: Command) {
         let state = self.state_lock.read();
         let Some(vse) = state.view_store.get(&view) else {
             debug_panic!();
@@ -400,34 +400,15 @@ impl KeyInputHandler for VisualKeyInput {
         let chord = KeyChord::from(event);
         self.pending_keys.push(chord);
 
-        let mut curr = &self.keymap.root;
-        let mut target = None;
-        for (idx, key_chord) in self.pending_keys.iter().enumerate() {
-            if let Some(node) = curr.get(key_chord) {
-                if idx == self.pending_keys.len() - 1 {
-                    target = Some(node);
-                } else if let KeyNode::Prefix(next_map) = node {
-                    curr = next_map;
-                } else {
-                    debug_panic!();
-                }
-            } else {
-                // Invalid sequence.
-                self.pending_keys.clear();
-
-                return false;
-            }
-        }
-
-        match target {
-            Some(KeyNode::Leaf(cmd)) => {
+        match self.keymap.parse(&self.pending_keys) {
+            ParseResult::Exact(cmd) => {
                 self.execute(cmd);
                 self.pending_keys.clear();
 
                 true
             }
-            Some(KeyNode::Prefix(_)) => true,
-            None => {
+            ParseResult::Prefix => true,
+            ParseResult::Invalid => {
                 self.pending_keys.clear();
 
                 false

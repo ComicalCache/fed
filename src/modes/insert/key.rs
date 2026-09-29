@@ -7,7 +7,7 @@ use crate::{
     modes::insert::{command::Command, keymap},
     protocols::action::ActionCommand,
     state::{DocId, StateLock, ViewId, ViewStoreTypes},
-    types::{KeyChord, KeyNode, Keymap},
+    types::{KeyChord, Keymap, ParseResult},
 };
 
 pub struct InsertKeyInput {
@@ -27,7 +27,7 @@ impl InsertKeyInput {
         Self { keymap, pending_keys: Vec::new(), whitespace: false, state_lock, action_tx }
     }
 
-    fn execute(&mut self, cmd: &Command) {
+    fn execute(&mut self, cmd: Command) {
         let state = self.state_lock.read();
         let Some(view) = state.active_view() else {
             // Click active view, just abort.
@@ -45,7 +45,7 @@ impl InsertKeyInput {
                 self.whitespace = false;
                 let _ = self.action_tx.send(ActionCommand::MoveCursors {
                     view,
-                    motion: *motion,
+                    motion,
                     move_anchor: true,
                 });
             }
@@ -67,7 +67,7 @@ impl InsertKeyInput {
         }
     }
 
-    fn input(&mut self, view: ViewId, doc: DocId, text: &str) {
+    fn input(&mut self, view: ViewId, doc: DocId, text: String) {
         let whitespace = text.chars().all(|c| c.is_whitespace());
         if whitespace && !self.whitespace {
             let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
@@ -101,19 +101,15 @@ impl KeyInputHandler for InsertKeyInput {
         let chord = KeyChord::from(event);
         self.pending_keys.push(chord);
 
-        let mut curr = &self.keymap.root;
-        let mut target = None;
-        for (idx, key_chord) in self.pending_keys.iter().enumerate() {
-            if let Some(node) = curr.get(key_chord) {
-                if idx == self.pending_keys.len() - 1 {
-                    target = Some(node);
-                } else if let KeyNode::Prefix(next_map) = node {
-                    curr = next_map;
-                } else {
-                    debug_panic!();
-                }
-            } else {
-                // Invalid sequence.
+        match self.keymap.parse(&self.pending_keys) {
+            ParseResult::Exact(cmd) => {
+                self.execute(cmd);
+                self.pending_keys.clear();
+
+                true
+            }
+            ParseResult::Prefix => true,
+            ParseResult::Invalid => {
                 self.pending_keys.clear();
 
                 // If it's a character input, insert it.
@@ -134,27 +130,12 @@ impl KeyInputHandler for InsertKeyInput {
                     .join("-");
 
                 if !modifiers.is_empty() {
-                    self.execute(&Command::Input(format!("<{modifiers}-{ch}>")));
+                    self.execute(Command::Input(format!("<{modifiers}-{ch}>")));
                 } else {
-                    self.execute(&Command::Input(ch.to_string()));
+                    self.execute(Command::Input(ch.to_string()));
                 }
 
-                return true;
-            }
-        }
-
-        match target {
-            Some(KeyNode::Leaf(cmd)) => {
-                self.execute(&cmd.clone());
-                self.pending_keys.clear();
-
                 true
-            }
-            Some(KeyNode::Prefix(_)) => true,
-            None => {
-                self.pending_keys.clear();
-
-                false
             }
         }
     }

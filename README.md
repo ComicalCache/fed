@@ -1,8 +1,8 @@
 # fed
 
 `fed` is an asynchronous, RPC based, extendable terminal text editor. It is the spiritual successor
-to [Cini](https://github.com/ComicalCache/Cini) (which itself is the spiritual successor to [Mini]
-(https://github.com/ComicalCache/Mini)).
+to [Cini](https://github.com/ComicalCache/Cini) (which itself is the spiritual successor to
+[Mini](https://github.com/ComicalCache/Mini)).
 
 See `architecture` to learn more about the editor's design and architecture. Since this is my
 first time designing a large asynchronous programm I'm bound to make ill-decisions in the design and

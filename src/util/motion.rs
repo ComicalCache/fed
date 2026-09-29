@@ -2,9 +2,9 @@ use piece_table::Slice;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
-    render,
     state::{DocStoreEntry, ViewStoreEntry},
     types::{Cursor, Motion},
+    util,
 };
 
 pub fn motion_offsets(
@@ -53,20 +53,7 @@ fn up(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
         return;
     }
 
-    let start = dse.doc.data.get_line_start_byte(y - 1);
-    let end = dse.doc.data.get_line_end_byte(y - 1);
-
-    let mut decs = Vec::new();
-    dse.decs.range(start, end, &mut decs);
-    vse.decs.range(start, end, &mut decs);
-
-    let (vom, _) = render::layout_vom(
-        &dse.doc.data.slice(start..end),
-        start,
-        &decs,
-        &vse.layout.replacements,
-        vse.tab_width,
-    );
+    let (vom, _) = util::vom(y - 1, vse, dse);
     let vo = vom
         .iter()
         .rev()
@@ -86,20 +73,7 @@ fn down(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
         return;
     }
 
-    let start = dse.doc.data.get_line_start_byte(y + 1);
-    let end = dse.doc.data.get_line_end_byte(y + 1);
-
-    let mut decs = Vec::new();
-    dse.decs.range(start, end, &mut decs);
-    vse.decs.range(start, end, &mut decs);
-
-    let (vom, _) = render::layout_vom(
-        &dse.doc.data.slice(start..end),
-        start,
-        &decs,
-        &vse.layout.replacements,
-        vse.tab_width,
-    );
+    let (vom, _) = util::vom(y + 1, vse, dse);
     let vo = vom
         .iter()
         .rev()
@@ -485,15 +459,8 @@ fn matching_opposite(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEn
 
 fn update_pref_x(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
     let y = dse.doc.data.get_line_of_byte(cursor.offset);
-    let start = dse.doc.data.get_line_start_byte(y);
-    let end = dse.doc.data.get_line_end_byte(y);
-    let line = dse.doc.data.slice(start..end);
 
-    let mut decs = Vec::new();
-    dse.decs.range(start, end, &mut decs);
-    vse.decs.range(start, end, &mut decs);
-
-    let (vom, _) = render::layout_vom(&line, start, &decs, &vse.layout.replacements, vse.tab_width);
+    let (vom, _) = util::vom(y, vse, dse);
     cursor.pref_x =
         vom.iter().find(|vo| vo.offset == cursor.offset).map(|vo| vo.visual_x).unwrap_or(0);
 }

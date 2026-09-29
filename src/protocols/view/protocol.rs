@@ -23,6 +23,7 @@ use crate::{
     render::{WindowId, ZLayer},
     state::{DocId, DocStoreTypes, State, StateLock, ViewId, ViewStoreTypes},
     types::{Pos, Rect, RectSplit},
+    util,
 };
 
 pub struct ViewProtocol {
@@ -330,7 +331,9 @@ impl ViewProtocol {
             return;
         }
 
-        let Some(vse) = state.view_store.get(&view) else {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        else {
             debug_panic!();
             return;
         };
@@ -339,10 +342,7 @@ impl ViewProtocol {
             return;
         };
 
-        let Some(pos) = state.offset_to_pos(view, cursor.offset) else {
-            debug_panic!();
-            return;
-        };
+        let pos = util::offset_to_pos(cursor.offset, vse, dse);
         drop(state);
 
         self.scroll_if_needed(window, view, pos);

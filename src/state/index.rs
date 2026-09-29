@@ -84,7 +84,7 @@ impl Index {
 
         if cfg!(debug_assertions) && view.is_some() {
             let windows = self.view_to_windows.get(&view.unwrap());
-            debug_assert!(windows.and_then(|w| Some(w.contains(&window))) == Some(true));
+            debug_assert!(windows.map(|w| w.contains(&window)) == Some(true));
         }
 
         view
@@ -107,7 +107,7 @@ impl Index {
 
         if cfg!(debug_assertions) && doc.is_some() {
             let windows = self.doc_to_views.get(&doc.unwrap());
-            debug_assert!(windows.and_then(|w| Some(w.contains(&view))) == Some(true));
+            debug_assert!(windows.map(|w| w.contains(&view)) == Some(true));
         }
 
         doc

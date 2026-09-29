@@ -105,9 +105,18 @@ impl ActionProtocol {
     }
 
     fn move_cursor_to_pos(&self, view: ViewId, pos: Pos, move_anchor: bool) {
-        let mut state = self.state_lock.write();
-        let Some(offset) = state.pos_to_offset(view, pos) else { return };
-        let vse = state.view_store.get_mut(&view).expect("self.pos_to_offset checks it");
+        let mut guard = self.state_lock.write();
+        // Fix the borrow checker.
+        let state = &mut *guard;
+
+        let Some((vse, dse)) =
+            State::vse_and_dse_mut(&mut state.view_store, &mut state.doc_store, &state.index, view)
+        else {
+            debug_panic!();
+            return;
+        };
+
+        let offset = util::pos_to_offset(pos, vse, dse);
 
         let anchor = if move_anchor {
             offset
@@ -122,22 +131,30 @@ impl ActionProtocol {
         vse.cursors.list.push(cursor);
 
         let view_event_tx = state.view_event_tx.clone();
-        drop(state);
+        drop(guard);
 
         let _ = view_event_tx.send(ViewStoreTypes::Event::CursorMoved { view });
     }
 
     fn create_cursor_at_pos(&self, view: ViewId, pos: Pos) {
-        let mut state = self.state_lock.write();
+        let mut guard = self.state_lock.write();
+        // Fix the borrow checker.
+        let state = &mut *guard;
 
-        let Some(offset) = state.pos_to_offset(view, pos) else { return };
-        let vse = state.view_store.get_mut(&view).expect("self.pos_to_offset checks it");
+        let Some((vse, dse)) =
+            State::vse_and_dse_mut(&mut state.view_store, &mut state.doc_store, &state.index, view)
+        else {
+            debug_panic!();
+            return;
+        };
+
+        let offset = util::pos_to_offset(pos, vse, dse);
 
         vse.cursors.list.push(Cursor::new(offset, pos.x));
         vse.cursors.normalize();
 
         let view_event_tx = state.view_event_tx.clone();
-        drop(state);
+        drop(guard);
 
         let _ = view_event_tx.send(ViewStoreTypes::Event::CursorsChanged { view });
     }
@@ -578,6 +595,14 @@ impl ActionProtocol {
         }
 
         cursors.normalize();
+
+        debug_assert!(
+            cursors
+                .list
+                .iter()
+                .all(|c| c.offset <= dse.doc.data.len() && c.anchor <= dse.doc.data.len())
+        );
+
         if cursors.list.is_empty() {
             return;
         }

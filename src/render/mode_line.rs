@@ -1,9 +1,7 @@
-use piece_table::Slice;
-
 use crate::{
-    render,
     state::{DocStoreEntry, State, ViewStoreEntry},
     types::Face,
+    util,
 };
 
 pub enum ModeLineWidget {
@@ -36,21 +34,7 @@ impl ModeLineWidget {
                 let offset = vse.cursors.list.first().map(|c| c.offset).unwrap_or(0);
                 let y = dse.doc.data.get_line_of_byte(offset);
 
-                let start = dse.doc.data.get_line_start_byte(y);
-                let end = dse.doc.data.get_line_end_byte(y);
-                let line = dse.doc.data.slice(start..end);
-
-                let mut decs = Vec::new();
-                dse.decs.range(start, end, &mut decs);
-                vse.decs.range(start, end, &mut decs);
-
-                let (vom, _) = render::layout_vom(
-                    &line,
-                    start,
-                    &decs,
-                    &vse.layout.replacements,
-                    vse.tab_width,
-                );
+                let (vom, _) = util::vom(y, vse, dse);
                 let x =
                     vom.iter().find(|vo| vo.offset >= offset).map(|vo| vo.visual_x).unwrap_or(0);
 

@@ -14,15 +14,14 @@ use std::{
 
 pub use doc::{DocId, DocStore, DocStoreEntry, types as DocStoreTypes};
 pub use mini_buffer::{MiniBufferId, MiniBufferStore, types as MiniBufferStoreTypes};
-use piece_table::{PieceTable, Slice};
+use piece_table::PieceTable;
 use tokio::sync::broadcast;
 pub use view::{ViewId, ViewStore, ViewStoreEntry, types as ViewStoreTypes};
 
 use crate::{
-    debug_panic::debug_panic,
-    render::{self, WindowId, Workspace},
+    render::{WindowId, Workspace},
     state::{DocStoreTypes::Doc, index::Index},
-    types::{Pos, Theme},
+    types::Theme,
 };
 
 #[derive(Clone)]
@@ -131,75 +130,5 @@ impl State {
         let dse = doc_store.get_mut(&index.view_to_doc(view)?)?;
 
         Some((vse, dse))
-    }
-
-    pub fn pos_to_offset(&self, view: ViewId, pos: Pos) -> Option<usize> {
-        let Some((vse, dse)) =
-            State::vse_and_dse(&self.view_store, &self.doc_store, &self.index, view)
-        else {
-            debug_panic!();
-            return None;
-        };
-
-        let lines = dse.doc.data.lines();
-
-        // lines are one indexed.
-        let y = pos.y.min(lines.saturating_sub(1));
-
-        let start = dse.doc.data.get_line_start_byte(y);
-        let end = dse.doc.data.get_line_end_byte(y);
-        let line = dse.doc.data.slice(start..end);
-
-        let mut decs = Vec::new();
-        dse.decs.range(start, end, &mut decs);
-        vse.decs.range(start, end, &mut decs);
-
-        let (vom, _) =
-            render::layout_vom(&line, start, &decs, &vse.layout.replacements, vse.tab_width);
-        let offset =
-            vom.iter().rev().find(|vo| vo.visual_x <= pos.x).map(|vo| vo.offset).unwrap_or(start);
-
-        Some(offset)
-    }
-
-    pub fn offset_to_pos(&self, view: ViewId, offset: usize) -> Option<Pos> {
-        let Some((vse, dse)) =
-            State::vse_and_dse(&self.view_store, &self.doc_store, &self.index, view)
-        else {
-            debug_panic!();
-            return None;
-        };
-
-        let lines = dse.doc.data.lines();
-
-        let mut target = lines.saturating_sub(1);
-        for y in 0..lines {
-            let start = dse.doc.data.get_line_start_byte(y);
-            let end = dse.doc.data.get_line_end_byte(y);
-
-            if offset >= start && (offset < end || y == lines - 1) {
-                target = y;
-
-                break;
-            }
-        }
-
-        let start = dse.doc.data.get_line_start_byte(target);
-        let end = dse.doc.data.get_line_end_byte(target);
-        let line = dse.doc.data.slice(start..end);
-
-        let mut decs = Vec::new();
-        dse.decs.range(start, end, &mut decs);
-        vse.decs.range(start, end, &mut decs);
-
-        let (vom, _) =
-            render::layout_vom(&line, start, &decs, &vse.layout.replacements, vse.tab_width);
-        let x = vom
-            .iter()
-            .find(|vo| vo.offset >= offset)
-            .map(|vo| vo.visual_x)
-            .unwrap_or_else(|| vom.last().map(|vo| vo.visual_x).unwrap_or(0));
-
-        Some(Pos::new(x, target))
     }
 }

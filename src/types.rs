@@ -1,7 +1,6 @@
 mod cursor;
 mod decoration;
 mod face;
-mod key_chord;
 mod keymap;
 mod motion;
 mod pos;
@@ -13,8 +12,7 @@ mod theme;
 pub use cursor::Cursor;
 pub use decoration::{Decoration, DecorationProvider};
 pub use face::Face;
-pub use key_chord::KeyChord;
-pub use keymap::{KeyNode, Keymap};
+pub use keymap::{KeyChord, Keymap, ParseResult};
 pub use motion::Motion;
 pub use pos::Pos;
 pub use rect::{Rect, RectSplit};

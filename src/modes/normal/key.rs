@@ -15,8 +15,8 @@ use crate::{
     protocols::{
         action::ActionCommand, io::IoCommand, mini_buffer::MiniBufferCommand, view::ViewCommand,
     },
-    state::{DocId, StateLock, ViewId, ViewStoreTypes},
-    types::{KeyChord, KeyNode, Keymap, Motion},
+    state::{DocId, State, StateLock, ViewId, ViewStoreTypes},
+    types::{KeyChord, Keymap, Motion, ParseResult},
     util,
 };
 
@@ -54,7 +54,7 @@ impl NormalKeyInput {
         }
     }
 
-    fn execute(&mut self, cmd: &Command) {
+    fn execute(&mut self, cmd: Command) {
         let state = self.state_lock.read();
         let Some(view) = state.active_view() else {
             // Click active view, just abort.
@@ -73,7 +73,7 @@ impl NormalKeyInput {
             Command::DeleteLine | Command::ChangeLine | Command::YankLine => {
                 self.line_operation(view, doc, cmd)
             }
-            Command::ScrollView(motion) => self.scroll_view(view, *motion),
+            Command::ScrollView(motion) => self.scroll_view(view, motion),
             Command::Undo => {
                 let _ = self.action_tx.send(ActionCommand::Undo { view });
             }
@@ -101,7 +101,7 @@ impl NormalKeyInput {
                 let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
             }
             Command::Replace => self.replace = true,
-            Command::ReplaceChar(ch) => self.replace_char(view, doc, *ch),
+            Command::ReplaceChar(ch) => self.replace_char(view, doc, ch),
             Command::SaveFile => self.save_file(doc),
             Command::Jump => self.jump(view),
             Command::EnterInsertMode => {
@@ -128,12 +128,12 @@ impl NormalKeyInput {
         }
     }
 
-    fn motion(&self, view: ViewId, doc: DocId, cmd: &Command) {
+    fn motion(&self, view: ViewId, doc: DocId, cmd: Command) {
         let motion = match cmd {
-            Command::Move(motion) => *motion,
-            Command::Delete(motion) => *motion,
-            Command::Change(motion) => *motion,
-            Command::Yank(motion) => *motion,
+            Command::Move(motion) => motion,
+            Command::Delete(motion) => motion,
+            Command::Change(motion) => motion,
+            Command::Yank(motion) => motion,
             _ => unreachable!(),
         };
 
@@ -228,7 +228,7 @@ impl NormalKeyInput {
         }
     }
 
-    fn line_operation(&self, view: ViewId, doc: DocId, cmd: &Command) {
+    fn line_operation(&self, view: ViewId, doc: DocId, cmd: Command) {
         let state = self.state_lock.read();
         let Some(vse) = state.view_store.get(&view) else {
             debug_panic!();
@@ -368,7 +368,7 @@ impl NormalKeyInput {
         let _ = self.view_tx.send(ViewCommand::ScrollTo { view, pos: scroll });
     }
 
-    fn insert(&self, view: ViewId, doc: DocId, cmd: &Command) {
+    fn insert(&self, view: ViewId, doc: DocId, cmd: Command) {
         let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
 
         match cmd {
@@ -415,7 +415,7 @@ impl NormalKeyInput {
             .send(ActionCommand::SetViewMode { view, mode: ViewStoreTypes::Mode::Insert });
     }
 
-    fn swap_operation(&self, view: ViewId, doc: DocId, cmd: &Command) {
+    fn swap_operation(&self, view: ViewId, doc: DocId, cmd: Command) {
         let state = self.state_lock.read();
         let Some(vse) = state.view_store.get(&view) else {
             debug_panic!();
@@ -753,17 +753,17 @@ impl NormalKeyInput {
         let parts: Vec<&str> = res.split(':').collect();
 
         let state = state_lock.read();
-        let Some(vse) = state.view_store.get(&view) else {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        else {
             debug_panic!();
             return;
         };
         let Some(cursor) = vse.cursors.list.first() else {
             return;
         };
-        let Some(pos) = state.offset_to_pos(view, cursor.offset) else {
-            debug_panic!();
-            return;
-        };
+
+        let pos = util::offset_to_pos(cursor.offset, vse, dse);
         drop(state);
 
         let mut x = pos.x;
@@ -809,8 +809,7 @@ impl KeyInputHandler for NormalKeyInput {
 
         if self.replace {
             if let KeyCode::Char(ch) = event.code {
-                let cmd = Command::ReplaceChar(ch);
-                self.execute(&cmd);
+                self.execute(Command::ReplaceChar(ch));
             }
 
             self.replace = false;
@@ -822,34 +821,15 @@ impl KeyInputHandler for NormalKeyInput {
         let chord = KeyChord::from(event);
         self.pending_keys.push(chord);
 
-        let mut target = None;
-        let mut curr = &self.keymap.root;
-        for (idx, key_chord) in self.pending_keys.iter().enumerate() {
-            if let Some(node) = curr.get(key_chord) {
-                if idx == self.pending_keys.len() - 1 {
-                    target = Some(node.clone());
-                } else if let KeyNode::Prefix(next_map) = node {
-                    curr = next_map;
-                } else {
-                    debug_panic!();
-                }
-            } else {
-                // Invalid sequence.
-                self.pending_keys.clear();
-
-                return false;
-            }
-        }
-
-        match target {
-            Some(KeyNode::Leaf(cmd)) => {
-                self.execute(&cmd);
+        match self.keymap.parse(&self.pending_keys) {
+            ParseResult::Exact(cmd) => {
+                self.execute(cmd);
                 self.pending_keys.clear();
 
                 true
             }
-            Some(KeyNode::Prefix(_)) => true,
-            None => {
+            ParseResult::Prefix => true,
+            ParseResult::Invalid => {
                 self.pending_keys.clear();
 
                 false
