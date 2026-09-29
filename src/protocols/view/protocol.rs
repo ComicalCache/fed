@@ -110,7 +110,7 @@ impl ViewProtocol {
         };
 
         let state = self.state_lock.read();
-        let views: Vec<ViewId> = state
+        let views: Vec<_> = state
             .index
             .doc_to_views(doc)
             .map(|views| views.iter().copied().collect())
@@ -382,7 +382,7 @@ impl ViewProtocol {
 
         drop(guard);
 
-        let mut lines = data.split_inclusive('\n').map(String::from).collect::<Vec<_>>();
+        let mut lines: Vec<_> = data.split_inclusive('\n').map(String::from).collect();
         if data.is_empty() || data.ends_with('\n') {
             lines.push(String::new());
         }

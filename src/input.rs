@@ -81,39 +81,22 @@ pub struct InputRouter {
 }
 
 impl InputRouter {
-    pub fn new(state_lock: StateLock, rx: UnboundedReceiver<Event>) -> Self {
-        Self {
-            key_handlers: Vec::new(),
-            mouse_handlers: Vec::new(),
-            paste_handlers: Vec::new(),
-            resize_handlers: Vec::new(),
-            state_lock,
-            rx,
-        }
-    }
+    pub fn new(
+        mut key_handlers: Vec<Box<dyn KeyInputHandler>>,
+        mut mouse_handlers: Vec<Box<dyn MouseInputHandler>>,
+        mut paste_handlers: Vec<Box<dyn PasteInputHandler>>,
+        mut resize_handlers: Vec<Box<dyn ResizeInputHandler>>, state_lock: StateLock,
+        rx: UnboundedReceiver<Event>,
+    ) -> Self {
+        key_handlers.sort_by(|a, b| a.priority().cmp(&b.priority()));
+        mouse_handlers.sort_by(|a, b| a.priority().cmp(&b.priority()));
+        paste_handlers.sort_by(|a, b| a.priority().cmp(&b.priority()));
+        resize_handlers.sort_by(|a, b| a.priority().cmp(&b.priority()));
 
-    pub fn add_key_handler(&mut self, handler: Box<dyn KeyInputHandler>) {
-        self.key_handlers.push(handler);
-    }
-
-    pub fn add_mouse_handler(&mut self, handler: Box<dyn MouseInputHandler>) {
-        self.mouse_handlers.push(handler);
-    }
-
-    pub fn add_paste_handler(&mut self, handler: Box<dyn PasteInputHandler>) {
-        self.paste_handlers.push(handler);
-    }
-
-    pub fn add_resize_handler(&mut self, handler: Box<dyn ResizeInputHandler>) {
-        self.resize_handlers.push(handler);
+        Self { key_handlers, mouse_handlers, paste_handlers, resize_handlers, state_lock, rx }
     }
 
     pub async fn run(&mut self) {
-        self.key_handlers.sort_by(|a, b| b.priority().cmp(&a.priority()));
-        self.mouse_handlers.sort_by(|a, b| b.priority().cmp(&a.priority()));
-        self.paste_handlers.sort_by(|a, b| b.priority().cmp(&a.priority()));
-        self.resize_handlers.sort_by(|a, b| b.priority().cmp(&a.priority()));
-
         while let Some(event) = self.rx.recv().await {
             match event {
                 Event::Key(key) => {

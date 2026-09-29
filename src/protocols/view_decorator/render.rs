@@ -96,7 +96,7 @@ impl ViewDecoratorRenderer {
         // Force left padding.
         let mut left = Vec::new();
         for widget in &vse.mode_line_config.left {
-            left.extend(widget.render(state, vse, dse));
+            left.push(widget.render(state, vse, dse));
 
             // Add padding.
             left.push((" ".to_string(), state.theme.mode_line));
@@ -106,7 +106,7 @@ impl ViewDecoratorRenderer {
 
         let mut right = Vec::new();
         for widget in &vse.mode_line_config.right {
-            right.extend(widget.render(state, vse, dse));
+            right.push(widget.render(state, vse, dse));
 
             // Add padding. Keep the trailing padding as right padding.
             right.push((" ".to_string(), state.theme.mode_line));

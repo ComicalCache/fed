@@ -7,7 +7,7 @@ use tokio::sync::{
 
 use crate::protocols::mini_buffer::MiniBufferCommand;
 
-type QuitCallback = Box<dyn Send + Sync + Fn() -> oneshot::Receiver<Result<(), String>>>;
+pub type QuitCallback = Box<dyn Send + Sync + Fn() -> oneshot::Receiver<Result<(), String>>>;
 
 pub struct QuitProtocol {
     callbacks: Vec<QuitCallback>,
@@ -19,13 +19,11 @@ pub struct QuitProtocol {
 
 impl QuitProtocol {
     pub fn new(
-        rx: UnboundedReceiver<()>, mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
-        shutdown_tx: UnboundedSender<()>,
+        callbacks: Vec<QuitCallback>, rx: UnboundedReceiver<()>,
+        mini_buffer_tx: UnboundedSender<MiniBufferCommand>, shutdown_tx: UnboundedSender<()>,
     ) -> Self {
-        Self { callbacks: Vec::new(), rx, mini_buffer_tx, shutdown_tx }
+        Self { callbacks, rx, mini_buffer_tx, shutdown_tx }
     }
-
-    pub fn add_callback(&mut self, cb: QuitCallback) { self.callbacks.push(cb); }
 
     pub async fn run(&mut self) {
         while let Some(_) = self.rx.recv().await {

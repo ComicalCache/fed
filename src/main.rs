@@ -28,7 +28,9 @@ use tokio::sync::{
 
 use crate::{
     fed::Fed,
-    input::InputRouter,
+    input::{
+        InputRouter, KeyInputHandler, MouseInputHandler, PasteInputHandler, ResizeInputHandler,
+    },
     modes::{
         insert::{InsertKeyInput, InsertMouseInput},
         mini_buffer::{MiniBufferKeyInput, MiniBufferMouseInput},
@@ -40,7 +42,7 @@ use crate::{
         action::{ActionCommand, ActionProtocol},
         io::{IoCommand, IoProtocol},
         mini_buffer::{MiniBufferProtocol, MiniBufferResizeInput},
-        quit::QuitProtocol,
+        quit::{QuitCallback, QuitProtocol},
         screen::{ScreenProtocol, ScreenResizeInput},
         view::{ViewCommand, ViewProtocol, ViewResizeInput},
     },
@@ -109,7 +111,6 @@ fn setup(
         action_tx.clone(),
         view_tx.clone(),
     );
-    let mut quit = QuitProtocol::new(quit_rx, mini_buffer_tx.clone(), shutdown_tx.clone());
     let screen = ScreenProtocol::new(state_lock.clone(), width, height, screen_rx);
     let view = ViewProtocol::new(
         state_lock.clone(),
@@ -121,69 +122,72 @@ fn setup(
 
     // Quit callbacks.
     let action_tx_clone = action_tx.clone();
-    quit.add_callback(Box::new(move || {
-        let (tx, rx) = oneshot::channel();
-        let _ = action_tx_clone.send(ActionCommand::CanQuit { tx });
-
-        rx
-    }));
-
-    // Register IO Protocol to block quit if writing
     let io_tx_clone = io_tx.clone();
-    quit.add_callback(Box::new(move || {
-        let (tx, rx) = oneshot::channel();
-        let _ = io_tx_clone.send(IoCommand::CanQuit { tx });
+    let callbacks: Vec<QuitCallback> = vec![
+        Box::new(move || {
+            let (tx, rx) = oneshot::channel();
+            let _ = action_tx_clone.send(ActionCommand::CanQuit { tx });
 
-        rx
-    }));
+            rx
+        }),
+        Box::new(move || {
+            let (tx, rx) = oneshot::channel();
+            let _ = io_tx_clone.send(IoCommand::CanQuit { tx });
+
+            rx
+        }),
+    ];
+    let quit = QuitProtocol::new(callbacks, quit_rx, mini_buffer_tx.clone(), shutdown_tx.clone());
 
     // Input handlers.
-    let mut input_router = InputRouter::new(state_lock.clone(), input_rx);
-    input_router.add_key_handler(Box::new(NormalKeyInput::new(
-        state_lock.clone(),
-        action_tx.clone(),
-        io_tx.clone(),
-        mini_buffer_tx.clone(),
-        quit_tx.clone(),
-        view_tx.clone(),
-    )));
-    input_router
-        .add_key_handler(Box::new(InsertKeyInput::new(state_lock.clone(), action_tx.clone())));
-    input_router.add_key_handler(Box::new(MiniBufferKeyInput::new(
-        state_lock.clone(),
-        action_tx.clone(),
-        mini_buffer_tx.clone(),
-    )));
-    input_router.add_key_handler(Box::new(VisualKeyInput::new(
-        state_lock.clone(),
-        action_tx.clone(),
-        mini_buffer_tx.clone(),
-    )));
-    input_router.add_key_handler(Box::new(SearchKeyInput::new(
-        state_lock.clone(),
-        action_tx.clone(),
-        mini_buffer_tx.clone(),
-    )));
+    let key_handlers: Vec<Box<dyn KeyInputHandler>> = vec![
+        Box::new(MiniBufferKeyInput::new(
+            state_lock.clone(),
+            action_tx.clone(),
+            mini_buffer_tx.clone(),
+        )),
+        Box::new(SearchKeyInput::new(
+            state_lock.clone(),
+            action_tx.clone(),
+            mini_buffer_tx.clone(),
+        )),
+        Box::new(VisualKeyInput::new(
+            state_lock.clone(),
+            action_tx.clone(),
+            mini_buffer_tx.clone(),
+        )),
+        Box::new(InsertKeyInput::new(state_lock.clone(), action_tx.clone())),
+        Box::new(NormalKeyInput::new(
+            state_lock.clone(),
+            action_tx.clone(),
+            io_tx.clone(),
+            mini_buffer_tx.clone(),
+            quit_tx.clone(),
+            view_tx.clone(),
+        )),
+    ];
 
-    input_router
-        .add_mouse_handler(Box::new(NormalMouseInput::new(state_lock.clone(), action_tx.clone())));
-    input_router
-        .add_mouse_handler(Box::new(InsertMouseInput::new(state_lock.clone(), action_tx.clone())));
-    input_router.add_mouse_handler(Box::new(MiniBufferMouseInput::new(
+    let mouse_handlers: Vec<Box<dyn MouseInputHandler>> = vec![
+        Box::new(MiniBufferMouseInput::new(state_lock.clone(), action_tx.clone())),
+        Box::new(SearchMouseInput::new(state_lock.clone(), action_tx.clone())),
+        Box::new(VisualMouseInput::new(state_lock.clone(), action_tx.clone())),
+        Box::new(InsertMouseInput::new(state_lock.clone(), action_tx.clone())),
+        Box::new(NormalMouseInput::new(state_lock.clone(), action_tx.clone())),
+    ];
+    let paste_handlers: Vec<Box<dyn PasteInputHandler>> = vec![];
+    let resize_handlers: Vec<Box<dyn ResizeInputHandler>> = vec![
+        Box::new(ScreenResizeInput::new(state_lock.clone(), screen_tx.clone())),
+        Box::new(MiniBufferResizeInput::new(mini_buffer_tx.clone())),
+        Box::new(ViewResizeInput::new(view_tx.clone())),
+    ];
+    let input_router = InputRouter::new(
+        key_handlers,
+        mouse_handlers,
+        paste_handlers,
+        resize_handlers,
         state_lock.clone(),
-        action_tx.clone(),
-    )));
-    input_router
-        .add_mouse_handler(Box::new(VisualMouseInput::new(state_lock.clone(), action_tx.clone())));
-    input_router
-        .add_mouse_handler(Box::new(SearchMouseInput::new(state_lock.clone(), action_tx.clone())));
-
-    input_router.add_resize_handler(Box::new(ViewResizeInput::new(view_tx.clone())));
-    input_router.add_resize_handler(Box::new(MiniBufferResizeInput::new(mini_buffer_tx.clone())));
-    input_router.add_resize_handler(Box::new(ScreenResizeInput::new(
-        state_lock.clone(),
-        screen_tx.clone(),
-    )));
+        input_rx,
+    );
 
     // Initial document creation.
     tokio::spawn(async move {

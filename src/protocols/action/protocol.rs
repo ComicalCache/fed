@@ -1,4 +1,4 @@
-use piece_table::{PieceTable, Slice};
+use piece_table::{Kind, PieceTable, Slice};
 use tokio::sync::{mpsc::UnboundedReceiver, oneshot};
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -220,7 +220,8 @@ impl ActionProtocol {
             return;
         };
 
-        dse.doc.data.undo();
+        let edits = dse.doc.data.undo();
+        dse.doc.modified = true;
 
         let len = dse.doc.data.len();
         for cursor in &mut vse.cursors.list {
@@ -228,16 +229,41 @@ impl ActionProtocol {
             cursor.anchor = cursor.anchor.min(len);
         }
 
+        for (offset, kind, data) in &edits {
+            let (remove, insert) = match kind {
+                Kind::Deletion => (data.len(), 0),
+                Kind::Insertion => (0, data.len()),
+            };
+
+            dse.decs.edit(*offset, remove, insert);
+            vse.decs.edit(*offset, remove, insert);
+        }
+
         let doc_event_tx = state.doc_event_tx.clone();
         let view_event_tx = state.view_event_tx.clone();
         drop(guard);
 
-        let _ = doc_event_tx.send(DocStoreTypes::Event::Inserted {
-            id: doc,
-            pos: 0,
-            n: 0,
-            str: String::new(),
-        });
+        for (offset, kind, data) in edits {
+            match kind {
+                Kind::Deletion => {
+                    let _ = doc_event_tx.send(DocStoreTypes::Event::Removed {
+                        id: doc,
+                        pos: offset,
+                        n: data.len(),
+                        str: data,
+                    });
+                }
+                Kind::Insertion => {
+                    let _ = doc_event_tx.send(DocStoreTypes::Event::Inserted {
+                        id: doc,
+                        pos: offset,
+                        n: data.len(),
+                        str: data,
+                    });
+                }
+            }
+        }
+
         let _ = view_event_tx.send(ViewStoreTypes::Event::CursorsChanged { view });
     }
 
@@ -259,7 +285,8 @@ impl ActionProtocol {
             return;
         };
 
-        dse.doc.data.hot_redo();
+        let edits = dse.doc.data.hot_redo();
+        dse.doc.modified = true;
 
         let len = dse.doc.data.len();
         for cursor in &mut vse.cursors.list {
@@ -267,16 +294,41 @@ impl ActionProtocol {
             cursor.anchor = cursor.anchor.min(len);
         }
 
+        for (offset, kind, data) in &edits {
+            let (remove, insert) = match kind {
+                Kind::Deletion => (data.len(), 0),
+                Kind::Insertion => (0, data.len()),
+            };
+
+            dse.decs.edit(*offset, remove, insert);
+            vse.decs.edit(*offset, remove, insert);
+        }
+
         let doc_event_tx = state.doc_event_tx.clone();
         let view_event_tx = state.view_event_tx.clone();
         drop(guard);
 
-        let _ = doc_event_tx.send(DocStoreTypes::Event::Inserted {
-            id: doc,
-            pos: 0,
-            n: 0,
-            str: String::new(),
-        });
+        for (offset, kind, data) in edits {
+            match kind {
+                Kind::Deletion => {
+                    let _ = doc_event_tx.send(DocStoreTypes::Event::Removed {
+                        id: doc,
+                        pos: offset,
+                        n: data.len(),
+                        str: data,
+                    });
+                }
+                Kind::Insertion => {
+                    let _ = doc_event_tx.send(DocStoreTypes::Event::Inserted {
+                        id: doc,
+                        pos: offset,
+                        n: data.len(),
+                        str: data,
+                    });
+                }
+            }
+        }
+
         let _ = view_event_tx.send(ViewStoreTypes::Event::CursorsChanged { view });
     }
 

@@ -1,3 +1,3 @@
 mod protocol;
 
-pub use protocol::QuitProtocol;
+pub use protocol::{QuitCallback, QuitProtocol};

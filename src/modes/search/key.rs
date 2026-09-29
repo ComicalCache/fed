@@ -197,7 +197,7 @@ impl SearchKeyInput {
 
         let query = search_provider.query.clone();
         let matches = search_provider.matches.clone();
-        let offsets: Vec<usize> = vse.cursors.list.iter().map(|c| c.offset).collect();
+        let offsets: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();
 
         Some((query, matches, offsets))
     }

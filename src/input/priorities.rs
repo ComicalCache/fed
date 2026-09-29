@@ -1,27 +1,24 @@
-// Priorities are sorted in reverse! Like on a downwards growing stack, the
-// later the entry in the enum, the earlier it is checked and has a chance to
-// intercept input events.
+// The earlier the entry in the enum, the earlier it is checked and has a chance
+// to intercept input events. The input handler order is enforced at startup.
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum KeyInputPriority {
-    NormalMode,
-    InsertMode,
-    VisualMode,
-    SearchMode,
-
     // Needs the highest priority for intercepting with active mini buffer.
-    MiniBufferMode,
+    MiniBufferMode = 0,
+    SearchMode,
+    VisualMode,
+    InsertMode,
+    NormalMode,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum MouseInputPriority {
-    NormalMode,
-    InsertMode,
-    VisualMode,
-    SearchMode,
-
     // Needs the highest priority for intercepting with active mini buffer.
-    MiniBufferMode,
+    MiniBufferMode = 0,
+    SearchMode,
+    VisualMode,
+    InsertMode,
+    NormalMode,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -29,9 +26,8 @@ pub enum PasteInputPriority {}
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum ResizeInputPriority {
-    ViewProtocol,
-    MiniBufferProtocol,
-
     // Needs the highest priority for resizing the screen buffer.
-    ScreenProtocol,
+    ScreenProtocol = 0,
+    MiniBufferProtocol,
+    ViewProtocol,
 }
