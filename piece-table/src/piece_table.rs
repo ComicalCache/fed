@@ -270,50 +270,84 @@ impl PieceTable {
     #[must_use]
     pub const fn is_empty(&self) -> bool { self.total_length == 0 }
 
-    /// Reverts the piece table to the state *before* the last changes.
-    pub fn undo(&mut self) {
+    /// Reverts the piece table to the state *before* the last changes. Returns
+    /// a vector of the changes (offset, kind, data).
+    pub fn undo(&mut self) -> Vec<(usize, Kind, String)> {
         let Some(commit) = self.history.undo() else {
-            return;
+            return Vec::new();
         };
 
+        let mut changes = Vec::with_capacity(commit.changes.len());
         for change in commit.changes.iter().rev() {
+            let offset: usize = self.pieces[..change.pos].iter().map(|p| p.length).sum();
+            let data = {
+                let source = match change.piece.source {
+                    Source::Original => &self.original,
+                    Source::Addition => &self.addition,
+                };
+                source[change.piece.offset..change.piece.offset + change.piece.length].to_string()
+            };
+
             match change.kind {
                 Kind::Deletion => {
                     self.pieces.insert(change.pos, change.piece);
                     self.total_length += change.piece.length;
+
+                    changes.push((offset, Kind::Insertion, data));
                 }
                 Kind::Insertion => {
                     self.total_length -= self.pieces.remove(change.pos).length;
+
+                    changes.push((offset, Kind::Deletion, data));
                 }
             }
         }
 
         self.rebuild_lines();
+
+        changes
     }
 
     /// Restores the piece table to the "hot" state *after* the last undo.
+    /// Returns a vector of the changes (offset, kind, data).
     ///
     /// Hot state means the state the head was last at (e.g. at a fork in the
     /// history it can quickly be redone to the last head position without
     /// having to select it).
-    pub fn hot_redo(&mut self) {
+    pub fn hot_redo(&mut self) -> Vec<(usize, Kind, String)> {
         let Some(commit) = self.history.hot_redo() else {
-            return;
+            return Vec::new();
         };
 
+        let mut changes = Vec::with_capacity(commit.changes.len());
         for change in &commit.changes {
+            let offset: usize = self.pieces[..change.pos].iter().map(|p| p.length).sum();
+            let data = {
+                let source = match change.piece.source {
+                    Source::Original => &self.original,
+                    Source::Addition => &self.addition,
+                };
+                source[change.piece.offset..change.piece.offset + change.piece.length].to_string()
+            };
+
             match change.kind {
                 Kind::Deletion => {
                     self.total_length -= self.pieces.remove(change.pos).length;
+
+                    changes.push((offset, Kind::Deletion, data));
                 }
                 Kind::Insertion => {
                     self.pieces.insert(change.pos, change.piece);
                     self.total_length += change.piece.length;
+
+                    changes.push((offset, Kind::Insertion, data));
                 }
             }
         }
 
         self.rebuild_lines();
+
+        changes
     }
 
     /// Returns text stored in the piece table (`upper` is exclusive).
