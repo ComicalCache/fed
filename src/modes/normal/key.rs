@@ -64,30 +64,73 @@ impl NormalKeyInput {
             debug_panic!();
             return;
         };
+        let Some(dse) = state.doc_store.get(&doc) else {
+            debug_panic!();
+            return;
+        };
+
+        let read_only = dse.read_only;
         drop(state);
 
         match cmd {
-            Command::Move(_) | Command::Delete(_) | Command::Change(_) | Command::Yank(_) => {
+            Command::Yank(_) => self.motion(view, doc, cmd),
+            Command::Move(_) | Command::Delete(_) | Command::Change(_) => {
+                if read_only {
+                    return;
+                }
+
                 self.motion(view, doc, cmd)
             }
-            Command::DeleteLine | Command::ChangeLine | Command::YankLine => {
+            Command::YankLine => self.line_operation(view, doc, cmd),
+            Command::DeleteLine | Command::ChangeLine => {
+                if read_only {
+                    return;
+                }
+
                 self.line_operation(view, doc, cmd)
             }
             Command::ScrollView(motion) => self.scroll_view(view, motion),
             Command::Undo => {
+                if read_only {
+                    return;
+                }
+
                 let _ = self.action_tx.send(ActionCommand::Undo { view });
             }
             Command::HotRedo => {
+                if read_only {
+                    return;
+                }
+
                 let _ = self.action_tx.send(ActionCommand::HotRedo { view });
             }
             Command::Append
             | Command::AppendEndOfLine
             | Command::InsertLineBelow
-            | Command::InsertLineAbove => self.insert(view, doc, cmd),
-            Command::SwapLineDown | Command::SwapLineUp => self.swap_operation(view, doc, cmd),
-            Command::Indent | Command::Dedent => self.line_operation(view, doc, cmd),
+            | Command::InsertLineAbove => {
+                if read_only {
+                    return;
+                }
+
+                self.insert(view, doc, cmd)
+            }
+            Command::SwapLineDown | Command::SwapLineUp => {
+                if read_only {
+                    return;
+                }
+
+                self.swap_operation(view, doc, cmd)
+            }
+            Command::Indent | Command::Dedent => {
+                if read_only {
+                    return;
+                }
+
+                self.line_operation(view, doc, cmd)
+            }
             Command::Paste => {
-                if let Ok(mut clipboard) = arboard::Clipboard::new()
+                if !read_only
+                    && let Ok(mut clipboard) = arboard::Clipboard::new()
                     && let Ok(text) = clipboard.get_text()
                 {
                     let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
@@ -96,30 +139,51 @@ impl NormalKeyInput {
                 }
             }
             Command::DeleteChar => {
+                if read_only {
+                    return;
+                }
+
                 let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
                 let _ = self.action_tx.send(ActionCommand::Delete { view });
                 let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
             }
-            Command::Replace => self.replace = true,
-            Command::ReplaceChar(ch) => self.replace_char(view, doc, ch),
+            Command::Replace => {
+                if read_only {
+                    return;
+                }
+
+                self.replace = true
+            }
+            Command::ReplaceChar(ch) => {
+                if read_only {
+                    return;
+                }
+
+                self.replace_char(view, doc, ch)
+            }
             Command::SaveFile => self.save_file(doc),
             Command::Jump => self.jump(view),
             Command::EnterInsertMode => {
+                if read_only {
+                    return;
+                }
+
                 let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
                 let _ = self
                     .action_tx
-                    .send(ActionCommand::SetViewMode { view, mode: ViewStoreTypes::Mode::Insert });
+                    .send(ActionCommand::PushViewMode { view, mode: ViewStoreTypes::Mode::Insert });
             }
             Command::EnterVisualMode => {
                 let _ = self
                     .action_tx
-                    .send(ActionCommand::SetViewMode { view, mode: ViewStoreTypes::Mode::Visual });
+                    .send(ActionCommand::PushViewMode { view, mode: ViewStoreTypes::Mode::Visual });
             }
             Command::EnterSearchMode => search::util::start_search(
                 self.state_lock.clone(),
                 view,
                 doc,
                 None,
+                self.action_tx.clone(),
                 self.mini_buffer_tx.clone(),
             ),
             Command::Quit => {
@@ -222,7 +286,7 @@ impl NormalKeyInput {
         if matches!(cmd, Command::Change(_)) {
             let _ = self
                 .action_tx
-                .send(ActionCommand::SetViewMode { view, mode: ViewStoreTypes::Mode::Insert });
+                .send(ActionCommand::PushViewMode { view, mode: ViewStoreTypes::Mode::Insert });
         } else if matches!(cmd, Command::Delete(_)) {
             let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
         }
@@ -280,7 +344,7 @@ impl NormalKeyInput {
                 }
 
                 actions
-                    .push(ActionCommand::SetViewMode { view, mode: ViewStoreTypes::Mode::Insert });
+                    .push(ActionCommand::PushViewMode { view, mode: ViewStoreTypes::Mode::Insert });
             }
             Command::YankLine => {
                 let mut yanked = String::new();
@@ -412,7 +476,7 @@ impl NormalKeyInput {
 
         let _ = self
             .action_tx
-            .send(ActionCommand::SetViewMode { view, mode: ViewStoreTypes::Mode::Insert });
+            .send(ActionCommand::PushViewMode { view, mode: ViewStoreTypes::Mode::Insert });
     }
 
     fn swap_operation(&self, view: ViewId, doc: DocId, cmd: Command) {
@@ -802,7 +866,7 @@ impl KeyInputHandler for NormalKeyInput {
             return false;
         };
 
-        if vse.mode != ViewStoreTypes::Mode::Normal {
+        if vse.mode() != ViewStoreTypes::Mode::Normal {
             return false;
         }
         drop(state);

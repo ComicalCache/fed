@@ -6,7 +6,7 @@ use crate::{
     input::{KeyInputHandler, priorities::KeyInputPriority},
     modes::insert::{command::Command, keymap},
     protocols::action::ActionCommand,
-    state::{DocId, StateLock, ViewId, ViewStoreTypes},
+    state::{DocId, State, StateLock, ViewId, ViewStoreTypes},
     types::{KeyChord, Keymap, ParseResult},
 };
 
@@ -60,9 +60,7 @@ impl InsertKeyInput {
             Command::Escape => {
                 self.whitespace = false;
                 let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
-                let _ = self
-                    .action_tx
-                    .send(ActionCommand::SetViewMode { view, mode: ViewStoreTypes::Mode::Normal });
+                let _ = self.action_tx.send(ActionCommand::PopViewMode { view });
             }
         }
     }
@@ -88,12 +86,18 @@ impl KeyInputHandler for InsertKeyInput {
             // No active view, just abort.
             return false;
         };
-        let Some(vse) = state.view_store.get(&view) else {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        else {
             debug_panic!();
             return false;
         };
 
-        if vse.mode != ViewStoreTypes::Mode::Insert {
+        if vse.mode() != ViewStoreTypes::Mode::Insert {
+            return false;
+        }
+        if dse.read_only {
+            debug_panic!();
             return false;
         }
         drop(state);

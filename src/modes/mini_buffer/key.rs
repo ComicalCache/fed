@@ -2,6 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
+    debug_panic::debug_panic,
     input::{KeyInputHandler, priorities::KeyInputPriority},
     modes::mini_buffer::{command::Command, keymap},
     protocols::{action::ActionCommand, mini_buffer::MiniBufferCommand},
@@ -77,6 +78,16 @@ impl KeyInputHandler for MiniBufferKeyInput {
             return false;
         }
         if state.mini_buffer_store.kind != MiniBufferStoreTypes::Kind::Prompt {
+            return false;
+        }
+
+        let Some(dse) = state.doc_store.get(&state.mini_buffer_store.doc) else {
+            debug_panic!();
+            return false;
+        };
+
+        if dse.read_only {
+            debug_panic!();
             return false;
         }
         drop(state);

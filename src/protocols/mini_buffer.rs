@@ -1,5 +1,4 @@
 mod command;
-pub mod decorations;
 mod input;
 mod protocol;
 

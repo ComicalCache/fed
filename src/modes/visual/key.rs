@@ -44,6 +44,12 @@ impl VisualKeyInput {
             debug_panic!();
             return;
         };
+        let Some(dse) = state.doc_store.get(&doc) else {
+            debug_panic!();
+            return;
+        };
+
+        let read_only = dse.read_only;
         drop(state);
 
         match cmd {
@@ -54,14 +60,25 @@ impl VisualKeyInput {
                     move_anchor: false,
                 });
             }
-            Command::SwapLineDown | Command::SwapLineUp => self.swap_operation(view, doc, cmd),
+            Command::SwapLineDown | Command::SwapLineUp => {
+                if read_only {
+                    return;
+                }
+
+                self.swap_operation(view, doc, cmd)
+            }
             Command::EnterSearchMode => self.enter_search_mode(view, doc),
             Command::Escape => {
-                let _ = self
-                    .action_tx
-                    .send(ActionCommand::SetViewMode { view, mode: ViewStoreTypes::Mode::Normal });
+                let _ = self.action_tx.send(ActionCommand::PopViewMode { view });
             }
-            Command::Delete | Command::Change | Command::Yank => self.operator(view, doc, cmd),
+            Command::Yank => self.operator(view, doc, cmd),
+            Command::Delete | Command::Change => {
+                if read_only {
+                    return;
+                }
+
+                self.operator(view, doc, cmd)
+            }
         }
     }
 
@@ -276,6 +293,7 @@ impl VisualKeyInput {
             view,
             doc,
             Some(bounds),
+            self.action_tx.clone(),
             self.mini_buffer_tx.clone(),
         );
     }
@@ -329,9 +347,7 @@ impl VisualKeyInput {
                 let _ = clipboard.set_text(yanked);
             }
 
-            let _ = self
-                .action_tx
-                .send(ActionCommand::SetViewMode { view, mode: ViewStoreTypes::Mode::Normal });
+            let _ = self.action_tx.send(ActionCommand::PopViewMode { view });
 
             return;
         }
@@ -366,14 +382,13 @@ impl VisualKeyInput {
         }
 
         if matches!(cmd, Command::Change) {
+            let _ = self.action_tx.send(ActionCommand::PopViewMode { view });
             let _ = self
                 .action_tx
-                .send(ActionCommand::SetViewMode { view, mode: ViewStoreTypes::Mode::Insert });
+                .send(ActionCommand::PushViewMode { view, mode: ViewStoreTypes::Mode::Insert });
         } else if matches!(cmd, Command::Delete) {
             let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
-            let _ = self
-                .action_tx
-                .send(ActionCommand::SetViewMode { view, mode: ViewStoreTypes::Mode::Normal });
+            let _ = self.action_tx.send(ActionCommand::PopViewMode { view });
         }
     }
 }
@@ -392,7 +407,7 @@ impl KeyInputHandler for VisualKeyInput {
             return false;
         };
 
-        if vse.mode != ViewStoreTypes::Mode::Visual {
+        if vse.mode() != ViewStoreTypes::Mode::Visual {
             return false;
         }
         drop(state);

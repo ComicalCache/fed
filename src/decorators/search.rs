@@ -1,21 +1,21 @@
 use std::any::Any;
 
-use crate::types::{Decoration, DecorationProvider, Face, Span};
+use crate::types::{Decoration, Decorator, Face, Span};
 
-pub struct SearchDecorationProvider {
+pub struct SearchDecorator {
     pub query: String,
     pub matches: Vec<(usize, usize)>,
 
     pub face: Face,
 }
 
-impl SearchDecorationProvider {
+impl SearchDecorator {
     pub fn new(query: String, matches: Vec<(usize, usize)>, face: Face) -> Self {
         Self { query, matches, face }
     }
 }
 
-impl DecorationProvider for SearchDecorationProvider {
+impl Decorator for SearchDecorator {
     fn edit(&mut self, offset: usize, remove: usize, insert: usize) {
         for m in &mut self.matches {
             if m.0 > offset {

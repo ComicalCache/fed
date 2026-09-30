@@ -1,8 +1,10 @@
 #![feature(path_absolute_method)]
 
 mod debug_panic;
+mod decorators;
 mod fed;
 mod input;
+mod layers;
 mod modes;
 mod newtype;
 mod protocols;
@@ -40,11 +42,12 @@ use crate::{
     },
     protocols::{
         action::{ActionCommand, ActionProtocol},
+        doc_view::{DocViewCommand, DocViewProtocol},
         io::{IoCommand, IoProtocol},
         mini_buffer::{MiniBufferProtocol, MiniBufferResizeInput},
         quit::{QuitCallback, QuitProtocol},
         screen::{ScreenProtocol, ScreenResizeInput},
-        view::{ViewCommand, ViewProtocol, ViewResizeInput},
+        view::{ViewProtocol, ViewResizeInput},
     },
     render::{WindowId, Workspace},
     state::{State, StateLock, ViewStoreTypes},
@@ -72,6 +75,7 @@ fn setup(
     let (view_event_tx, _) = broadcast::channel(32);
 
     let (view_tx, view_rx) = unbounded_channel();
+    let (doc_view_tx, doc_view_rx) = unbounded_channel();
     let (io_tx, io_rx) = unbounded_channel();
     let (action_tx, action_rx) = unbounded_channel();
     let (mini_buffer_tx, mini_buffer_rx) = unbounded_channel();
@@ -109,7 +113,7 @@ fn setup(
         state_lock.clone(),
         mini_buffer_rx,
         action_tx.clone(),
-        view_tx.clone(),
+        doc_view_tx.clone(),
     );
     let screen = ScreenProtocol::new(state_lock.clone(), width, height, screen_rx);
     let view = ViewProtocol::new(
@@ -119,6 +123,7 @@ fn setup(
         view_event_tx.subscribe(),
         screen_tx.clone(),
     );
+    let doc_view = DocViewProtocol::new(state_lock.clone(), doc_view_rx, view_tx.clone());
 
     // Quit callbacks.
     let action_tx_clone = action_tx.clone();
@@ -208,13 +213,14 @@ fn setup(
         let doc = state_lock.write().create_doc(path, data);
 
         let (tx, rx) = oneshot::channel();
-        let _ = view_tx.send(ViewCommand::CreateTile {
+        let _ = doc_view_tx.send(DocViewCommand::CreateTile {
             doc,
             view: None,
             // This is kind of a hack: since no other windows exist, we can pass anything because
             // a new root window will be created in any case.
             split_window: WindowId(0),
             direction: RectSplit::Vertical,
+            raw: false,
             tx,
         });
         let Ok((_, window)) = rx.await else { return };
@@ -222,7 +228,7 @@ fn setup(
         state_lock.write().workspace.active_window = Some(window);
     });
 
-    (Fed::new(input_router, action, io, mini_buffer, quit, screen, view), shutdown_rx)
+    (Fed::new(input_router, action, io, mini_buffer, quit, screen, view, doc_view), shutdown_rx)
 }
 
 #[tokio::main]

@@ -15,22 +15,30 @@ composed of specific, optionally included files based on its functionality:
   generally resposible for input handling
 - `render.rs` (optional): Implements the `Renderer` trait if the protocol has a visual component
   that needs to be drawn
-- `layers/<name>.rs` (optional): Implements the protocol's render layers. Those should be owned by
-  the protocol's `Renderer` and called after initial state rendering.
 - `store.rs` (optional): Contains internal caching data structures owned exclusively by the
   protocol
-- `decoration/<name>.rs` (optional): Contains the protocol's decoration providers
 
 ## Naming Conventions
 
-- Protocol: `<Name>Protocol`
 - Message API: `<Name>Command`
+- Protocol: `<Name>Protocol`
 - Input handler: `<Name><Input Type>Input`
 - Renderer: `<Name>Renderer`
-- Layer: `<Name>Layer`
-- Decoration Provider: `<Name>DecorationProvier`
 
-## Communication
+## Protocol-to-Protocol (P2P) communication
 
-Protocols run concurrently and never share memory directly with other protocols. Instead they rely
-on message passing and global state changes.
+One-to-One messages should only be used if something specific is needed from another protocol.
+Otherwise protocols should rely on the emitted One-to-Many events to trigger necessary side effects
+like rendering.
+
+### One-to-One
+
+RPC-style requests where a protocol sends a message to another protocol. The capability registered
+in the global map exposes a dedicated request channel, and may include a return channel to await
+a response.
+
+### One-to-Many
+
+Event streaming where a protocol listenes to messages by another protocol. The capability registered
+in the global map exposes a broadcast, allowing multiple protocols to subscribe to its continuous
+message stream.

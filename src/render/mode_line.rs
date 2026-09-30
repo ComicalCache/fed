@@ -6,6 +6,7 @@ use crate::{
 
 pub enum ModeLineWidget {
     Mode { face: Face },
+    ReadWrite { face: Face },
     FilePath { face: Face },
     CursorPos { face: Face },
     Text { text: String, face: Face },
@@ -18,7 +19,10 @@ impl ModeLineWidget {
     ) -> (String, Face) {
         match self {
             ModeLineWidget::Mode { face } => {
-                (format!("[{}]", vse.mode.to_string().to_uppercase()), *face)
+                (format!("[{}]", vse.mode().to_string().to_uppercase()), *face)
+            }
+            ModeLineWidget::ReadWrite { face } => {
+                (if dse.read_only { "[R]".to_string() } else { "[RW]".to_string() }, *face)
             }
             ModeLineWidget::FilePath { face } => {
                 match dse.doc.path.as_ref().map(|p| p.display().to_string()) {
@@ -56,6 +60,7 @@ impl Default for ModeLineConfig {
         Self {
             left: vec![
                 ModeLineWidget::Mode { face: Face::default() },
+                ModeLineWidget::ReadWrite { face: Face::default() },
                 ModeLineWidget::FilePath { face: Face::default() },
             ],
             right: vec![ModeLineWidget::CursorPos { face: Face::default() }],

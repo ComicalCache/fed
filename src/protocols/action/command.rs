@@ -27,7 +27,8 @@ pub enum ActionCommand {
     Remove { view: ViewId, offset: usize, len: usize },
 
     SetDocMode { doc: DocId, mode: DocStoreTypes::Mode },
-    SetViewMode { view: ViewId, mode: ViewStoreTypes::Mode },
+    PushViewMode { view: ViewId, mode: ViewStoreTypes::Mode },
+    PopViewMode { view: ViewId },
 
     CanQuit { tx: oneshot::Sender<Result<(), String>> },
 }

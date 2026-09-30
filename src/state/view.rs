@@ -5,6 +5,7 @@ mod layout;
 mod mode;
 mod scroll;
 mod tab_width;
+mod view_cache;
 
 pub mod types {
     pub use crate::state::view::{
@@ -15,6 +16,7 @@ pub mod types {
         mode::Mode,
         scroll::Scroll,
         tab_width::TabWidth,
+        view_cache::ViewCache,
     };
 }
 
@@ -26,9 +28,10 @@ newtype!(ViewId, usize);
 
 pub type ViewStore = HashMap<ViewId, ViewStoreEntry>;
 
-#[derive(Default)]
 pub struct ViewStoreEntry {
-    pub mode: types::Mode,
+    pub modes: Vec<types::Mode>,
+
+    pub view_cache: types::ViewCache,
 
     pub layout: types::Layout,
     pub mode_line_config: ModeLineConfig,
@@ -38,4 +41,23 @@ pub struct ViewStoreEntry {
     pub cursors: types::Cursors,
 
     pub decs: types::Decorations,
+}
+
+impl ViewStoreEntry {
+    pub fn mode(&self) -> types::Mode { *self.modes.last().unwrap() }
+}
+
+impl Default for ViewStoreEntry {
+    fn default() -> Self {
+        Self {
+            modes: vec![types::Mode::Normal],
+            view_cache: Default::default(),
+            layout: Default::default(),
+            mode_line_config: Default::default(),
+            tab_width: Default::default(),
+            scroll: Default::default(),
+            cursors: Default::default(),
+            decs: Default::default(),
+        }
+    }
 }

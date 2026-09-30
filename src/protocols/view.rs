@@ -1,10 +1,7 @@
 mod command;
-pub mod decorations;
 mod input;
-mod layers;
 mod protocol;
 mod render;
-mod store;
 
 pub use command::ViewCommand;
 pub use input::ViewResizeInput;

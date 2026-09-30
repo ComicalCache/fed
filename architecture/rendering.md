@@ -31,7 +31,7 @@ tiling and floating windows.
 
 The renderer calls all the workspace to populate the screen buffer. Then the renderer reads the
 screen buffer, and using diffed rendering, renders all changes to the terminal, using a double
-buffer to avoid flickering.
+buffer to avoid flickering. 
 
 # Render Protocols
 
@@ -40,8 +40,14 @@ During rendering it calls the protocols in the workspace to populate the screen 
 tiling and the z-Index of floating windows. Render protocols receive a viewport which is a bounded
 proxy on the screen buffer, to avoid protocols drawing to parts on the screen they don't own.
 
-## Layer
+# Decorators
 
-Additionally, the `Layer` trait can be implemented by so called layers. In the rendering pipeline
-the `Renderer` type can call layers to additionally modify the cells rendered (e.g. draw the cursor
-positions).
+The `Decorator` trait can be implemented by so called decorators. In the rendering pipeline, the
+`Decorator` type can define the segments the renderer uses to render. Segments are "decorated" with
+e.g. faces, virtual text or by replacing the underlying text.
+
+# Layer
+
+The `Layer` trait can be implemented by so called layers. In the rendering pipeline the `Renderer`
+type can call layers to additionally modify the rendered cells (e.g. draw the cursor positions). It
+is called _after_ the decorations have been applied.

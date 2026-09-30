@@ -20,8 +20,8 @@ protocol to ensure events are processed by the correct mode.
 
 1. Query the currently active view
 2. Query the view store to verify the appropriate mode is active
-3. Process the input event and determine the command to execute
-4. Execute the command
+3. Process the input event and determine the command(s) to execute
+4. Execute the command(s)
 
 ### File Structure
 

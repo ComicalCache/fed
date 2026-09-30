@@ -25,5 +25,7 @@ pub struct DocStoreEntry {
     pub doc: types::Doc,
     pub mode: types::Mode,
 
+    pub read_only: bool,
+
     pub decs: types::Decorations,
 }

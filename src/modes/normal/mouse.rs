@@ -47,7 +47,7 @@ impl MouseInputHandler for NormalMouseInput {
             return false;
         };
 
-        if vse.mode != ViewStoreTypes::Mode::Normal {
+        if vse.mode() != ViewStoreTypes::Mode::Normal {
             return false;
         }
 

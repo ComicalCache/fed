@@ -1,6 +1,6 @@
 pub mod priorities;
 
-use crossterm::event::{Event, KeyEvent, MouseEvent};
+use crossterm::event::{Event, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::{
@@ -107,11 +107,15 @@ impl InputRouter {
                     }
                 }
                 Event::Mouse(mouse) => {
-                    let mut state = self.state_lock.write();
-                    if let Some(w) = state.workspace.get_window((mouse.column, mouse.row).into()) {
-                        state.workspace.active_window = Some(w);
+                    if mouse.kind == MouseEventKind::Down(MouseButton::Left) {
+                        let mut state = self.state_lock.write();
+                        if let Some(w) =
+                            state.workspace.get_window((mouse.column, mouse.row).into())
+                        {
+                            state.workspace.active_window = Some(w);
+                        }
+                        drop(state);
                     }
-                    drop(state);
 
                     for handler in &mut self.mouse_handlers {
                         if handler.mouse(&mouse) {

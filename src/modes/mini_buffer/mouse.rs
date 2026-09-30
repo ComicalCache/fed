@@ -62,6 +62,11 @@ impl MouseInputHandler for MiniBufferMouseInput {
             return true;
         };
 
+        if dse.read_only {
+            debug_panic!();
+            return false;
+        }
+
         let scroll = vse.scroll;
         let mode_line = vse.layout.mode_line;
         let gutter_width = vse.layout.gutter_width(dse.doc.data.lines());

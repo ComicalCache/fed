@@ -8,11 +8,8 @@ use tokio::sync::{
 
 use crate::{
     debug_panic::debug_panic,
-    protocols::{
-        action::ActionCommand,
-        mini_buffer::{MiniBufferCommand, decorations::MiniBufferDecorationProvider},
-        view::ViewCommand,
-    },
+    decorators::MiniBufferDecorator,
+    protocols::{action::ActionCommand, doc_view::DocViewCommand, mini_buffer::MiniBufferCommand},
     render::ZLayer,
     state::{MiniBufferId, MiniBufferStoreTypes, StateLock, ViewStoreTypes},
     types::{Pos, Rect},
@@ -28,16 +25,16 @@ pub struct MiniBufferProtocol {
 
     rx: UnboundedReceiver<MiniBufferCommand>,
     action_tx: UnboundedSender<ActionCommand>,
-    view_tx: UnboundedSender<ViewCommand>,
+    doc_view_tx: UnboundedSender<DocViewCommand>,
 }
 
 impl MiniBufferProtocol {
     pub fn new(
         width: usize, height: usize, state_lock: StateLock,
         rx: UnboundedReceiver<MiniBufferCommand>, action_tx: UnboundedSender<ActionCommand>,
-        view_tx: UnboundedSender<ViewCommand>,
+        doc_view_tx: UnboundedSender<DocViewCommand>,
     ) -> Self {
-        Self { next_id: AtomicUsize::new(1), width, height, state_lock, rx, action_tx, view_tx }
+        Self { next_id: AtomicUsize::new(1), width, height, state_lock, rx, action_tx, doc_view_tx }
     }
 
     pub async fn run(&mut self) {
@@ -68,11 +65,12 @@ impl MiniBufferProtocol {
         self.close(id);
 
         let (floating_tx, floating_rx) = oneshot::channel();
-        let _ = self.view_tx.send(ViewCommand::CreateRawFloating {
+        let _ = self.doc_view_tx.send(DocViewCommand::CreateFloating {
             doc,
             view: Some(view),
             rect: Rect::new(Pos::new(0, self.height.saturating_sub(1)), self.width, 1),
             z: ZLayer::MiniBuffer,
+            raw: true,
             tx: floating_tx,
         });
         let Ok((_, window)) = floating_rx.await else { return };
@@ -115,11 +113,12 @@ impl MiniBufferProtocol {
         }
 
         let (floating_tx, floating_rx) = oneshot::channel();
-        let _ = self.view_tx.send(ViewCommand::CreateRawFloating {
+        let _ = self.doc_view_tx.send(DocViewCommand::CreateFloating {
             doc,
             view: Some(view),
             rect: Rect::new(Pos::new(0, self.height.saturating_sub(1)), self.width, 1),
             z: ZLayer::MiniBuffer,
+            raw: true,
             tx: floating_tx,
         });
         let Ok((_, window)) = floating_rx.await else { return };
@@ -138,9 +137,9 @@ impl MiniBufferProtocol {
             return;
         };
 
-        vse.decs.layers.insert(
+        vse.decs.decorators.insert(
             ViewStoreTypes::DecorationId::MiniBuffer,
-            Box::new(MiniBufferDecorationProvider::new(prompt, state.theme.mini_buffer)),
+            Box::new(MiniBufferDecorator::new(prompt, state.theme.mini_buffer)),
         );
 
         state.mini_buffer_store.id = id;
@@ -218,7 +217,7 @@ impl MiniBufferProtocol {
             return;
         };
 
-        vse.decs.layers.remove(&ViewStoreTypes::DecorationId::MiniBuffer);
+        vse.decs.decorators.remove(&ViewStoreTypes::DecorationId::MiniBuffer);
 
         let len = dse.doc.data.len();
         let cursors: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();

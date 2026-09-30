@@ -10,7 +10,7 @@ mod span;
 mod theme;
 
 pub use cursor::Cursor;
-pub use decoration::{Decoration, DecorationProvider};
+pub use decoration::{Decoration, Decorator};
 pub use face::Face;
 pub use keymap::{KeyChord, Keymap, ParseResult};
 pub use motion::Motion;

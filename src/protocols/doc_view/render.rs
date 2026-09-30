@@ -3,22 +3,42 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::{
     debug_panic::debug_panic,
+    layers::{CursorLayer, RulerLayer, SelectionLayer},
     protocols::view::ViewRenderer,
     render::{Cell, Renderer, Viewport, WindowId},
     state::{State, ViewId},
     types::{Pos, Rect},
 };
 
-pub struct ViewDecoratorRenderer {
+pub struct DocViewRenderer {
     view: ViewId,
     inner: ViewRenderer,
+
+    raw: bool,
 }
 
-impl ViewDecoratorRenderer {
-    pub fn new(view: ViewId, inner: ViewRenderer) -> Self { Self { view, inner } }
+impl DocViewRenderer {
+    pub fn new(view: ViewId, raw: bool) -> Self {
+        if raw {
+            Self { view, inner: ViewRenderer::new(view, vec![Box::new(CursorLayer {})]), raw }
+        } else {
+            Self {
+                view,
+                inner: ViewRenderer::new(
+                    view,
+                    vec![
+                        Box::new(SelectionLayer {}),
+                        Box::new(RulerLayer {}),
+                        Box::new(CursorLayer {}),
+                    ],
+                ),
+                raw,
+            }
+        }
+    }
 }
 
-impl Renderer for ViewDecoratorRenderer {
+impl Renderer for DocViewRenderer {
     fn render(&self, state: &State, viewport: &mut Viewport, window: WindowId) {
         let width = viewport.width();
         let height = viewport.height();
@@ -33,6 +53,11 @@ impl Renderer for ViewDecoratorRenderer {
             debug_panic!();
             return;
         };
+
+        if self.raw {
+            self.inner.render(state, viewport, window);
+            return;
+        }
 
         let lines = dse.doc.data.lines();
 
@@ -59,7 +84,7 @@ impl Renderer for ViewDecoratorRenderer {
     }
 }
 
-impl ViewDecoratorRenderer {
+impl DocViewRenderer {
     fn render_gutter(&self, state: &State, viewport: &mut Viewport, width: usize) {
         // The render function checks for existance.
         let (vse, dse) =

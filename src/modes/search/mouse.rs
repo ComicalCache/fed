@@ -47,7 +47,7 @@ impl MouseInputHandler for SearchMouseInput {
             return false;
         };
 
-        if vse.mode != ViewStoreTypes::Mode::Search {
+        if vse.mode() != ViewStoreTypes::Mode::Search {
             return false;
         }
 

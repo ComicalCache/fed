@@ -12,7 +12,7 @@ pub enum Decoration {
     VirtualText { text: String, face: Face },
 }
 
-pub trait DecorationProvider: Send + Sync + 'static {
+pub trait Decorator: Send + Sync + 'static {
     /// Called during incremental changes.
     fn edit(&mut self, offset: usize, remove: usize, insert: usize);
 

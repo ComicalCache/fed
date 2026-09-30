@@ -63,7 +63,8 @@ impl ActionProtocol {
                 ActionCommand::Remove { view, offset, len } => self.remove(view, offset, len),
 
                 ActionCommand::SetDocMode { doc, mode } => self.set_doc_mode(doc, mode),
-                ActionCommand::SetViewMode { view, mode } => self.set_view_mode(view, mode),
+                ActionCommand::PushViewMode { view, mode } => self.push_view_mode(view, mode),
+                ActionCommand::PopViewMode { view } => self.pop_view_mode(view),
 
                 ActionCommand::CanQuit { tx } => self.can_quit(tx),
             }
@@ -200,6 +201,11 @@ impl ActionProtocol {
             return;
         };
 
+        if dse.read_only {
+            debug_panic!();
+            return;
+        }
+
         dse.doc.data.start_commit();
         drop(state);
     }
@@ -210,6 +216,11 @@ impl ActionProtocol {
             debug_panic!();
             return;
         };
+
+        if dse.read_only {
+            debug_panic!();
+            return;
+        }
 
         dse.doc.data.end_commit();
         drop(state);
@@ -232,6 +243,11 @@ impl ActionProtocol {
             debug_panic!();
             return;
         };
+
+        if dse.read_only {
+            debug_panic!();
+            return;
+        }
 
         let edits = dse.doc.data.undo();
         dse.doc.modified = true;
@@ -297,6 +313,11 @@ impl ActionProtocol {
             debug_panic!();
             return;
         };
+
+        if dse.read_only {
+            debug_panic!();
+            return;
+        }
 
         let edits = dse.doc.data.hot_redo();
         dse.doc.modified = true;
@@ -409,19 +430,37 @@ impl ActionProtocol {
         let _ = doc_event_tx.send(DocStoreTypes::Event::ModeChanged { id: doc, mode });
     }
 
-    fn set_view_mode(&self, view: ViewId, mode: ViewStoreTypes::Mode) {
+    fn push_view_mode(&self, view: ViewId, mode: ViewStoreTypes::Mode) {
         let mut state = self.state_lock.write();
         let Some(vse) = state.view_store.get_mut(&view) else {
             debug_panic!();
             return;
         };
 
-        vse.mode = mode;
+        if vse.modes.last() != Some(&mode) {
+            vse.modes.push(mode);
+        }
 
         let view_event_tx = state.view_event_tx.clone();
         drop(state);
 
-        // Mode changes may include mode-line changes.
+        let _ = view_event_tx.send(ViewStoreTypes::Event::ModeChanged { id: view, mode });
+    }
+
+    fn pop_view_mode(&self, view: ViewId) {
+        let mut state = self.state_lock.write();
+        let Some(vse) = state.view_store.get_mut(&view) else {
+            return;
+        };
+
+        if vse.modes.len() > 1 {
+            vse.modes.pop();
+        }
+        let mode = vse.mode();
+
+        let view_event_tx = state.view_event_tx.clone();
+        drop(state);
+
         let _ = view_event_tx.send(ViewStoreTypes::Event::ModeChanged { id: view, mode });
     }
 
@@ -518,16 +557,21 @@ impl ActionProtocol {
         // Fix the borrow checker.
         let state = &mut *guard;
 
+        let Some(doc) = state.index.view_to_doc(view) else {
+            debug_panic!();
+            return;
+        };
         let Some((vse, dse)) =
             State::vse_and_dse_mut(&mut state.view_store, &mut state.doc_store, &state.index, view)
         else {
             debug_panic!();
             return;
         };
-        let Some(doc_id) = state.index.view_to_doc(view) else {
+
+        if dse.read_only {
             debug_panic!();
             return;
-        };
+        }
 
         let mut cursors = vse.cursors.clone();
         let tab_width = vse.tab_width;
@@ -544,7 +588,7 @@ impl ActionProtocol {
                 dse.doc.modified = true;
 
                 let _ = state.doc_event_tx.send(DocStoreTypes::Event::Removed {
-                    id: doc_id,
+                    id: doc,
                     pos: edit.offset,
                     n: edit.remove,
                     str,
@@ -556,7 +600,7 @@ impl ActionProtocol {
                 dse.doc.modified = true;
 
                 let _ = state.doc_event_tx.send(DocStoreTypes::Event::Inserted {
-                    id: doc_id,
+                    id: doc,
                     pos: edit.offset,
                     n: edit.insert.len(),
                     str: edit.insert.clone(),

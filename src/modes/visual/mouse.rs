@@ -47,7 +47,7 @@ impl MouseInputHandler for VisualMouseInput {
             return false;
         };
 
-        if vse.mode != ViewStoreTypes::Mode::Visual {
+        if vse.mode() != ViewStoreTypes::Mode::Visual {
             return false;
         }
 

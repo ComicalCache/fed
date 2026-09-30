@@ -4,13 +4,14 @@ use tokio::sync::{mpsc::UnboundedSender, oneshot};
 
 use crate::{
     debug_panic::debug_panic,
-    protocols::{mini_buffer::MiniBufferCommand, view::decorations::SearchDecorationProvider},
+    decorators::SearchDecorator,
+    protocols::{action::ActionCommand, mini_buffer::MiniBufferCommand},
     state::{DocId, StateLock, ViewId, ViewStoreTypes},
 };
 
 pub fn start_search(
     state_lock: StateLock, view: ViewId, doc: DocId, bounds: Option<Vec<(usize, usize)>>,
-    mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
+    action_tx: UnboundedSender<ActionCommand>, mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
 ) {
     let prompt = if bounds.is_some() {
         "Search selection: ".to_string()
@@ -33,13 +34,13 @@ pub fn start_search(
             return;
         }
 
-        execute_search(state_lock, view, doc, query, bounds);
+        execute_search(state_lock, view, doc, query, bounds, action_tx);
     });
 }
 
 pub fn execute_search(
     state_lock: StateLock, view: ViewId, doc: DocId, query: String,
-    bounds: Option<Vec<(usize, usize)>>,
+    bounds: Option<Vec<(usize, usize)>>, action_tx: UnboundedSender<ActionCommand>,
 ) {
     let state = state_lock.read();
     let Some(dse) = state.doc_store.get(&doc) else {
@@ -83,15 +84,13 @@ pub fn execute_search(
         return;
     };
 
-    vse.decs.layers.insert(
+    vse.decs.decorators.insert(
         ViewStoreTypes::DecorationId::Search,
-        Box::new(SearchDecorationProvider::new(query, matches, state.theme.search_match)),
+        Box::new(SearchDecorator::new(query, matches, state.theme.search_match)),
     );
-    vse.mode = ViewStoreTypes::Mode::Search;
 
-    let view_event_tx = state.view_event_tx.clone();
     drop(guard);
 
-    let _ = view_event_tx
-        .send(ViewStoreTypes::Event::ModeChanged { id: view, mode: ViewStoreTypes::Mode::Search });
+    let _ =
+        action_tx.send(ActionCommand::PushViewMode { view, mode: ViewStoreTypes::Mode::Search });
 }

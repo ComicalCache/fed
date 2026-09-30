@@ -47,7 +47,11 @@ impl MouseInputHandler for InsertMouseInput {
             return false;
         };
 
-        if vse.mode != ViewStoreTypes::Mode::Insert {
+        if vse.mode() != ViewStoreTypes::Mode::Insert {
+            return false;
+        }
+        if dse.read_only {
+            debug_panic!();
             return false;
         }
 

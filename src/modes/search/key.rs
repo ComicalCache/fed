@@ -5,12 +5,10 @@ use tokio::sync::{mpsc::UnboundedSender, oneshot};
 
 use crate::{
     debug_panic::debug_panic,
+    decorators::SearchDecorator,
     input::{KeyInputHandler, priorities::KeyInputPriority},
     modes::search::{command::Command, keymap},
-    protocols::{
-        action::ActionCommand, mini_buffer::MiniBufferCommand,
-        view::decorations::SearchDecorationProvider,
-    },
+    protocols::{action::ActionCommand, mini_buffer::MiniBufferCommand},
     state::{DocId, StateLock, ViewId, ViewStoreTypes},
     types::{KeyChord, Keymap, ParseResult},
 };
@@ -44,6 +42,12 @@ impl SearchKeyInput {
             debug_panic!();
             return;
         };
+        let Some(dse) = state.doc_store.get(&doc) else {
+            debug_panic!();
+            return;
+        };
+
+        let read_only = dse.read_only;
         drop(state);
 
         match cmd {
@@ -58,8 +62,14 @@ impl SearchKeyInput {
             Command::PrevMatch => self.navigate_match(view, false),
             Command::CursorsBegin => self.cursors(view, true),
             Command::CursorsEnd => self.cursors(view, false),
-            Command::Replace => self.replace(view, doc),
-            Command::Escape => Self::escape(self.state_lock.clone(), view),
+            Command::Replace => {
+                if read_only {
+                    return;
+                }
+
+                self.replace(view, doc)
+            }
+            Command::Escape => Self::escape(self.state_lock.clone(), view, self.action_tx.clone()),
         }
     }
 
@@ -86,7 +96,7 @@ impl SearchKeyInput {
         let offsets = matches.iter().map(|m| if front { m.0 } else { m.1 }).collect();
         let _ = self.action_tx.send(ActionCommand::CreateCursorsAtOffset { view, offsets });
 
-        Self::escape(self.state_lock.clone(), view);
+        Self::escape(self.state_lock.clone(), view, self.action_tx.clone());
     }
 
     fn replace(&self, view: ViewId, doc: DocId) {
@@ -153,26 +163,21 @@ impl SearchKeyInput {
 
         let _ = action_tx.send(ActionCommand::EndCommit { doc });
 
-        Self::escape(state_lock, view);
+        Self::escape(state_lock, view, action_tx);
     }
 
-    fn escape(state_lock: StateLock, view: ViewId) {
+    fn escape(state_lock: StateLock, view: ViewId, action_tx: UnboundedSender<ActionCommand>) {
         let mut state = state_lock.write();
         let Some(vse) = state.view_store.get_mut(&view) else {
             debug_panic!();
             return;
         };
 
-        vse.decs.layers.remove(&ViewStoreTypes::DecorationId::Search);
-        vse.mode = ViewStoreTypes::Mode::Normal;
+        vse.decs.decorators.remove(&ViewStoreTypes::DecorationId::Search);
 
-        let view_event_tx = state.view_event_tx.clone();
         drop(state);
 
-        let _ = view_event_tx.send(ViewStoreTypes::Event::ModeChanged {
-            id: view,
-            mode: ViewStoreTypes::Mode::Normal,
-        });
+        let _ = action_tx.send(ActionCommand::PopViewMode { view });
     }
 
     fn search_state(&self, view: ViewId) -> Option<(String, Vec<(usize, usize)>, Vec<usize>)> {
@@ -181,12 +186,11 @@ impl SearchKeyInput {
             debug_panic!();
             return None;
         };
-        let Some(provider) = vse.decs.layers.get(&ViewStoreTypes::DecorationId::Search) else {
+        let Some(provider) = vse.decs.decorators.get(&ViewStoreTypes::DecorationId::Search) else {
             debug_panic!();
             return None;
         };
-        let Some(search_provider) = provider.any().downcast_ref::<SearchDecorationProvider>()
-        else {
+        let Some(search_provider) = provider.any().downcast_ref::<SearchDecorator>() else {
             debug_panic!();
             return None;
         };
@@ -217,7 +221,7 @@ impl KeyInputHandler for SearchKeyInput {
             return false;
         };
 
-        if vse.mode != ViewStoreTypes::Mode::Search {
+        if vse.mode() != ViewStoreTypes::Mode::Search {
             return false;
         }
         drop(state);
