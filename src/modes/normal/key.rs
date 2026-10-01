@@ -26,6 +26,7 @@ pub struct NormalKeyInput {
 
     replace: bool,
 
+    last_view: Option<ViewId>,
     state_lock: StateLock,
 
     action_tx: UnboundedSender<ActionCommand>,
@@ -45,6 +46,7 @@ impl NormalKeyInput {
             keymap: keymap::keymap(),
             pending_keys: Vec::new(),
             replace: false,
+            last_view: None,
             state_lock,
             action_tx,
             io_tx,
@@ -870,6 +872,13 @@ impl KeyInputHandler for NormalKeyInput {
             return false;
         }
         drop(state);
+
+        if self.last_view != Some(view) {
+            self.replace = false;
+            self.pending_keys.clear();
+
+            self.last_view = Some(view);
+        }
 
         if self.replace {
             if let KeyCode::Char(ch) = event.code {

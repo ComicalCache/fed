@@ -16,6 +16,7 @@ pub struct InsertKeyInput {
 
     whitespace: bool,
 
+    last_view: Option<ViewId>,
     state_lock: StateLock,
 
     action_tx: UnboundedSender<ActionCommand>,
@@ -24,7 +25,14 @@ pub struct InsertKeyInput {
 impl InsertKeyInput {
     pub fn new(state_lock: StateLock, action_tx: UnboundedSender<ActionCommand>) -> Self {
         let keymap = keymap::keymap();
-        Self { keymap, pending_keys: Vec::new(), whitespace: false, state_lock, action_tx }
+        Self {
+            keymap,
+            pending_keys: Vec::new(),
+            whitespace: false,
+            last_view: None,
+            state_lock,
+            action_tx,
+        }
     }
 
     fn execute(&mut self, cmd: Command) {
@@ -101,6 +109,13 @@ impl KeyInputHandler for InsertKeyInput {
             return false;
         }
         drop(state);
+
+        if self.last_view != Some(view) {
+            self.whitespace = false;
+            self.pending_keys.clear();
+
+            self.last_view = Some(view);
+        }
 
         let chord = KeyChord::from(event);
         self.pending_keys.push(chord);
