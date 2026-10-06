@@ -13,6 +13,11 @@ pub enum MiniBufferCommand {
         id_tx: oneshot::Sender<MiniBufferId>,
         res_tx: oneshot::Sender<String>,
     },
+    Confirmation {
+        prompt: String,
+        id_tx: oneshot::Sender<MiniBufferId>,
+        confirm_tx: oneshot::Sender<bool>,
+    },
     Submit,
     Close {
         id: MiniBufferId,

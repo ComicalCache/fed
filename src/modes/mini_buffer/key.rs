@@ -85,7 +85,9 @@ impl KeyInputHandler for MiniBufferKeyInput {
         if state.workspace.active_window != state.mini_buffer.window {
             return false;
         }
-        if state.mini_buffer.kind != MiniBufferTypes::Kind::Prompt {
+        if state.mini_buffer.kind != MiniBufferTypes::Kind::Prompt
+            && state.mini_buffer.kind != MiniBufferTypes::Kind::Confirmation
+        {
             return false;
         }
 
@@ -100,12 +102,35 @@ impl KeyInputHandler for MiniBufferKeyInput {
         }
 
         let view = state.mini_buffer.view;
+        let kind = state.mini_buffer.kind;
         drop(state);
 
         if self.last_view != Some(view) {
             self.pending_keys.clear();
 
             self.last_view = Some(view);
+        }
+
+        // Short circuit confirmation dialogues by the next input.
+        if kind == MiniBufferTypes::Kind::Confirmation {
+            self.pending_keys.clear();
+
+            let confirmed = matches!(event.code, KeyCode::Char('y') | KeyCode::Char('Y'));
+
+            let mut state = self.state_lock.write();
+            let Some(tx) = state.mini_buffer.confirm_tx.take() else {
+                debug_panic!();
+                return true;
+            };
+
+            let _ = tx.send(confirmed);
+
+            let id = state.mini_buffer.id;
+            drop(state);
+
+            let _ = self.mini_buffer_tx.send(MiniBufferCommand::Close { id });
+
+            return true;
         }
 
         let chord = KeyChord::from(event);

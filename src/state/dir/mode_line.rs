@@ -18,7 +18,10 @@ impl DirModeLine {
                 let offset = vse.cursors.list.first().map(|c| c.offset).unwrap_or(0);
                 let y = dse.doc.data.get_line_of_byte(offset);
 
-                (state.dir.entries[y].kind.to_string(), Face::default())
+                (
+                    state.dir.entries.get(y).map(|e| e.kind.to_string()).unwrap_or_default(),
+                    Face::default(),
+                )
             })],
         }
     }

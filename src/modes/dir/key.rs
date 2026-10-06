@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crossterm::event::KeyEvent;
 use piece_table::Slice;
 use tokio::sync::{mpsc::UnboundedSender, oneshot};
@@ -12,7 +14,7 @@ use crate::{
     protocols::{
         action::ActionCommand, dir::DirCommand, mini_buffer::MiniBufferCommand, view::ViewCommand,
     },
-    state::{DocId, DocStoreTypes, State, StateLock, ViewId, ViewStoreTypes},
+    state::{DirTypes, DocId, DocStoreTypes, State, StateLock, ViewId, ViewStoreTypes},
     types::{KeyChord, Keymap, Motion, ParseResult},
     util,
 };
@@ -67,6 +69,10 @@ impl DirKeyInput {
             Command::YankLine => self.line_operation(view, doc),
             Command::ScrollView(motion) => self.scroll_view(view, motion),
             Command::Jump => self.jump(view),
+            Command::Create => self.create(),
+            Command::Rename => self.rename(view, doc),
+            Command::Delete => self.delete(view, doc, false),
+            Command::DeleteRecursive => self.delete(view, doc, true),
             Command::Select => {
                 let _ = self.dir_tx.send(DirCommand::Select);
             }
@@ -275,6 +281,118 @@ impl DirKeyInput {
             pos: crate::types::Pos::new(x, y),
             move_anchor: true,
         });
+    }
+
+    fn create(&self) {
+        let state = self.state_lock.read();
+        let mut initial_text = state.dir.pwd.display().to_string();
+        drop(state);
+
+        if !initial_text.ends_with(std::path::MAIN_SEPARATOR) {
+            initial_text.push(std::path::MAIN_SEPARATOR);
+        }
+
+        let (id_tx, _) = oneshot::channel();
+        let (res_tx, res_rx) = oneshot::channel();
+        let _ = self.mini_buffer_tx.send(MiniBufferCommand::Prompt {
+            prompt: "New entry (trailing '/' for directory): ".to_string(),
+            initial_text: Some(initial_text),
+            id_tx,
+            res_tx,
+        });
+
+        let dir_tx = self.dir_tx.clone();
+        tokio::spawn(async move {
+            let Ok(path) = res_rx.await else { return };
+
+            let dir = path.ends_with(std::path::MAIN_SEPARATOR);
+            let path = PathBuf::from(path);
+
+            if !path.is_empty() {
+                let _ = dir_tx.send(DirCommand::Create { path, dir });
+            }
+        });
+    }
+
+    fn rename(&self, view: ViewId, doc: DocId) {
+        let Some(entry) = self.curr_entry(view, doc) else { return };
+        if entry.path.file_name().is_none() {
+            return;
+        }
+
+        let old = entry.path.clone();
+
+        let initial_text = Some(old.display().to_string());
+        let (id_tx, _) = oneshot::channel();
+        let (res_tx, res_rx) = oneshot::channel();
+        let _ = self.mini_buffer_tx.send(MiniBufferCommand::Prompt {
+            prompt: "New path: ".to_string(),
+            initial_text,
+            id_tx,
+            res_tx,
+        });
+
+        let dir_tx = self.dir_tx.clone();
+        tokio::spawn(async move {
+            let Ok(new) = res_rx.await else { return };
+            let new = util::path::normalize(new);
+
+            if !new.is_empty() {
+                let _ = dir_tx.send(DirCommand::Rename { old, new });
+            }
+        });
+    }
+
+    fn delete(&self, view: ViewId, doc: DocId, recursive: bool) {
+        let Some(entry) = self.curr_entry(view, doc) else { return };
+        if entry.path.file_name().is_none() {
+            return;
+        }
+
+        let path = entry.path.clone();
+        let name = path.display().to_string();
+
+        let prompt = if recursive {
+            format!("Delete recursively '{}'? (y/N): ", name)
+        } else {
+            format!("Delete '{}'? (y/N): ", name)
+        };
+
+        let (id_tx, _) = oneshot::channel();
+        let (confirm_tx, confirm_rx) = oneshot::channel();
+        let _ =
+            self.mini_buffer_tx.send(MiniBufferCommand::Confirmation { prompt, id_tx, confirm_tx });
+
+        let dir_tx = self.dir_tx.clone();
+        tokio::spawn(async move {
+            let Ok(confirmed) = confirm_rx.await else { return };
+            if confirmed {
+                let _ = dir_tx.send(DirCommand::Delete { path, recursive });
+            }
+        });
+    }
+
+    fn curr_entry(&self, view: ViewId, doc: DocId) -> Option<DirTypes::Entry> {
+        let state = self.state_lock.read();
+        let Some(vse) = state.view_store.get(&view) else {
+            return None;
+        };
+        let Some(dse) = state.doc_store.get(&doc) else {
+            return None;
+        };
+
+        let offset = vse.cursors.list.first().map(|c| c.offset).unwrap_or(0);
+        let y = dse.doc.data.get_line_of_byte(offset);
+
+        // Ignore the header and ".." entry.
+        if y < 2 {
+            return None;
+        }
+
+        let entries = state.dir.entries.clone();
+        drop(state);
+
+        entries.get(y).cloned()
     }
 }
 

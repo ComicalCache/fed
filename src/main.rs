@@ -1,5 +1,6 @@
 #![feature(path_absolute_method)]
 
+mod cli;
 mod debug_panic;
 mod decorators;
 mod fed;
@@ -13,7 +14,7 @@ mod state;
 mod types;
 mod util;
 
-use std::{io::stdout, path::PathBuf};
+use std::io::stdout;
 
 use crossterm::{
     cursor::{Hide, Show},
@@ -29,6 +30,7 @@ use tokio::sync::{
 };
 
 use crate::{
+    cli::Cli,
     fed::Fed,
     input::{
         InputRouter, KeyInputHandler, MouseInputHandler, PasteInputHandler, ResizeInputHandler,
@@ -70,7 +72,7 @@ async fn input_events(tx: UnboundedSender<Event>) -> std::io::Result<()> {
 }
 
 fn setup(
-    input_rx: UnboundedReceiver<Event>, width: usize, height: usize,
+    cli: Cli, input_rx: UnboundedReceiver<Event>, width: usize, height: usize,
 ) -> (Fed, UnboundedReceiver<()>) {
     // Channels.
     let (doc_event_tx, _) = broadcast::channel(32);
@@ -206,18 +208,17 @@ fn setup(
 
     // Initialize state requiring protocols..
     tokio::spawn(async move {
-        let args: Vec<String> = std::env::args().collect();
-        let path = args.get(1).map(PathBuf::from);
+        let path = cli.path.map(|p| util::path::normalize(p));
+        let dir = path.clone().map(|p| p.is_dir()).unwrap_or_default();
 
-        // Doc.
-        let doc = util::create_doc(state_lock.clone(), path, io_tx.clone()).await;
+        let doc = util::create_doc(state_lock.clone(), path.clone(), io_tx.clone()).await;
 
         let (tx, rx) = oneshot::channel();
         let _ = doc_view_tx.send(DocViewCommand::CreateTile {
             doc,
             view: None,
-            // This is kind of a hack: since no other windows exist, we can pass anything because
-            // a new root window will be created in any case.
+            // This is kind of a hack: since no other windows exist, we can pass anything
+            // because a new root window will be created in any case.
             split_window: WindowId(0),
             direction: RectSplit::Vertical,
             raw: false,
@@ -227,8 +228,14 @@ fn setup(
 
         state_lock.write().workspace.active_window = Some(window);
 
-        // Dir.
-        let _ = dir_tx.send(DirCommand::Init);
+        if dir {
+            let _ = std::env::set_current_dir(path.unwrap());
+
+            let _ = dir_tx.send(DirCommand::Init);
+            let _ = dir_tx.send(DirCommand::ReplaceWindow { window });
+        } else {
+            let _ = dir_tx.send(DirCommand::Init);
+        }
     });
 
     (
@@ -239,6 +246,8 @@ fn setup(
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    let cli = Cli::parse();
+
     enable_raw_mode()?;
 
     let mut stdout = stdout();
@@ -250,7 +259,7 @@ async fn main() -> std::io::Result<()> {
     let (input_tx, input_rx) = unbounded_channel();
 
     let (width, height) = crossterm::terminal::size()?;
-    let (mut fed, mut shutdown_rx) = setup(input_rx, width as usize, height as usize);
+    let (mut fed, mut shutdown_rx) = setup(cli, input_rx, width as usize, height as usize);
 
     // Main loop.
     tokio::select! {

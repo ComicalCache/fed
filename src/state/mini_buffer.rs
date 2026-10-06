@@ -26,4 +26,5 @@ pub struct MiniBuffer {
     pub view: ViewId,
 
     pub res_tx: Option<oneshot::Sender<String>>,
+    pub confirm_tx: Option<oneshot::Sender<bool>>,
 }

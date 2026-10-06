@@ -44,6 +44,9 @@ impl MiniBufferProtocol {
                 MiniBufferCommand::Prompt { prompt, initial_text, id_tx, res_tx } => {
                     self.prompt(prompt, initial_text, id_tx, res_tx).await
                 }
+                MiniBufferCommand::Confirmation { prompt, id_tx, confirm_tx } => {
+                    self.confirmation(prompt, id_tx, confirm_tx).await
+                }
                 MiniBufferCommand::Submit => self.submit(),
                 MiniBufferCommand::Close { id } => self.close(id),
                 MiniBufferCommand::Resize { width, height } => self.resize(width, height),
@@ -53,7 +56,9 @@ impl MiniBufferProtocol {
 
     async fn message(&self, message: String, tx: oneshot::Sender<MiniBufferId>) {
         let state = self.state_lock.read();
-        if state.mini_buffer.kind == MiniBufferTypes::Kind::Prompt {
+        if state.mini_buffer.kind == MiniBufferTypes::Kind::Prompt
+            || state.mini_buffer.kind == MiniBufferTypes::Kind::Confirmation
+        {
             return;
         }
 
@@ -95,7 +100,9 @@ impl MiniBufferProtocol {
         res_tx: oneshot::Sender<String>,
     ) {
         let state = self.state_lock.read();
-        if state.mini_buffer.kind == MiniBufferTypes::Kind::Prompt {
+        if state.mini_buffer.kind == MiniBufferTypes::Kind::Prompt
+            || state.mini_buffer.kind == MiniBufferTypes::Kind::Confirmation
+        {
             return;
         }
 
@@ -147,6 +154,69 @@ impl MiniBufferProtocol {
         state.mini_buffer.window = Some(window);
         state.mini_buffer.prev_window = state.workspace.active_window;
         state.mini_buffer.res_tx = Some(res_tx);
+
+        state.workspace.active_window = Some(window);
+        drop(guard);
+
+        let _ = id_tx.send(id);
+    }
+
+    async fn confirmation(
+        &self, prompt: String, id_tx: oneshot::Sender<MiniBufferId>,
+        confirm_tx: oneshot::Sender<bool>,
+    ) {
+        let state = self.state_lock.read();
+        if state.mini_buffer.kind == MiniBufferTypes::Kind::Prompt
+            || state.mini_buffer.kind == MiniBufferTypes::Kind::Confirmation
+        {
+            return;
+        }
+
+        let id = state.mini_buffer.id;
+        let doc = state.mini_buffer.doc;
+        let view = state.mini_buffer.view;
+        drop(state);
+
+        self.close(id);
+
+        let _ = self.action_tx.send(ActionCommand::CreateCursorAtPos { view, pos: Pos::new(0, 0) });
+
+        let (floating_tx, floating_rx) = oneshot::channel();
+        let _ = self.doc_view_tx.send(DocViewCommand::CreateFloating {
+            doc,
+            view: Some(view),
+            rect: Rect::new(Pos::new(0, self.height.saturating_sub(1)), self.width, 1),
+            z: ZLayer::MiniBuffer,
+            raw: true,
+            tx: floating_tx,
+        });
+
+        let Ok((_, window)) = floating_rx.await else { return };
+
+        let id = MiniBufferId(self.next_id.fetch_add(1, Ordering::Relaxed));
+
+        let mut guard = self.state_lock.write();
+        // Fix the borrow checker.
+        let state = &mut *guard;
+
+        let Some(vse) = state.view_store.get_mut(&view) else {
+            state.workspace.destroy_window(window);
+
+            debug_panic!();
+
+            return;
+        };
+
+        vse.decs.decorators.insert(
+            ViewStoreTypes::DecorationId::MiniBuffer,
+            Box::new(MiniBufferDecorator::new(prompt, state.theme.mini_buffer)),
+        );
+
+        state.mini_buffer.id = id;
+        state.mini_buffer.kind = MiniBufferTypes::Kind::Confirmation;
+        state.mini_buffer.window = Some(window);
+        state.mini_buffer.prev_window = state.workspace.active_window;
+        state.mini_buffer.confirm_tx = Some(confirm_tx);
 
         state.workspace.active_window = Some(window);
         drop(guard);
@@ -220,13 +290,10 @@ impl MiniBufferProtocol {
         vse.decs.decorators.remove(&ViewStoreTypes::DecorationId::MiniBuffer);
 
         let len = dse.doc.data.len();
-        let cursors: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();
+        let offsets: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();
         drop(guard);
 
-        for offset in cursors {
-            let _ =
-                self.action_tx.send(ActionCommand::RemoveCursors { view, offsets: vec![offset] });
-        }
+        let _ = self.action_tx.send(ActionCommand::RemoveCursors { view, offsets });
         let _ = self.action_tx.send(ActionCommand::Remove { view, offset: 0, len });
         let _ = self.action_tx.send(ActionCommand::Saved { doc });
     }

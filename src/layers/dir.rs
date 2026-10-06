@@ -13,11 +13,18 @@ impl Layer for DirLayer {
     ) {
         if let Some(entry) = state.dir.entries.get(y) {
             let path = match entry.kind {
+                DirTypes::EntryKind::File => Face::default(),
                 DirTypes::EntryKind::Dir => {
                     Face { fg: state.theme.selection.bg, ..Face::default() }
                 }
                 DirTypes::EntryKind::Symlink => state.theme.dir_symlink,
-                DirTypes::EntryKind::File => Face::default(),
+                DirTypes::EntryKind::Header => {
+                    for cell in row.iter_mut() {
+                        cell.face.merge(state.theme.dir_header);
+                    }
+
+                    return;
+                }
             };
             let metadata = Face { fg: state.theme.gutter.fg, ..Face::default() };
 

@@ -9,6 +9,7 @@ pub enum EntryKind {
     File,
     Dir,
     Symlink,
+    Header,
 }
 
 impl Display for EntryKind {

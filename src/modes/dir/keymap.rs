@@ -42,6 +42,11 @@ pub fn keymap() -> Keymap<Command> {
 
     keymap.bind(&[KeyChord::new(KeyCode::Char('j'), KeyModifiers::CONTROL)], Command::Jump);
 
+    keymap.bind(&[KeyChord::new(KeyCode::Char('n'), KeyModifiers::empty())], Command::Create);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('r'), KeyModifiers::empty())], Command::Rename);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('d'), KeyModifiers::empty())], Command::Delete);
+    keymap
+        .bind(&[KeyChord::new(KeyCode::Char('D'), KeyModifiers::SHIFT)], Command::DeleteRecursive);
     keymap.bind(&[KeyChord::new(KeyCode::Enter, KeyModifiers::NONE)], Command::Select);
 
     keymap.bind(

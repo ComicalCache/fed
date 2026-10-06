@@ -11,6 +11,8 @@ pub struct Theme {
     pub mini_buffer: Face,
     pub selection: Face,
     pub search_match: Face,
+
+    pub dir_header: Face,
     pub dir_symlink: Face,
 }
 
@@ -53,6 +55,7 @@ impl Default for Theme {
                 bg: Some(Rgb::new(59, 61, 66)),
                 ..Face::default()
             },
+            dir_header: Face { bold: Some(true), ..Face::default() },
             dir_symlink: Face { fg: Some(Rgb::new(173, 111, 24)), ..Face::default() },
         }
     }

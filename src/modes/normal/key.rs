@@ -708,13 +708,13 @@ impl NormalKeyInput {
             return;
         };
 
-        let path = dse
-            .doc
-            .path
-            .as_ref()
-            .map(|p| p.absolute().map(|p| Some(p.display().to_string())).unwrap_or(None))
-            .flatten()
-            .unwrap_or_default();
+        let path = dse.doc.path.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| {
+            format!(
+                "{}{}",
+                std::env::current_dir().unwrap_or_default().display(),
+                std::path::MAIN_SEPARATOR
+            )
+        });
         drop(state);
 
         let (id_tx, _) = oneshot::channel();
@@ -747,7 +747,7 @@ impl NormalKeyInput {
             return;
         }
 
-        let path = PathBuf::from(res);
+        let path = util::path::normalize(res);
 
         // The scoping is kind of a hack: the compiler incorrectly doesn't
         // acknowledge that the dropped state.. has been dropped and claims that

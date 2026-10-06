@@ -5,11 +5,14 @@ use tokio::sync::{mpsc::UnboundedSender, oneshot};
 use crate::{
     protocols::io::IoCommand,
     state::{DocId, StateLock},
+    util,
 };
 
 pub async fn create_doc(
     state_lock: StateLock, path: Option<PathBuf>, io: UnboundedSender<IoCommand>,
 ) -> DocId {
+    let path = path.map(|p| util::path::normalize(p));
+
     if let Some(path) = &path
         && let Some((&doc, _)) =
             state_lock.read().doc_store.iter().find(|(_, dse)| dse.doc.path.as_ref() == Some(path))

@@ -1,6 +1,7 @@
 mod doc;
 pub mod format;
 mod motion;
+pub mod path;
 
 pub use doc::create_doc;
 pub use motion::{apply_motion, motion_offsets};

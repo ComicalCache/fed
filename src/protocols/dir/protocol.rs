@@ -1,3 +1,5 @@
+use std::{path::PathBuf, time::Duration};
+
 use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
     oneshot,
@@ -55,18 +57,41 @@ impl DirProtocol {
             match cmd {
                 DirCommand::Init => self.init().await,
                 DirCommand::ReplaceWindow { window } => self.replace_window(window),
+                DirCommand::Create { path, dir } => self.create(path, dir).await,
+                DirCommand::Rename { old, new } => self.rename(old, new).await,
+                DirCommand::Delete { path, recursive } => self.delete(path, recursive).await,
                 DirCommand::Select => self.select().await,
             }
         }
     }
 
     async fn init(&self) {
-        let state = self.state_lock.read();
+        let mut state = self.state_lock.write();
+        state.dir.pwd = std::env::current_dir()
+            .map(|p| p.canonicalize())
+            .flatten()
+            .unwrap_or_else(|_| state.dir.pwd.clone());
+
         let pwd = state.dir.pwd.clone();
         drop(state);
 
         let mut entries = Vec::new();
         let mut printables: Vec<PrintableEntry> = Vec::new();
+
+        printables.push(PrintableEntry {
+            perms: "PERMISSIONS".to_string(),
+            links: "LINKS".to_string(),
+            owner: "OWNER".to_string(),
+            group: "GROUP".to_string(),
+            size: "SIZE".to_string(),
+            modified: "MODIFIED".to_string(),
+            name: "NAME".to_string(),
+        });
+        entries.push(DirTypes::Entry {
+            path: pwd.clone(),
+            kind: DirTypes::EntryKind::Header,
+            path_offset: 0,
+        });
 
         if let Some(parent) = pwd.parent() {
             if let Ok(metadata) = tokio::fs::metadata(parent).await {
@@ -152,6 +177,7 @@ impl DirProtocol {
                 DirTypes::EntryKind::File => format!("-{}", perms),
                 DirTypes::EntryKind::Dir => format!("d{}", perms),
                 DirTypes::EntryKind::Symlink => format!("l{}", perms),
+                DirTypes::EntryKind::Header => unreachable!(),
             };
             let size = format::size(metadata.len());
 
@@ -162,13 +188,13 @@ impl DirProtocol {
                 "n/a".to_string()
             };
 
-            let mut name = entry.file_name().to_string_lossy().to_string();
+            let mut name = entry.file_name().display().to_string();
             if matches!(kind, DirTypes::EntryKind::Dir) {
-                name.push('/');
+                name.push(std::path::MAIN_SEPARATOR);
             } else if matches!(kind, DirTypes::EntryKind::Symlink) {
                 if let Ok(target) = tokio::fs::read_link(entry.path()).await {
-                    name.push_str(" -> ");
-                    name.push_str(&target.to_string_lossy());
+                    name.push_str(" > ");
+                    name.push_str(&target.display().to_string());
                 }
             }
 
@@ -176,6 +202,7 @@ impl DirProtocol {
             entries.push(DirTypes::Entry { path: entry.path(), kind, path_offset: 0 });
         }
 
+        let perms = printables.iter().map(|c| c.perms.len()).max().unwrap_or(0);
         let links = printables.iter().map(|c| c.links.len()).max().unwrap_or(0);
         let owner = printables.iter().map(|c| c.owner.len()).max().unwrap_or(0);
         let group = printables.iter().map(|c| c.group.len()).max().unwrap_or(0);
@@ -188,7 +215,7 @@ impl DirProtocol {
             }
 
             let metadata = format!(
-                "{} {:>links$} {:<owner$} {:<group$} {:>size$} {:>modified$} ",
+                "{:>perms$} {:>links$} {:<owner$} {:<group$} {:>size$} {:<modified$}  ",
                 entry.perms, entry.links, entry.owner, entry.group, entry.size, entry.modified,
             );
 
@@ -219,7 +246,7 @@ impl DirProtocol {
         let _ = self.action_tx.send(ActionCommand::Saved { doc });
         let _ = self.action_tx.send(ActionCommand::MoveCursorToPos {
             view,
-            pos: Pos::new(0, 0),
+            pos: Pos::new(0, 1),
             move_anchor: true,
         });
 
@@ -248,13 +275,106 @@ impl DirProtocol {
         let state = &mut *guard;
 
         state.workspace.replace_renderer(window, Box::new(DirRenderer::new(state.dir.view)));
-
         state.index.link_window_to_view(window, state.dir.view);
 
         let view = state.dir.view;
         drop(guard);
 
         let _ = self.view_tx.send(ViewCommand::Update { view });
+    }
+
+    async fn create(&self, path: PathBuf, dir: bool) {
+        let path = util::path::normalize(path);
+
+        let res = if dir {
+            tokio::fs::create_dir_all(&path).await
+        } else {
+            async {
+                if let Some(parent) = path.parent() {
+                    tokio::fs::create_dir_all(parent).await?;
+                }
+
+                tokio::fs::File::create(&path).await?;
+
+                Ok(())
+            }
+            .await
+        };
+
+        if let Err(err) = res {
+            let (tx, rx) = oneshot::channel();
+            let _ = self.mini_buffer_tx.send(MiniBufferCommand::Message {
+                message: format!("Failed to create: {err}"),
+                tx,
+            });
+
+            let mini_buffer_tx = self.mini_buffer_tx.clone();
+            tokio::spawn(async move {
+                let Ok(id) = rx.await else { return };
+
+                tokio::time::sleep(Duration::from_secs(3)).await;
+
+                let _ = mini_buffer_tx.send(MiniBufferCommand::Close { id });
+            });
+        } else {
+            self.init().await;
+        }
+    }
+
+    async fn rename(&self, old: PathBuf, new: PathBuf) {
+        if let Err(err) = tokio::fs::rename(&old, &new).await {
+            let (tx, rx) = oneshot::channel();
+            let _ = self.mini_buffer_tx.send(MiniBufferCommand::Message {
+                message: format!("Failed to rename: {err}"),
+                tx,
+            });
+
+            let mini_buffer_tx = self.mini_buffer_tx.clone();
+            tokio::spawn(async move {
+                let Ok(id) = rx.await else { return };
+
+                tokio::time::sleep(Duration::from_secs(3)).await;
+
+                let _ = mini_buffer_tx.send(MiniBufferCommand::Close { id });
+            });
+        } else {
+            self.init().await;
+        }
+    }
+
+    async fn delete(&self, path: PathBuf, recursive: bool) {
+        let res = if recursive {
+            tokio::fs::remove_dir_all(&path).await
+        } else {
+            if let Ok(meta) = tokio::fs::symlink_metadata(&path).await {
+                if meta.is_dir() {
+                    tokio::fs::remove_dir(&path).await
+                } else {
+                    tokio::fs::remove_file(&path).await
+                }
+            } else {
+                Err(std::io::Error::new(std::io::ErrorKind::NotFound, "File not found"))
+            }
+        };
+
+        if let Err(err) = res {
+            let (tx, rx) = oneshot::channel();
+            let _ = self.mini_buffer_tx.send(MiniBufferCommand::Message {
+                message: format!("Failed to delete: {err}"),
+                tx,
+            });
+
+            let mini_buffer_tx = self.mini_buffer_tx.clone();
+            tokio::spawn(async move {
+                let Ok(id) = rx.await else { return };
+
+                tokio::time::sleep(Duration::from_secs(3)).await;
+
+                let _ = mini_buffer_tx.send(MiniBufferCommand::Close { id });
+            });
+        } else {
+            self.init().await;
+        }
     }
 
     async fn select(&self) {
@@ -333,6 +453,7 @@ impl DirProtocol {
                     let _ = mini_buffer_tx.send(MiniBufferCommand::Close { id });
                 });
             }
+            DirTypes::EntryKind::Header => {}
         }
     }
 }

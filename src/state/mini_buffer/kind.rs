@@ -1,7 +1,8 @@
-#[derive(Default, PartialEq, Eq)]
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     #[default]
     None,
     Message,
     Prompt,
+    Confirmation,
 }

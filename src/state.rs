@@ -92,8 +92,6 @@ impl State {
         // Dir.
         state.dir.doc = state.create_doc(None, String::new());
         state.dir.view = state.create_view(state.dir.doc);
-        // FIXME: better error handling.
-        state.dir.pwd = std::env::current_dir().unwrap();
 
         let dir_dse = state.doc_store.get_mut(&state.dir.doc).unwrap();
         dir_dse.mode = DocStoreTypes::Mode::Dir;
