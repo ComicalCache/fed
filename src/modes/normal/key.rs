@@ -13,7 +13,8 @@ use crate::{
         search,
     },
     protocols::{
-        action::ActionCommand, io::IoCommand, mini_buffer::MiniBufferCommand, view::ViewCommand,
+        action::ActionCommand, dir::DirCommand, io::IoCommand, mini_buffer::MiniBufferCommand,
+        view::ViewCommand,
     },
     state::{DocId, State, StateLock, ViewId, ViewStoreTypes},
     types::{KeyChord, Keymap, Motion, ParseResult},
@@ -34,6 +35,7 @@ pub struct NormalKeyInput {
     mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
     quit_tx: UnboundedSender<()>,
     view_tx: UnboundedSender<ViewCommand>,
+    dir_tx: UnboundedSender<DirCommand>,
 }
 
 impl NormalKeyInput {
@@ -41,6 +43,7 @@ impl NormalKeyInput {
         state_lock: StateLock, action_tx: UnboundedSender<ActionCommand>,
         io_tx: UnboundedSender<IoCommand>, mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
         quit_tx: UnboundedSender<()>, view_tx: UnboundedSender<ViewCommand>,
+        dir_tx: UnboundedSender<DirCommand>,
     ) -> Self {
         Self {
             keymap: keymap::keymap(),
@@ -53,6 +56,7 @@ impl NormalKeyInput {
             mini_buffer_tx,
             quit_tx,
             view_tx,
+            dir_tx,
         }
     }
 
@@ -75,8 +79,8 @@ impl NormalKeyInput {
         drop(state);
 
         match cmd {
-            Command::Yank(_) => self.motion(view, doc, cmd),
-            Command::Move(_) | Command::Delete(_) | Command::Change(_) => {
+            Command::Yank(_) | Command::Move(_) => self.motion(view, doc, cmd),
+            Command::Delete(_) | Command::Change(_) => {
                 if read_only {
                     return;
                 }
@@ -188,6 +192,20 @@ impl NormalKeyInput {
                 self.action_tx.clone(),
                 self.mini_buffer_tx.clone(),
             ),
+            Command::EnterDirMode => {
+                let state = self.state_lock.read();
+                let Some(windows) = state.index.view_to_windows(view) else {
+                    debug_panic!();
+                    return;
+                };
+                let Some(&window) = windows.iter().nth(0) else {
+                    debug_panic!();
+                    return;
+                };
+                drop(state);
+
+                let _ = self.dir_tx.send(DirCommand::ReplaceWindow { window });
+            }
             Command::Quit => {
                 let _ = self.quit_tx.send(());
             }
@@ -649,7 +667,7 @@ impl NormalKeyInput {
             let end = dse.doc.data.get_line_end_byte(dse.doc.data.get_line_of_byte(offset));
 
             if offset < end {
-                let text = dse.doc.data.slice(offset..end).to_string();
+                let text = dse.doc.data.slice(offset..end);
 
                 // Disallow replacing newline characters.This will break for
                 // Windows CRLF line endings.
@@ -898,15 +916,13 @@ impl KeyInputHandler for NormalKeyInput {
             ParseResult::Exact(cmd) => {
                 self.execute(cmd);
                 self.pending_keys.clear();
-
-                true
             }
-            ParseResult::Prefix => true,
+            ParseResult::Prefix => {}
             ParseResult::Invalid => {
                 self.pending_keys.clear();
-
-                false
             }
         }
+
+        true
     }
 }

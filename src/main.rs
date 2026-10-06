@@ -34,6 +34,7 @@ use crate::{
         InputRouter, KeyInputHandler, MouseInputHandler, PasteInputHandler, ResizeInputHandler,
     },
     modes::{
+        dir::{DirKeyInput, DirMouseInput},
         insert::{InsertKeyInput, InsertMouseInput},
         mini_buffer::{MiniBufferKeyInput, MiniBufferMouseInput},
         normal::{NormalKeyInput, NormalMouseInput},
@@ -42,6 +43,7 @@ use crate::{
     },
     protocols::{
         action::{ActionCommand, ActionProtocol},
+        dir::{DirCommand, DirProtocol},
         doc_view::{DocViewCommand, DocViewProtocol},
         io::{IoCommand, IoProtocol},
         mini_buffer::{MiniBufferProtocol, MiniBufferResizeInput},
@@ -50,7 +52,7 @@ use crate::{
         view::{ViewProtocol, ViewResizeInput},
     },
     render::{WindowId, Workspace},
-    state::{State, StateLock, ViewStoreTypes},
+    state::{State, StateLock},
     types::{Pos, Rect, RectSplit},
 };
 
@@ -76,6 +78,7 @@ fn setup(
 
     let (view_tx, view_rx) = unbounded_channel();
     let (doc_view_tx, doc_view_rx) = unbounded_channel();
+    let (dir_tx, dir_rx) = unbounded_channel();
     let (io_tx, io_rx) = unbounded_channel();
     let (action_tx, action_rx) = unbounded_channel();
     let (mini_buffer_tx, mini_buffer_rx) = unbounded_channel();
@@ -84,23 +87,11 @@ fn setup(
     let (shutdown_tx, shutdown_rx) = unbounded_channel();
 
     // Initialize application state.
-    let mut state = State::new(
+    let state = State::new(
         Workspace::new(Rect::new(Pos::default(), width, height)),
         doc_event_tx.clone(),
         view_event_tx.clone(),
     );
-    state.mini_buffer_store.doc = state.create_doc(None, String::new());
-    state.mini_buffer_store.view = state.create_view(state.mini_buffer_store.doc);
-
-    let mini_buffer_view = state.mini_buffer_store.view;
-    let mini_buffer_vse = state.view_store.get_mut(&mini_buffer_view).unwrap();
-    mini_buffer_vse.layout = ViewStoreTypes::Layout {
-        gutter: false,
-        mode_line: 0,
-        replacements: ViewStoreTypes::Replacements::none(),
-        rulers: Vec::new(),
-    };
-    mini_buffer_vse.cursors.list.clear();
 
     let state_lock = StateLock::new(state);
 
@@ -124,6 +115,15 @@ fn setup(
         screen_tx.clone(),
     );
     let doc_view = DocViewProtocol::new(state_lock.clone(), doc_view_rx, view_tx.clone());
+    let dir = DirProtocol::new(
+        state_lock.clone(),
+        dir_rx,
+        action_tx.clone(),
+        doc_view_tx.clone(),
+        mini_buffer_tx.clone(),
+        io_tx.clone(),
+        view_tx.clone(),
+    );
 
     // Quit callbacks.
     let action_tx_clone = action_tx.clone();
@@ -161,6 +161,14 @@ fn setup(
             action_tx.clone(),
             mini_buffer_tx.clone(),
         )),
+        Box::new(DirKeyInput::new(
+            state_lock.clone(),
+            action_tx.clone(),
+            mini_buffer_tx.clone(),
+            quit_tx.clone(),
+            view_tx.clone(),
+            dir_tx.clone(),
+        )),
         Box::new(InsertKeyInput::new(state_lock.clone(), action_tx.clone())),
         Box::new(NormalKeyInput::new(
             state_lock.clone(),
@@ -169,6 +177,7 @@ fn setup(
             mini_buffer_tx.clone(),
             quit_tx.clone(),
             view_tx.clone(),
+            dir_tx.clone(),
         )),
     ];
 
@@ -176,6 +185,7 @@ fn setup(
         Box::new(MiniBufferMouseInput::new(state_lock.clone(), action_tx.clone())),
         Box::new(SearchMouseInput::new(state_lock.clone(), action_tx.clone())),
         Box::new(VisualMouseInput::new(state_lock.clone(), action_tx.clone())),
+        Box::new(DirMouseInput::new(state_lock.clone(), action_tx.clone())),
         Box::new(InsertMouseInput::new(state_lock.clone(), action_tx.clone())),
         Box::new(NormalMouseInput::new(state_lock.clone(), action_tx.clone())),
     ];
@@ -194,23 +204,13 @@ fn setup(
         input_rx,
     );
 
-    // Initial document creation.
+    // Initialize state requiring protocols..
     tokio::spawn(async move {
         let args: Vec<String> = std::env::args().collect();
         let path = args.get(1).map(PathBuf::from);
 
-        let data = if let Some(path) = path.clone() {
-            let (tx, rx) = oneshot::channel();
-            if io_tx.send(IoCommand::Read { path, tx }).is_err() {
-                todo!("Exit with error");
-            }
-
-            rx.await.map_err(|err| err.to_string()).flatten().unwrap_or_else(|_| String::new())
-        } else {
-            String::new()
-        };
-
-        let doc = state_lock.write().create_doc(path, data);
+        // Doc.
+        let doc = util::create_doc(state_lock.clone(), path, io_tx.clone()).await;
 
         let (tx, rx) = oneshot::channel();
         let _ = doc_view_tx.send(DocViewCommand::CreateTile {
@@ -226,9 +226,15 @@ fn setup(
         let Ok((_, window)) = rx.await else { return };
 
         state_lock.write().workspace.active_window = Some(window);
+
+        // Dir.
+        let _ = dir_tx.send(DirCommand::Init);
     });
 
-    (Fed::new(input_router, action, io, mini_buffer, quit, screen, view, doc_view), shutdown_rx)
+    (
+        Fed::new(input_router, action, io, mini_buffer, quit, screen, view, doc_view, dir),
+        shutdown_rx,
+    )
 }
 
 #[tokio::main]

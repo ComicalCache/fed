@@ -1,5 +1,8 @@
+mod doc;
+pub mod format;
 mod motion;
 
+pub use doc::create_doc;
 pub use motion::{apply_motion, motion_offsets};
 use piece_table::Slice;
 
@@ -21,7 +24,7 @@ pub fn vom(
     dse.decs.range(start, end, &mut decs);
     vse.decs.range(start, end, &mut decs);
 
-    render::layout_vom(&line, start, &decs, &vse.layout.replacements, vse.tab_width)
+    render::layout_vom(&line, start, &decs, &vse.layout.replacements, vse.layout.tab_width)
 }
 
 pub fn pos_to_offset(pos: Pos, vse: &ViewStoreEntry, dse: &DocStoreEntry) -> usize {

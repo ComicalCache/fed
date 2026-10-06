@@ -58,6 +58,7 @@ fn up(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
         .iter()
         .rev()
         .find(|vo| vo.visual_x <= cursor.pref_x)
+        // FIXME: is this ever none?
         .unwrap_or_else(|| vom.first().unwrap());
 
     cursor.offset = vo.offset;
@@ -78,6 +79,7 @@ fn down(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
         .iter()
         .rev()
         .find(|vo| vo.visual_x <= cursor.pref_x)
+        // FIXME: is this ever none?
         .unwrap_or_else(|| vom.first().unwrap());
 
     cursor.offset = vo.offset;

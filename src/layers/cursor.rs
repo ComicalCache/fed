@@ -1,27 +1,29 @@
 use crate::{
     render::{Cell, Layer, VisualOffsetMapping},
-    state::{DocStoreEntry, State, ViewStoreEntry},
+    state::{DocStoreEntry, State, ViewStoreEntry, ViewStoreTypes},
 };
 
 pub struct CursorLayer {}
 
 impl Layer for CursorLayer {
     fn apply(
-        &self, state: &State, row: &mut [Cell], scroll_x: usize, vom: &[VisualOffsetMapping],
-        vse: &ViewStoreEntry, _: &DocStoreEntry,
+        &self, state: &State, row: &mut [Cell], _: usize, scroll: ViewStoreTypes::Scroll,
+        voms: &[VisualOffsetMapping], vse: &ViewStoreEntry, _: &DocStoreEntry,
     ) {
-        let mut cursor_xs = Vec::new();
-        for vo in vom {
+        for (x, cell) in row.iter_mut().enumerate() {
+            let visual_x = scroll.x + x;
+
+            let Some(vo) =
+                voms.iter().find(|vo| visual_x >= vo.visual_x && visual_x < vo.visual_x + vo.width)
+            else {
+                continue;
+            };
+
             for cursor in &vse.cursors.list {
                 if cursor.offset == vo.offset {
-                    cursor_xs.push(vo.visual_x);
+                    cell.face.merge(state.theme.cursor);
+                    break;
                 }
-            }
-        }
-
-        for (x, cell) in row.iter_mut().enumerate() {
-            if cursor_xs.contains(&(scroll_x + x)) {
-                cell.face.merge(state.theme.cursor);
             }
         }
     }

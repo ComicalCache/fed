@@ -7,6 +7,7 @@ pub enum KeyInputPriority {
     MiniBufferMode = 0,
     SearchMode,
     VisualMode,
+    DirMode,
     InsertMode,
     NormalMode,
 }
@@ -17,6 +18,7 @@ pub enum MouseInputPriority {
     MiniBufferMode = 0,
     SearchMode,
     VisualMode,
+    DirMode,
     InsertMode,
     NormalMode,
 }

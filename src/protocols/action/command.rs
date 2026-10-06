@@ -26,6 +26,8 @@ pub enum ActionCommand {
     Delete { view: ViewId },
     Remove { view: ViewId, offset: usize, len: usize },
 
+    Sync { tx: oneshot::Sender<()> },
+
     SetDocMode { doc: DocId, mode: DocStoreTypes::Mode },
     PushViewMode { view: ViewId, mode: ViewStoreTypes::Mode },
     PopViewMode { view: ViewId },

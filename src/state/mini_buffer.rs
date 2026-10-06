@@ -15,7 +15,7 @@ use crate::{
 newtype!(MiniBufferId, usize);
 
 #[derive(Default)]
-pub struct MiniBufferStore {
+pub struct MiniBuffer {
     pub id: MiniBufferId,
     pub kind: types::Kind,
 

@@ -26,6 +26,7 @@ pub struct DocStoreEntry {
     pub mode: types::Mode,
 
     pub read_only: bool,
+    pub max_cursors: Option<usize>,
 
     pub decs: types::Decorations,
 }

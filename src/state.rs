@@ -1,3 +1,4 @@
+mod dir;
 mod doc;
 mod index;
 mod mini_buffer;
@@ -12,15 +13,16 @@ use std::{
     },
 };
 
+pub use dir::{Dir, types as DirTypes};
 pub use doc::{DocId, DocStore, DocStoreEntry, types as DocStoreTypes};
-pub use mini_buffer::{MiniBufferId, MiniBufferStore, types as MiniBufferStoreTypes};
+pub use mini_buffer::{MiniBuffer, MiniBufferId, types as MiniBufferTypes};
 use piece_table::PieceTable;
 use tokio::sync::broadcast;
 pub use view::{ViewId, ViewStore, ViewStoreEntry, types as ViewStoreTypes};
 
 use crate::{
     render::{WindowId, Workspace},
-    state::{DocStoreTypes::Doc, index::Index},
+    state::{ViewStoreTypes::TabWidth, index::Index},
     types::Theme,
 };
 
@@ -43,7 +45,9 @@ pub struct State {
 
     pub doc_store: DocStore,
     pub view_store: ViewStore,
-    pub mini_buffer_store: MiniBufferStore,
+    pub mini_buffer: MiniBuffer,
+
+    pub dir: Dir,
 
     pub doc_event_tx: broadcast::Sender<DocStoreTypes::Event>,
     pub view_event_tx: broadcast::Sender<ViewStoreTypes::Event>,
@@ -56,24 +60,67 @@ impl State {
         workspace: Workspace, doc_event_tx: broadcast::Sender<DocStoreTypes::Event>,
         view_event_tx: broadcast::Sender<ViewStoreTypes::Event>,
     ) -> Self {
-        Self {
+        let mut state = Self {
             index: Index::default(),
             workspace,
             doc_store: DocStore::default(),
             view_store: ViewStore::default(),
-            mini_buffer_store: MiniBufferStore::default(),
+            mini_buffer: MiniBuffer::default(),
+            dir: Dir::default(),
             doc_event_tx,
             view_event_tx,
             theme: Theme::default(),
-        }
+        };
+
+        // Mini buffer.
+        state.mini_buffer.doc = state.create_doc(None, String::new());
+        state.mini_buffer.view = state.create_view(state.mini_buffer.doc);
+
+        let mini_buffer_dse = state.doc_store.get_mut(&state.mini_buffer.doc).unwrap();
+        mini_buffer_dse.mode = DocStoreTypes::Mode::MiniBuffer;
+
+        let mini_buffer_vse = state.view_store.get_mut(&state.mini_buffer.view).unwrap();
+        mini_buffer_vse.layout = ViewStoreTypes::Layout {
+            tab_width: TabWidth::default(),
+            gutter: false,
+            mode_line: 0,
+            replacements: ViewStoreTypes::Replacements::none(),
+            rulers: Vec::new(),
+        };
+        mini_buffer_vse.cursors.list.clear();
+
+        // Dir.
+        state.dir.doc = state.create_doc(None, String::new());
+        state.dir.view = state.create_view(state.dir.doc);
+        // FIXME: better error handling.
+        state.dir.pwd = std::env::current_dir().unwrap();
+
+        let dir_dse = state.doc_store.get_mut(&state.dir.doc).unwrap();
+        dir_dse.mode = DocStoreTypes::Mode::Dir;
+        dir_dse.read_only = true;
+        dir_dse.max_cursors = Some(1);
+
+        let dir_vse = state.view_store.get_mut(&state.dir.view).unwrap();
+        dir_vse.layout = ViewStoreTypes::Layout {
+            tab_width: TabWidth::default(),
+            gutter: true,
+            mode_line: 1,
+            replacements: ViewStoreTypes::Replacements::none(),
+            rulers: Vec::new(),
+        };
+        dir_vse.mode_line_config = DirTypes::DirModeLine::mode_line();
+
+        state
     }
 
     pub fn create_doc(&mut self, path: Option<PathBuf>, data: String) -> DocId {
         static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
         let doc = DocId(NEXT_ID.fetch_add(1, Ordering::Relaxed));
 
-        let entry =
-            DocStoreEntry { doc: Doc::new(path, PieceTable::from(data)), ..Default::default() };
+        let entry = DocStoreEntry {
+            doc: DocStoreTypes::Doc::new(path, PieceTable::from(data)),
+            ..Default::default()
+        };
         self.doc_store.insert(doc, entry);
 
         let _ = self.doc_event_tx.send(DocStoreTypes::Event::Created { id: doc });
@@ -95,7 +142,7 @@ impl State {
         static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
         let view = ViewId(NEXT_ID.fetch_add(1, Ordering::Relaxed));
 
-        let entry = ViewStoreEntry { tab_width: ViewStoreTypes::TabWidth(4), ..Default::default() };
+        let entry = ViewStoreEntry::default();
         self.view_store.insert(view, entry);
 
         self.index.link_view_to_doc(view, doc);

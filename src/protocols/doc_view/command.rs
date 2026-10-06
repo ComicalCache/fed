@@ -23,6 +23,13 @@ pub enum DocViewCommand {
         raw: bool,
         tx: oneshot::Sender<(ViewId, WindowId)>,
     },
+    ReplaceWindow {
+        doc: DocId,
+        view: Option<ViewId>,
+        window: WindowId,
+        raw: bool,
+        tx: oneshot::Sender<ViewId>,
+    },
     DestroyView {
         view: ViewId,
     },

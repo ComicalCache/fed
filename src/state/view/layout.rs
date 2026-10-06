@@ -1,7 +1,12 @@
-use crate::types::{Face, Rgb};
+use crate::{
+    state::ViewStoreTypes::TabWidth,
+    types::{Face, Rgb},
+};
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Layout {
+    pub tab_width: TabWidth,
+
     pub gutter: bool,
     // FIXME: should this also just be a flag?
     pub mode_line: usize,
@@ -23,6 +28,7 @@ impl Layout {
 impl Default for Layout {
     fn default() -> Self {
         Self {
+            tab_width: TabWidth::default(),
             gutter: true,
             mode_line: 1,
             replacements: Replacements::default(),

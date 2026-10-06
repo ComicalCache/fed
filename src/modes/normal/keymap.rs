@@ -101,6 +101,7 @@ pub fn keymap() -> Keymap<Command> {
         &[KeyChord::new(KeyCode::Char('f'), KeyModifiers::empty())],
         Command::EnterSearchMode,
     );
+    keymap.bind(&[KeyChord::new(KeyCode::Char('d'), KeyModifiers::ALT)], Command::EnterDirMode);
 
     keymap.bind(&[KeyChord::new(KeyCode::Char('q'), KeyModifiers::CONTROL)], Command::Quit);
 

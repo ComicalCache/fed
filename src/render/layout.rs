@@ -10,6 +10,7 @@ use crate::{
 pub struct VisualOffsetMapping {
     pub visual_x: usize,
     pub offset: usize,
+    pub width: usize,
 }
 
 pub fn layout_cells(
@@ -241,38 +242,31 @@ pub fn layout_vom(
             }
         }
 
-        if !replace || replacement_text.is_some() {
-            vom.push(VisualOffsetMapping { visual_x, offset });
-        }
+        let mut ch_width = 0;
+        let mut map_width = 0;
 
         if replace {
-            let Some(text) = replacement_text else {
-                offset += ch_len;
-
-                continue;
-            };
-
-            for ch in text.graphemes(true) {
-                visual_x += ch.width();
+            if let Some(text) = replacement_text {
+                ch_width = text.graphemes(true).map(|ch| ch.width()).sum();
+                map_width = ch_width;
+            }
+        } else if ch == "\t" {
+            ch_width = *tab_width - (visual_x % *tab_width);
+            map_width = ch_width;
+        } else if ch == "\n" {
+            if let Some((newline, _)) = replacements.newline {
+                ch_width = newline.width().unwrap_or_default();
             }
 
-            offset += ch_len;
-
-            continue;
+            map_width = ch_width.max(1);
+        } else {
+            ch_width = ch.width();
+            map_width = ch_width;
         }
 
-        let ch_width = if ch == "\t" {
-            *tab_width - (visual_x % *tab_width)
-        } else if ch == "\n" {
-            // "\n".width() == 1!
-            if let Some((newline, _)) = replacements.newline {
-                newline.width().unwrap_or_default()
-            } else {
-                0
-            }
-        } else {
-            ch.width()
-        };
+        if !replace || replacement_text.is_some() {
+            vom.push(VisualOffsetMapping { visual_x, offset, width: map_width });
+        }
 
         visual_x += ch_width;
         offset += ch_len;
@@ -297,7 +291,7 @@ pub fn layout_vom(
             }
         }
 
-        vom.push(VisualOffsetMapping { visual_x, offset });
+        vom.push(VisualOffsetMapping { visual_x, offset, width: 1 });
     }
 
     (vom, offset)

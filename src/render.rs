@@ -14,15 +14,15 @@ pub use viewport::Viewport;
 pub use workspace::{WindowId, Workspace};
 pub use z_layer::ZLayer;
 
-use crate::state::{DocStoreEntry, State, ViewStoreEntry};
+use crate::state::{DocStoreEntry, State, ViewStoreEntry, ViewStoreTypes};
 
 /// A trait that can be implemented by additional rendering components to render
 /// visual elements post state rendering.
 pub trait Layer: Send + Sync + 'static {
     /// Modifies a rendered line of cells before drawing to the screen.
     fn apply(
-        &self, state: &State, row: &mut [Cell], scroll_x: usize, vom: &[VisualOffsetMapping],
-        vse: &ViewStoreEntry, dse: &DocStoreEntry,
+        &self, state: &State, row: &mut [Cell], y: usize, scroll: ViewStoreTypes::Scroll,
+        voms: &[VisualOffsetMapping], vse: &ViewStoreEntry, dse: &DocStoreEntry,
     );
 }
 

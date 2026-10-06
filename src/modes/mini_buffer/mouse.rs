@@ -5,7 +5,7 @@ use crate::{
     debug_panic::debug_panic,
     input::{MouseInputHandler, priorities::MouseInputPriority},
     protocols::action::ActionCommand,
-    state::{MiniBufferStoreTypes, State, StateLock},
+    state::{MiniBufferTypes, State, StateLock},
     types::Pos,
 };
 
@@ -28,15 +28,15 @@ impl MouseInputHandler for MiniBufferMouseInput {
         let mut pos = (event.column, event.row).into();
 
         let state = self.state_lock.read();
-        if state.mini_buffer_store.window.is_none()
-            || state.mini_buffer_store.window != state.workspace.get_window(pos)
+        if state.mini_buffer.window.is_none()
+            || state.mini_buffer.window != state.workspace.get_window(pos)
         {
             return false;
         }
 
-        debug_assert!(state.mini_buffer_store.kind != MiniBufferStoreTypes::Kind::None);
+        debug_assert!(state.mini_buffer.kind != MiniBufferTypes::Kind::None);
 
-        if state.mini_buffer_store.kind == MiniBufferStoreTypes::Kind::Message {
+        if state.mini_buffer.kind == MiniBufferTypes::Kind::Message {
             // Consume the click but ignore it to avoid tiles under the message
             // to move the cursor bellow the floating message.
             return true;
@@ -46,7 +46,7 @@ impl MouseInputHandler for MiniBufferMouseInput {
             return true;
         }
 
-        let Some(window) = state.mini_buffer_store.window else {
+        let Some(window) = state.mini_buffer.window else {
             debug_panic!();
             return true;
         };
@@ -54,7 +54,7 @@ impl MouseInputHandler for MiniBufferMouseInput {
             debug_panic!();
             return true;
         };
-        let view = state.mini_buffer_store.view;
+        let view = state.mini_buffer.view;
         let Some((vse, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
         else {

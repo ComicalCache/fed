@@ -1,3 +1,4 @@
+pub mod dir;
 pub mod insert;
 pub mod mini_buffer;
 mod motions;

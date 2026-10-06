@@ -4,6 +4,10 @@
 to [Cini](https://github.com/ComicalCache/Cini) (which itself is the spiritual successor to
 [Mini](https://github.com/ComicalCache/Mini)).
 
+> The project targets UNIX-like systems and WILL NOT compile for Windows. Even if it would,
+> throughout the project a UNIX-like environment is assumed (e.g. no CRLF line endings in files) and 
+> will cause undefined runtime behaviour otherwise.
+
 See `architecture` to learn more about the editor's design and architecture. Since this is my
 first time designing a large asynchronous programm I'm bound to make ill-decisions in the design and
 implementation. If you have any suggestions, feel free to reach out or participate.

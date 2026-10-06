@@ -29,5 +29,6 @@ pub enum Command {
     EnterInsertMode,
     EnterVisualMode,
     EnterSearchMode,
+    EnterDirMode,
     Quit,
 }

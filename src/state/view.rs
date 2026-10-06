@@ -36,7 +36,6 @@ pub struct ViewStoreEntry {
     pub layout: types::Layout,
     pub mode_line_config: ModeLineConfig,
 
-    pub tab_width: types::TabWidth,
     pub scroll: types::Scroll,
     pub cursors: types::Cursors,
 
@@ -54,7 +53,6 @@ impl Default for ViewStoreEntry {
             view_cache: Default::default(),
             layout: Default::default(),
             mode_line_config: Default::default(),
-            tab_width: Default::default(),
             scroll: Default::default(),
             cursors: Default::default(),
             decs: Default::default(),

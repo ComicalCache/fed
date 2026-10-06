@@ -17,6 +17,7 @@ pub struct SearchKeyInput {
     keymap: Keymap<Command>,
     pending_keys: Vec<KeyChord>,
 
+    last_view: Option<ViewId>,
     state_lock: StateLock,
 
     action_tx: UnboundedSender<ActionCommand>,
@@ -29,7 +30,14 @@ impl SearchKeyInput {
         mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
     ) -> Self {
         let keymap = keymap::keymap();
-        Self { keymap, pending_keys: Vec::new(), state_lock, action_tx, mini_buffer_tx }
+        Self {
+            keymap,
+            pending_keys: Vec::new(),
+            last_view: None,
+            state_lock,
+            action_tx,
+            mini_buffer_tx,
+        }
     }
 
     fn execute(&self, cmd: Command) {
@@ -55,7 +63,7 @@ impl SearchKeyInput {
                 let _ = self.action_tx.send(ActionCommand::MoveCursors {
                     view,
                     motion,
-                    move_anchor: false,
+                    move_anchor: true,
                 });
             }
             Command::NextMatch => self.navigate_match(view, true),
@@ -75,7 +83,7 @@ impl SearchKeyInput {
 
     fn navigate_match(&self, view: ViewId, forward: bool) {
         let Some((_, matches, offsets)) = self.search_state(view) else { return };
-        let offset = offsets.first().copied().unwrap_or(0);
+        let offset = offsets.first().cloned().unwrap_or(0);
 
         let target = if forward {
             matches.iter().find(|m| m.0 > offset).unwrap_or(&matches[0]).0
@@ -174,7 +182,6 @@ impl SearchKeyInput {
         };
 
         vse.decs.decorators.remove(&ViewStoreTypes::DecorationId::Search);
-
         drop(state);
 
         let _ = action_tx.send(ActionCommand::PopViewMode { view });
@@ -226,6 +233,12 @@ impl KeyInputHandler for SearchKeyInput {
         }
         drop(state);
 
+        if self.last_view != Some(view) {
+            self.pending_keys.clear();
+
+            self.last_view = Some(view);
+        }
+
         let chord = KeyChord::from(event);
         self.pending_keys.push(chord);
 
@@ -233,15 +246,13 @@ impl KeyInputHandler for SearchKeyInput {
             ParseResult::Exact(cmd) => {
                 self.execute(cmd);
                 self.pending_keys.clear();
-
-                true
             }
-            ParseResult::Prefix => true,
+            ParseResult::Prefix => {}
             ParseResult::Invalid => {
                 self.pending_keys.clear();
-
-                false
             }
         }
+
+        true
     }
 }

@@ -6,7 +6,7 @@ use crate::{
     input::{KeyInputHandler, priorities::KeyInputPriority},
     modes::mini_buffer::{command::Command, keymap},
     protocols::{action::ActionCommand, mini_buffer::MiniBufferCommand},
-    state::{MiniBufferStoreTypes, StateLock},
+    state::{MiniBufferTypes, StateLock, ViewId},
     types::{KeyChord, Keymap, ParseResult},
 };
 
@@ -14,6 +14,7 @@ pub struct MiniBufferKeyInput {
     keymap: Keymap<Command>,
     pending_keys: Vec<KeyChord>,
 
+    last_view: Option<ViewId>,
     state_lock: StateLock,
 
     action_tx: UnboundedSender<ActionCommand>,
@@ -26,20 +27,27 @@ impl MiniBufferKeyInput {
         mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
     ) -> Self {
         let keymap = keymap::keymap();
-        Self { keymap, pending_keys: Vec::new(), state_lock, action_tx, mini_buffer_tx }
+        Self {
+            keymap,
+            pending_keys: Vec::new(),
+            last_view: None,
+            state_lock,
+            action_tx,
+            mini_buffer_tx,
+        }
     }
 
     fn execute(&self, cmd: Command) {
         let state = self.state_lock.read();
-        if state.workspace.active_window != state.mini_buffer_store.window {
+        if state.workspace.active_window != state.mini_buffer.window {
             return;
         }
-        if state.mini_buffer_store.kind != MiniBufferStoreTypes::Kind::Prompt {
+        if state.mini_buffer.kind != MiniBufferTypes::Kind::Prompt {
             return;
         }
 
-        let id = state.mini_buffer_store.id;
-        let view = state.mini_buffer_store.view;
+        let id = state.mini_buffer.id;
+        let view = state.mini_buffer.view;
         drop(state);
 
         match cmd {
@@ -74,14 +82,14 @@ impl KeyInputHandler for MiniBufferKeyInput {
 
     fn key(&mut self, event: &KeyEvent) -> bool {
         let state = self.state_lock.read();
-        if state.workspace.active_window != state.mini_buffer_store.window {
+        if state.workspace.active_window != state.mini_buffer.window {
             return false;
         }
-        if state.mini_buffer_store.kind != MiniBufferStoreTypes::Kind::Prompt {
+        if state.mini_buffer.kind != MiniBufferTypes::Kind::Prompt {
             return false;
         }
 
-        let Some(dse) = state.doc_store.get(&state.mini_buffer_store.doc) else {
+        let Some(dse) = state.doc_store.get(&state.mini_buffer.doc) else {
             debug_panic!();
             return false;
         };
@@ -90,7 +98,15 @@ impl KeyInputHandler for MiniBufferKeyInput {
             debug_panic!();
             return false;
         }
+
+        let view = state.mini_buffer.view;
         drop(state);
+
+        if self.last_view != Some(view) {
+            self.pending_keys.clear();
+
+            self.last_view = Some(view);
+        }
 
         let chord = KeyChord::from(event);
         self.pending_keys.push(chord);
@@ -99,15 +115,13 @@ impl KeyInputHandler for MiniBufferKeyInput {
             ParseResult::Exact(cmd) => {
                 self.execute(cmd);
                 self.pending_keys.clear();
-
-                true
             }
-            ParseResult::Prefix => true,
+            ParseResult::Prefix => {}
             ParseResult::Invalid => {
                 self.pending_keys.clear();
 
                 // If it's a character input, insert it.
-                let KeyCode::Char(ch) = event.code else { return false };
+                let KeyCode::Char(ch) = event.code else { return true };
 
                 let modifiers = event
                     .modifiers
@@ -128,9 +142,9 @@ impl KeyInputHandler for MiniBufferKeyInput {
                 } else {
                     self.execute(Command::Input(ch.to_string()));
                 }
-
-                true
             }
         }
+
+        true
     }
 }

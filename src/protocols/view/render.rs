@@ -41,10 +41,20 @@ impl Renderer for ViewRenderer {
                 break;
             }
 
-            let (vom, next_offset) =
-                render::layout_vom(line, offset, &decs, &vse.layout.replacements, vse.tab_width);
-            let cells =
-                render::layout_cells(line, offset, &decs, &vse.layout.replacements, vse.tab_width);
+            let (vom, next_offset) = render::layout_vom(
+                line,
+                offset,
+                &decs,
+                &vse.layout.replacements,
+                vse.layout.tab_width,
+            );
+            let cells = render::layout_cells(
+                line,
+                offset,
+                &decs,
+                &vse.layout.replacements,
+                vse.layout.tab_width,
+            );
             offset = next_offset;
 
             let mut row = vec![Cell::default(); width];
@@ -61,7 +71,7 @@ impl Renderer for ViewRenderer {
                     break;
                 }
 
-                let mut face = if state.mini_buffer_store.view == self.view {
+                let mut face = if state.mini_buffer.view == self.view {
                     state.theme.mini_buffer
                 } else {
                     state.theme.default
@@ -84,7 +94,7 @@ impl Renderer for ViewRenderer {
 
             // Undrawn tail of line.
             while x < width {
-                let face = if state.mini_buffer_store.view == self.view {
+                let face = if state.mini_buffer.view == self.view {
                     state.theme.mini_buffer
                 } else {
                     state.theme.default
@@ -95,7 +105,7 @@ impl Renderer for ViewRenderer {
             }
 
             for layer in &self.layers {
-                layer.apply(state, &mut row, vse.scroll.x, &vom, vse, dse);
+                layer.apply(state, &mut row, vse.scroll.y + y, vse.scroll, &vom, vse, dse);
             }
 
             for (idx, cell) in row.into_iter().enumerate() {
@@ -106,7 +116,7 @@ impl Renderer for ViewRenderer {
         }
 
         // Undrawn trailing lines.
-        let face = if state.mini_buffer_store.view == self.view {
+        let face = if state.mini_buffer.view == self.view {
             state.theme.mini_buffer
         } else {
             state.theme.default
@@ -115,7 +125,7 @@ impl Renderer for ViewRenderer {
             let mut row = vec![Cell::new(" ".to_string(), 1, face); width];
 
             for layer in &self.layers {
-                layer.apply(state, &mut row, vse.scroll.x, &[], vse, dse);
+                layer.apply(state, &mut row, vse.scroll.y + y, vse.scroll, &[], vse, dse);
             }
 
             for (x, cell) in row.into_iter().enumerate() {

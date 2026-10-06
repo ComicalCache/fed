@@ -33,10 +33,13 @@ impl DocViewProtocol {
         while let Some(cmd) = self.rx.recv().await {
             match cmd {
                 DocViewCommand::CreateTile { doc, view, split_window, direction, raw, tx } => {
-                    self.create_tile(doc, view, split_window, direction, tx, raw)
+                    self.create_tile(doc, view, split_window, direction, raw, tx)
                 }
                 DocViewCommand::CreateFloating { doc, view, rect, z, raw, tx } => {
-                    self.create_floating(doc, view, rect, z, tx, raw)
+                    self.create_floating(doc, view, rect, z, raw, tx)
+                }
+                DocViewCommand::ReplaceWindow { doc, view, window, raw, tx } => {
+                    self.replace_window(doc, view, window, raw, tx)
                 }
                 DocViewCommand::DestroyView { view } => self.destroy_view(view),
             }
@@ -45,7 +48,7 @@ impl DocViewProtocol {
 
     fn create_tile(
         &self, doc: DocId, view: Option<ViewId>, split_window: WindowId, direction: RectSplit,
-        tx: oneshot::Sender<(ViewId, WindowId)>, raw: bool,
+        raw: bool, tx: oneshot::Sender<(ViewId, WindowId)>,
     ) {
         let mut state = self.state_lock.write();
         let view = view.unwrap_or_else(|| state.create_view(doc));
@@ -68,13 +71,13 @@ impl DocViewProtocol {
         state.index.link_window_to_view(window, view);
         drop(state);
 
-        let _ = self.view_tx.send(ViewCommand::Init { window, view, doc });
+        let _ = self.view_tx.send(ViewCommand::Update { view });
         let _ = tx.send((view, window));
     }
 
     fn create_floating(
-        &self, doc: DocId, view: Option<ViewId>, rect: Rect, z: ZLayer,
-        tx: oneshot::Sender<(ViewId, WindowId)>, raw: bool,
+        &self, doc: DocId, view: Option<ViewId>, rect: Rect, z: ZLayer, raw: bool,
+        tx: oneshot::Sender<(ViewId, WindowId)>,
     ) {
         let mut state = self.state_lock.write();
         let view = view.unwrap_or_else(|| state.create_view(doc));
@@ -85,8 +88,24 @@ impl DocViewProtocol {
         state.index.link_window_to_view(window, view);
         drop(state);
 
-        let _ = self.view_tx.send(ViewCommand::Init { window, view, doc });
+        let _ = self.view_tx.send(ViewCommand::Update { view });
         let _ = tx.send((view, window));
+    }
+
+    fn replace_window(
+        &self, doc: DocId, view: Option<ViewId>, window: WindowId, raw: bool,
+        tx: oneshot::Sender<ViewId>,
+    ) {
+        let mut state = self.state_lock.write();
+        let view = view.unwrap_or_else(|| state.create_view(doc));
+
+        state.workspace.replace_renderer(window, Box::new(DocViewRenderer::new(view, raw)));
+
+        state.index.link_window_to_view(window, view);
+        drop(state);
+
+        let _ = self.view_tx.send(ViewCommand::Update { view });
+        let _ = tx.send(view);
     }
 
     fn destroy_view(&self, view: ViewId) {

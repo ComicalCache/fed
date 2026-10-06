@@ -19,6 +19,7 @@ pub struct VisualKeyInput {
     keymap: Keymap<Command>,
     pending_keys: Vec<KeyChord>,
 
+    last_view: Option<ViewId>,
     state_lock: StateLock,
 
     action_tx: UnboundedSender<ActionCommand>,
@@ -31,7 +32,14 @@ impl VisualKeyInput {
         mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
     ) -> Self {
         let keymap = keymap::keymap();
-        Self { keymap, pending_keys: Vec::new(), state_lock, action_tx, mini_buffer_tx }
+        Self {
+            keymap,
+            pending_keys: Vec::new(),
+            last_view: None,
+            state_lock,
+            action_tx,
+            mini_buffer_tx,
+        }
     }
 
     fn execute(&self, cmd: Command) {
@@ -68,9 +76,7 @@ impl VisualKeyInput {
                 self.swap_operation(view, doc, cmd)
             }
             Command::EnterSearchMode => self.enter_search_mode(view, doc),
-            Command::Escape => {
-                let _ = self.action_tx.send(ActionCommand::PopViewMode { view });
-            }
+            Command::Escape => self.escape(view),
             Command::Yank => self.operator(view, doc, cmd),
             Command::Delete | Command::Change => {
                 if read_only {
@@ -391,6 +397,25 @@ impl VisualKeyInput {
             let _ = self.action_tx.send(ActionCommand::PopViewMode { view });
         }
     }
+
+    fn escape(&self, view: ViewId) {
+        let mut state = self.state_lock.write();
+        let Some(vse) = state.view_store.get_mut(&view) else {
+            debug_panic!();
+            return;
+        };
+
+        for cursor in &mut vse.cursors.list {
+            cursor.anchor = cursor.offset;
+        }
+
+        let view_event_tx = state.view_event_tx.clone();
+        drop(state);
+
+        let _ = view_event_tx.send(ViewStoreTypes::Event::CursorsChanged { view });
+
+        let _ = self.action_tx.send(ActionCommand::PopViewMode { view });
+    }
 }
 
 impl KeyInputHandler for VisualKeyInput {
@@ -412,6 +437,12 @@ impl KeyInputHandler for VisualKeyInput {
         }
         drop(state);
 
+        if self.last_view != Some(view) {
+            self.pending_keys.clear();
+
+            self.last_view = Some(view);
+        }
+
         let chord = KeyChord::from(event);
         self.pending_keys.push(chord);
 
@@ -419,15 +450,13 @@ impl KeyInputHandler for VisualKeyInput {
             ParseResult::Exact(cmd) => {
                 self.execute(cmd);
                 self.pending_keys.clear();
-
-                true
             }
-            ParseResult::Prefix => true,
+            ParseResult::Prefix => {}
             ParseResult::Invalid => {
                 self.pending_keys.clear();
-
-                false
             }
         }
+
+        true
     }
 }

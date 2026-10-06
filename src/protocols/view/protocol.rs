@@ -56,10 +56,8 @@ impl ViewProtocol {
 
     fn command(&mut self, cmd: ViewCommand) {
         match cmd {
-            ViewCommand::Init { window, view, doc } => self.init(window, view, doc),
             ViewCommand::Update { view } => self.update(view),
             ViewCommand::ScrollTo { view, pos } => self.scroll_to(view, pos),
-
             ViewCommand::Resize => self.resize(),
         }
     }
@@ -92,29 +90,6 @@ impl ViewProtocol {
             ViewStoreTypes::Event::CursorMoved { view } => self.cursor_moved(view),
             ViewStoreTypes::Event::CursorsChanged { .. } => {}
             ViewStoreTypes::Event::ModeChanged { .. } => {}
-        }
-    }
-
-    fn init(&self, window: WindowId, view: ViewId, doc: DocId) {
-        let state = self.state_lock.read();
-        debug_assert!(state.index.window_to_view(window) == Some(view));
-        debug_assert!(state.index.view_to_doc(view) == Some(doc));
-
-        let Some(height) = state.workspace.get_rect(window).map(|r| r.height) else {
-            debug_panic!();
-            return;
-        };
-        let Some(vse) = state.view_store.get(&view) else {
-            debug_panic!();
-            return;
-        };
-
-        let mode_line = vse.layout.mode_line;
-        drop(state);
-
-        let height = height.saturating_sub(mode_line);
-        if height > 0 {
-            self.fetch(view, doc, ViewStoreTypes::Scroll(Pos::default()), height);
         }
     }
 

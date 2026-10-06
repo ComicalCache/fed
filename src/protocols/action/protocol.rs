@@ -62,6 +62,10 @@ impl ActionProtocol {
                 ActionCommand::Delete { view } => self.delete(view),
                 ActionCommand::Remove { view, offset, len } => self.remove(view, offset, len),
 
+                ActionCommand::Sync { tx } => {
+                    let _ = tx.send(());
+                }
+
                 ActionCommand::SetDocMode { doc, mode } => self.set_doc_mode(doc, mode),
                 ActionCommand::PushViewMode { view, mode } => self.push_view_mode(view, mode),
                 ActionCommand::PopViewMode { view } => self.pop_view_mode(view),
@@ -149,6 +153,12 @@ impl ActionProtocol {
             return;
         };
 
+        if let Some(max_cursors) = dse.max_cursors
+            && vse.cursors.list.len() >= max_cursors
+        {
+            return;
+        }
+
         let offset = util::pos_to_offset(pos, vse, dse);
 
         vse.cursors.list.push(Cursor::new(offset, pos.x));
@@ -160,12 +170,27 @@ impl ActionProtocol {
         let _ = view_event_tx.send(ViewStoreTypes::Event::CursorsChanged { view });
     }
 
-    fn create_cursors_at_offset(&self, view: ViewId, offsets: Vec<usize>) {
-        let mut state = self.state_lock.write();
-        let Some(vse) = state.view_store.get_mut(&view) else {
+    fn create_cursors_at_offset(&self, view: ViewId, mut offsets: Vec<usize>) {
+        let mut guard = self.state_lock.write();
+        // Fix the borrow checker.
+        let state = &mut *guard;
+
+        let Some((vse, dse)) =
+            State::vse_and_dse_mut(&mut state.view_store, &mut state.doc_store, &state.index, view)
+        else {
             debug_panic!();
             return;
         };
+
+        if let Some(max_cursors) = dse.max_cursors {
+            if vse.cursors.list.len() >= max_cursors {
+                return;
+            }
+
+            if vse.cursors.list.len() + offsets.len() > max_cursors {
+                offsets.drain(..max_cursors - vse.cursors.list.len());
+            }
+        }
 
         for offset in offsets {
             vse.cursors.list.push(Cursor::new(offset, 0));
@@ -174,7 +199,7 @@ impl ActionProtocol {
         vse.cursors.normalize();
 
         let view_event_tx = state.view_event_tx.clone();
-        drop(state);
+        drop(guard);
 
         let _ = view_event_tx.send(ViewStoreTypes::Event::CursorMoved { view });
     }
@@ -574,7 +599,7 @@ impl ActionProtocol {
         }
 
         let mut cursors = vse.cursors.clone();
-        let tab_width = vse.tab_width;
+        let tab_width = vse.layout.tab_width;
 
         let mut edits = edits(&mut dse.doc.data, &cursors.list, tab_width);
         edits.sort_by_key(|e| std::cmp::Reverse(e.offset));

@@ -124,15 +124,13 @@ impl KeyInputHandler for InsertKeyInput {
             ParseResult::Exact(cmd) => {
                 self.execute(cmd);
                 self.pending_keys.clear();
-
-                true
             }
-            ParseResult::Prefix => true,
+            ParseResult::Prefix => {}
             ParseResult::Invalid => {
                 self.pending_keys.clear();
 
                 // If it's a character input, insert it.
-                let KeyCode::Char(ch) = event.code else { return false };
+                let KeyCode::Char(ch) = event.code else { return true };
 
                 let modifiers = event
                     .modifiers
@@ -153,9 +151,9 @@ impl KeyInputHandler for InsertKeyInput {
                 } else {
                     self.execute(Command::Input(ch.to_string()));
                 }
-
-                true
             }
         }
+
+        true
     }
 }
