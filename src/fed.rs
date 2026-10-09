@@ -79,7 +79,7 @@ impl Fed {
             screen: ScreenState::new(width, height),
         };
 
-        let doc = state.create_doc(path);
+        let doc = state.create_doc(path).unwrap();
 
         let fed = Self {
             input_router: InputRouter::default(),

@@ -8,16 +8,16 @@ use crate::{
     protocols::{
         action::{ActionCmd, ActionProtocol},
         dir::{DirCmd, DirRenderer},
-        doc_view::DocViewCmd,
+        doc_view::{DocViewCmd, DocViewProtocol},
         io::{IoFuture, IoProtocol},
         mp::{MpCmd, MpProtocol},
         state::PState,
-        view::{ViewCmd, ViewProtocol},
+        view::ViewProtocol,
     },
     render::WindowId,
     state::{
         DirTypes::{self, Entry, PrintableEntry},
-        DocId, State,
+        DocId, State, ViewId,
     },
     types::Pos,
     util::{self, format},
@@ -242,13 +242,32 @@ impl DirProtocol {
                     return;
                 };
 
-                let doc = state.create_doc(Some(entry.path.clone()));
+                let doc = match state.create_doc(Some(entry.path.clone())) {
+                    Ok(doc) => doc,
+                    Err(doc) => {
+                        let view = state
+                            .index
+                            .doc_to_views(doc)
+                            .map(|vs| vs.iter().next())
+                            .flatten()
+                            .cloned();
+
+                        DocViewProtocol::replace_window(
+                            state, pstate, doc, view, window, false, None,
+                        );
+
+                        return;
+                    }
+                };
+
+                let view =
+                    state.index.doc_to_views(doc).map(|vs| vs.iter().next()).flatten().cloned();
 
                 let async_fcmd_tx = state.async_fcmd_tx.clone();
                 IoProtocol::read(
                     entry.path,
                     Box::new(move |res| -> IoFuture {
-                        Box::pin(Self::select_file(async_fcmd_tx, res, doc, window))
+                        Box::pin(Self::select_file(async_fcmd_tx, window, view, doc, res))
                     }),
                 );
             }
@@ -413,8 +432,8 @@ impl DirProtocol {
     }
 
     async fn select_file(
-        async_fcmd_tx: UnboundedSender<FCmd>, res: Result<String, String>, doc: DocId,
-        window: WindowId,
+        async_fcmd_tx: UnboundedSender<FCmd>, window: WindowId, view: Option<ViewId>, doc: DocId,
+        res: Result<String, String>,
     ) {
         let text = match res {
             Ok(text) => text,
@@ -443,7 +462,7 @@ impl DirProtocol {
         let (tx, rx) = oneshot::channel();
         let _ = async_fcmd_tx.send(FCmd::DocView(DocViewCmd::ReplaceWindow {
             doc,
-            view: None,
+            view,
             window,
             raw: false,
             tx: Some(tx),
@@ -455,7 +474,11 @@ impl DirProtocol {
         };
 
         let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::Insert { view, text }));
+        let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::MoveCursorToPos {
+            view,
+            pos: Pos::new(0, 0),
+            move_anchor: true,
+        }));
         let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::Saved { doc }));
-        let _ = async_fcmd_tx.send(FCmd::View(ViewCmd::Update { view }));
     }
 }

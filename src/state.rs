@@ -62,7 +62,7 @@ impl State {
         };
 
         // Mini buffer.
-        state.mp.doc = state.create_doc(None);
+        state.mp.doc = state.create_doc(None).unwrap();
         state.mp.view = state.create_view(state.mp.doc);
 
         let mp_dse = state.doc_store.get_mut(&state.mp.doc).unwrap();
@@ -79,7 +79,7 @@ impl State {
         mp_vse.cursors.list.clear();
 
         // Dir.
-        state.dir.doc = state.create_doc(None);
+        state.dir.doc = state.create_doc(None).unwrap();
         state.dir.view = state.create_view(state.dir.doc);
 
         let dir_dse = state.doc_store.get_mut(&state.dir.doc).unwrap();
@@ -100,7 +100,10 @@ impl State {
         state
     }
 
-    pub fn create_doc(&mut self, path: Option<PathBuf>) -> DocId {
+    /// Creates a new Doc if the path is not yet opened. Returns Ok if a new Doc
+    /// has been created and Err if the Doc was already present. It is always Ok
+    /// if path is None.
+    pub fn create_doc(&mut self, path: Option<PathBuf>) -> Result<DocId, DocId> {
         let doc = DocId(self.next_doc_id);
         self.next_doc_id += 1;
 
@@ -110,7 +113,7 @@ impl State {
             && let Some((&doc, _)) =
                 self.doc_store.iter().find(|(_, dse)| dse.doc.path.as_ref() == Some(path))
         {
-            return doc;
+            return Err(doc);
         }
 
         let entry = DocStoreEntry {
@@ -121,7 +124,7 @@ impl State {
 
         let _ = self.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Created { id: doc }));
 
-        doc
+        Ok(doc)
     }
 
     /// Returns all views which contained the document.

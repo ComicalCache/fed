@@ -16,7 +16,7 @@ use std::collections::HashMap;
 
 use crate::newtype::newtype;
 
-newtype!(DocId, usize);
+newtype!(DocId, usize, Debug, Default, Clone, Copy, PartialEq, Eq, Hash);
 
 pub type DocStore = HashMap<DocId, DocStoreEntry>;
 
