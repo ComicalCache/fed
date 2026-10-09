@@ -4,5 +4,4 @@ pub enum Kind {
     None,
     Message,
     Prompt,
-    Confirmation,
 }

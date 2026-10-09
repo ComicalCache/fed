@@ -1,96 +1,85 @@
 mod dir;
 mod doc;
 mod index;
-mod mini_buffer;
+mod mp;
 mod view;
 
-use std::{
-    collections::HashSet,
-    path::PathBuf,
-    sync::{
-        Arc, RwLock, RwLockReadGuard, RwLockWriteGuard,
-        atomic::{AtomicUsize, Ordering},
-    },
-};
+use std::{collections::HashSet, path::PathBuf};
 
 pub use dir::{Dir, types as DirTypes};
 pub use doc::{DocId, DocStore, DocStoreEntry, types as DocStoreTypes};
-pub use mini_buffer::{MiniBuffer, MiniBufferId, types as MiniBufferTypes};
+pub use mp::{Mp, MpId, types as MpTypes};
 use piece_table::PieceTable;
-use tokio::sync::broadcast;
+use tokio::sync::mpsc::UnboundedSender;
 pub use view::{ViewId, ViewStore, ViewStoreEntry, types as ViewStoreTypes};
 
 use crate::{
+    fed::{FCmd, FEvent},
     render::{WindowId, Workspace},
     state::{ViewStoreTypes::TabWidth, index::Index},
     types::Theme,
+    util,
 };
 
-#[derive(Clone)]
-pub struct StateLock {
-    state: Arc<RwLock<State>>,
-}
-
-impl StateLock {
-    pub fn new(state: State) -> Self { Self { state: Arc::new(RwLock::new(state)) } }
-
-    pub fn read(&self) -> RwLockReadGuard<'_, State> { self.state.read().unwrap() }
-
-    pub fn write(&self) -> RwLockWriteGuard<'_, State> { self.state.write().unwrap() }
-}
-
 pub struct State {
+    next_doc_id: usize,
+    next_view_id: usize,
+
     pub index: Index,
     pub workspace: Workspace,
 
     pub doc_store: DocStore,
     pub view_store: ViewStore,
-    pub mini_buffer: MiniBuffer,
+    pub mp: Mp,
 
     pub dir: Dir,
 
-    pub doc_event_tx: broadcast::Sender<DocStoreTypes::Event>,
-    pub view_event_tx: broadcast::Sender<ViewStoreTypes::Event>,
-
     pub theme: Theme,
+
+    pub fevent_tx: UnboundedSender<FEvent>,
+    pub fcmd_tx: UnboundedSender<FCmd>,
+    pub async_fcmd_tx: UnboundedSender<FCmd>,
 }
 
 impl State {
     pub fn new(
-        workspace: Workspace, doc_event_tx: broadcast::Sender<DocStoreTypes::Event>,
-        view_event_tx: broadcast::Sender<ViewStoreTypes::Event>,
+        workspace: Workspace, fevent_tx: UnboundedSender<FEvent>, fcmd_tx: UnboundedSender<FCmd>,
+        async_fcmd_tx: UnboundedSender<FCmd>,
     ) -> Self {
         let mut state = Self {
+            next_doc_id: 1,
+            next_view_id: 1,
             index: Index::default(),
             workspace,
             doc_store: DocStore::default(),
             view_store: ViewStore::default(),
-            mini_buffer: MiniBuffer::default(),
+            mp: Mp::default(),
             dir: Dir::default(),
-            doc_event_tx,
-            view_event_tx,
             theme: Theme::default(),
+            fevent_tx,
+            fcmd_tx,
+            async_fcmd_tx,
         };
 
         // Mini buffer.
-        state.mini_buffer.doc = state.create_doc(None, String::new());
-        state.mini_buffer.view = state.create_view(state.mini_buffer.doc);
+        state.mp.doc = state.create_doc(None);
+        state.mp.view = state.create_view(state.mp.doc);
 
-        let mini_buffer_dse = state.doc_store.get_mut(&state.mini_buffer.doc).unwrap();
-        mini_buffer_dse.mode = DocStoreTypes::Mode::MiniBuffer;
+        let mp_dse = state.doc_store.get_mut(&state.mp.doc).unwrap();
+        mp_dse.mode = DocStoreTypes::Mode::MiniBuffer;
 
-        let mini_buffer_vse = state.view_store.get_mut(&state.mini_buffer.view).unwrap();
-        mini_buffer_vse.layout = ViewStoreTypes::Layout {
+        let mp_vse = state.view_store.get_mut(&state.mp.view).unwrap();
+        mp_vse.layout = ViewStoreTypes::Layout {
             tab_width: TabWidth::default(),
             gutter: false,
             mode_line: 0,
             replacements: ViewStoreTypes::Replacements::none(),
             rulers: Vec::new(),
         };
-        mini_buffer_vse.cursors.list.clear();
+        mp_vse.cursors.list.clear();
 
         // Dir.
-        state.dir.doc = state.create_doc(None, String::new());
+        state.dir.doc = state.create_doc(None);
         state.dir.view = state.create_view(state.dir.doc);
 
         let dir_dse = state.doc_store.get_mut(&state.dir.doc).unwrap();
@@ -111,17 +100,26 @@ impl State {
         state
     }
 
-    pub fn create_doc(&mut self, path: Option<PathBuf>, data: String) -> DocId {
-        static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
-        let doc = DocId(NEXT_ID.fetch_add(1, Ordering::Relaxed));
+    pub fn create_doc(&mut self, path: Option<PathBuf>) -> DocId {
+        let doc = DocId(self.next_doc_id);
+        self.next_doc_id += 1;
+
+        let path = path.map(|p| util::path::normalize(p));
+
+        if let Some(path) = &path
+            && let Some((&doc, _)) =
+                self.doc_store.iter().find(|(_, dse)| dse.doc.path.as_ref() == Some(path))
+        {
+            return doc;
+        }
 
         let entry = DocStoreEntry {
-            doc: DocStoreTypes::Doc::new(path, PieceTable::from(data)),
+            doc: DocStoreTypes::Doc::new(path, PieceTable::from("")),
             ..Default::default()
         };
         self.doc_store.insert(doc, entry);
 
-        let _ = self.doc_event_tx.send(DocStoreTypes::Event::Created { id: doc });
+        let _ = self.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Created { id: doc }));
 
         doc
     }
@@ -131,14 +129,14 @@ impl State {
         self.doc_store.remove(&doc);
         let views = self.index.unlink_doc(doc);
 
-        let _ = self.doc_event_tx.send(DocStoreTypes::Event::Destroyed { id: doc });
+        let _ = self.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Destroyed { id: doc }));
 
         views
     }
 
     pub fn create_view(&mut self, doc: DocId) -> ViewId {
-        static NEXT_ID: AtomicUsize = AtomicUsize::new(1);
-        let view = ViewId(NEXT_ID.fetch_add(1, Ordering::Relaxed));
+        let view = ViewId(self.next_view_id);
+        self.next_view_id += 1;
 
         let entry = ViewStoreEntry::default();
         self.view_store.insert(view, entry);

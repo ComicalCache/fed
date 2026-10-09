@@ -1,10 +1,8 @@
 mod kind;
 
 pub mod types {
-    pub use crate::state::mini_buffer::kind::Kind;
+    pub use crate::state::mp::kind::Kind;
 }
-
-use tokio::sync::oneshot;
 
 use crate::{
     newtype::newtype,
@@ -12,11 +10,11 @@ use crate::{
     state::{DocId, ViewId},
 };
 
-newtype!(MiniBufferId, usize);
+newtype!(MpId, usize);
 
 #[derive(Default)]
-pub struct MiniBuffer {
-    pub id: MiniBufferId,
+pub struct Mp {
+    pub id: MpId,
     pub kind: types::Kind,
 
     pub window: Option<WindowId>,
@@ -24,7 +22,4 @@ pub struct MiniBuffer {
 
     pub doc: DocId,
     pub view: ViewId,
-
-    pub res_tx: Option<oneshot::Sender<String>>,
-    pub confirm_tx: Option<oneshot::Sender<bool>>,
 }

@@ -1,4 +1,4 @@
-pub enum ScreenCommand {
+pub enum ScreenCmd {
     Resize(usize, usize),
     Render,
 }

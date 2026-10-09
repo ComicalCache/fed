@@ -1,33 +1,16 @@
-use tokio::sync::mpsc::UnboundedSender;
-
 use crate::{
-    input::{ResizeInputHandler, priorities::ResizeInputPriority},
-    protocols::screen::ScreenCommand,
-    state::StateLock,
+    fed::FCmd,
+    input_handler::{ResizeInputHandler, ResizeInputPriority},
+    protocols::screen::ScreenCmd,
+    state::State,
 };
 
-pub struct ScreenResizeInput {
-    state_lock: StateLock,
-
-    tx: UnboundedSender<ScreenCommand>,
-}
-
-impl ScreenResizeInput {
-    pub fn new(state_lock: StateLock, tx: UnboundedSender<ScreenCommand>) -> Self {
-        Self { state_lock, tx }
-    }
-}
+pub struct ScreenResizeInput {}
 
 impl ResizeInputHandler for ScreenResizeInput {
     fn priority(&self) -> ResizeInputPriority { ResizeInputPriority::ScreenProtocol }
 
-    fn resize(&mut self, (width, height): (u16, u16)) {
-        let (width, height) = (width as usize, height as usize);
-
-        let mut state = self.state_lock.write();
-        state.workspace.resize(width, height);
-        drop(state);
-
-        let _ = self.tx.send(ScreenCommand::Resize(width, height));
+    fn resize(&mut self, _: &State, (width, height): (u16, u16)) -> Vec<FCmd> {
+        vec![FCmd::Screen(ScreenCmd::Resize(width as usize, height as usize))]
     }
 }

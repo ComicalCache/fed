@@ -4,101 +4,68 @@ use crate::{
     debug_panic::debug_panic,
     fed::FCmd,
     input_handler::{KeyInputHandler, KeyInputPriority},
-    modes::insert::{command::Command, keymap},
-    protocols::action::ActionCmd,
-    state::{State, ViewId, ViewStoreTypes},
+    modes::mp::{command::Command, keymap},
+    protocols::{action::ActionCmd, mp::MpCmd},
+    state::{MpTypes, State, ViewId},
     types::{KeyChord, Keymap, ParseResult},
 };
 
-pub struct InsertKeyInput {
+pub struct MpKeyInput {
     keymap: Keymap<Command>,
     pending_keys: Vec<KeyChord>,
-
-    whitespace: bool,
 
     last_view: Option<ViewId>,
 }
 
-impl InsertKeyInput {
+impl MpKeyInput {
     pub fn new() -> Self {
         let keymap = keymap::keymap();
-        Self { keymap, pending_keys: Vec::new(), whitespace: false, last_view: None }
+        Self { keymap, pending_keys: Vec::new(), last_view: None }
     }
 
     fn exec(&mut self, state: &State, cmd: Command) -> Option<Vec<FCmd>> {
-        let Some(view) = state.active_view() else { return None };
-        let Some(doc) = state.index.view_to_doc(view) else {
-            debug_panic!();
-            return None;
-        };
+        let id = state.mp.id;
+        let view = state.mp.view;
 
         match cmd {
             Command::Input(text) => {
-                let mut cmds = Vec::new();
-
-                let whitespace = text.chars().all(|c| c.is_whitespace());
-                if whitespace && !self.whitespace {
-                    cmds.push(FCmd::Action(ActionCmd::EndCommit { doc }));
-                    cmds.push(FCmd::Action(ActionCmd::StartCommit { doc }));
-                }
-                self.whitespace = whitespace;
-
-                cmds.push(FCmd::Action(ActionCmd::Insert { view, text: text.to_string() }));
-
-                Some(cmds)
+                Some(vec![FCmd::Action(ActionCmd::Insert { view, text: text.clone() })])
             }
             Command::Move(motion) => {
-                self.whitespace = false;
-
                 Some(vec![FCmd::Action(ActionCmd::MoveCursors { view, motion, move_anchor: true })])
             }
-            Command::Backspace => {
-                self.whitespace = false;
-
-                Some(vec![FCmd::Action(ActionCmd::Backspace { view })])
-            }
-            Command::Delete => {
-                self.whitespace = false;
-
-                Some(vec![FCmd::Action(ActionCmd::Delete { view })])
-            }
-            Command::Escape => {
-                self.whitespace = false;
-
-                Some(vec![
-                    FCmd::Action(ActionCmd::EndCommit { doc }),
-                    FCmd::Action(ActionCmd::PopViewMode { view }),
-                ])
-            }
+            Command::Backspace => Some(vec![FCmd::Action(ActionCmd::Backspace { view })]),
+            Command::Delete => Some(vec![FCmd::Action(ActionCmd::Delete { view })]),
+            Command::Submit => Some(vec![FCmd::Mp(MpCmd::Submit)]),
+            Command::Close => Some(vec![FCmd::Mp(MpCmd::Close { id })]),
         }
     }
 }
 
-impl KeyInputHandler for InsertKeyInput {
-    fn priority(&self) -> KeyInputPriority { KeyInputPriority::InsertMode }
+impl KeyInputHandler for MpKeyInput {
+    fn priority(&self) -> KeyInputPriority { KeyInputPriority::MiniBufferMode }
 
     fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
-        let Some(view) = state.active_view() else {
-            // No active view, just abort.
-            return None;
-        };
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
-        else {
-            debug_panic!();
-            return None;
-        };
-
-        if vse.mode() != ViewStoreTypes::Mode::Insert {
+        if state.workspace.active_window != state.mp.window {
             return None;
         }
+        if state.mp.kind != MpTypes::Kind::Prompt {
+            return None;
+        }
+
+        let Some(dse) = state.doc_store.get(&state.mp.doc) else {
+            debug_panic!();
+            return Some(Vec::new());
+        };
+
         if dse.read_only {
             debug_panic!();
             return Some(Vec::new());
         }
 
+        let view = state.mp.view;
+
         if self.last_view != Some(view) {
-            self.whitespace = false;
             self.pending_keys.clear();
 
             self.last_view = Some(view);

@@ -2,16 +2,16 @@ use std::any::Any;
 
 use crate::types::{Decoration, Decorator, Face, Span};
 
-pub struct MiniBufferDecorator {
+pub struct MpDecorator {
     pub prompt: String,
     pub face: Face,
 }
 
-impl MiniBufferDecorator {
+impl MpDecorator {
     pub fn new(prompt: String, face: Face) -> Self { Self { prompt, face } }
 }
 
-impl Decorator for MiniBufferDecorator {
+impl Decorator for MpDecorator {
     fn edit(&mut self, _: usize, _: usize, _: usize) {}
 
     fn update(&mut self, _: usize, _: usize) {}

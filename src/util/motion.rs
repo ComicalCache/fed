@@ -7,13 +7,11 @@ use crate::{
     util,
 };
 
-pub fn motion_offsets(
-    motion: Motion, vse: &ViewStoreEntry, dse: &DocStoreEntry,
-) -> Vec<(usize, usize)> {
+pub fn offsets(motion: Motion, vse: &ViewStoreEntry, dse: &DocStoreEntry) -> Vec<(usize, usize)> {
     let mut offsets = Vec::new();
     for cursor in &vse.cursors.list {
         let mut target = *cursor;
-        apply_motion(&mut target, motion, vse, dse);
+        apply(&mut target, motion, vse, dse);
 
         offsets.push((cursor.offset, target.offset));
     }
@@ -21,9 +19,7 @@ pub fn motion_offsets(
     offsets
 }
 
-pub fn apply_motion(
-    cursor: &mut Cursor, motion: Motion, vse: &ViewStoreEntry, dse: &DocStoreEntry,
-) {
+pub fn apply(cursor: &mut Cursor, motion: Motion, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
     match motion {
         Motion::Up => up(cursor, vse, dse),
         Motion::Down => down(cursor, vse, dse),

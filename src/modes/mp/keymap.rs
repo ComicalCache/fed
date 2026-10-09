@@ -1,7 +1,7 @@
 use crossterm::event::{KeyCode, KeyModifiers};
 
 use crate::{
-    modes::mini_buffer::command::Command,
+    modes::mp::command::Command,
     types::{KeyChord, Keymap, Motion},
 };
 

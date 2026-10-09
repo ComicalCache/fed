@@ -29,7 +29,6 @@ pub trait Layer: Send + Sync + 'static {
 /// A trait that should be implemented by protocol renderers to render state to
 /// the `Screen`.
 pub trait Renderer: Send + Sync + 'static {
-    /// Renders the protocol state to the `Screen` via a `Viewport`. This is ran
-    /// _synchronously_ for all handlers and thus should not do heavy logic.
+    /// Renders the protocol state to the `Screen` via a `Viewport`.
     fn render(&self, state: &State, viewport: &mut Viewport, window: WindowId);
 }

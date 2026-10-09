@@ -1,12 +1,15 @@
+use std::path::PathBuf;
+
 use piece_table::{Kind, PieceTable, Slice};
-use tokio::sync::{mpsc::UnboundedReceiver, oneshot};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     debug_panic::debug_panic,
-    protocols::action::ActionCommand,
-    state::{DocId, DocStoreTypes, State, StateLock, ViewId, ViewStoreTypes},
-    types::{Cursor, Motion, Pos},
+    fed::FEvent,
+    protocols::{action::ActionCmd, state::PState},
+    render::WindowId,
+    state::{DocId, DocStoreTypes, State, ViewId, ViewStoreTypes},
+    types::{Cursor, Decorator, Motion, Pos},
     util,
 };
 
@@ -16,70 +19,66 @@ struct Edit {
     insert: String,
 }
 
-pub struct ActionProtocol {
-    state_lock: StateLock,
-
-    rx: UnboundedReceiver<ActionCommand>,
-}
+pub struct ActionProtocol {}
 
 impl ActionProtocol {
-    pub fn new(state_lock: StateLock, rx: UnboundedReceiver<ActionCommand>) -> Self {
-        Self { state_lock, rx }
-    }
-
-    pub async fn run(&mut self) {
-        while let Some(cmd) = self.rx.recv().await {
-            match cmd {
-                ActionCommand::MoveCursors { view, motion: direction, move_anchor } => {
-                    self.move_cursors(view, direction, move_anchor);
-                }
-                ActionCommand::MoveCursorToPos { view, pos, move_anchor } => {
-                    self.move_cursor_to_pos(view, pos, move_anchor);
-                }
-                ActionCommand::CreateCursorAtPos { view, pos } => {
-                    self.create_cursor_at_pos(view, pos)
-                }
-                ActionCommand::CreateCursorsAtOffset { view, offsets } => {
-                    self.create_cursors_at_offset(view, offsets)
-                }
-                ActionCommand::RemoveCursors { view, offsets } => {
-                    self.remove_cursors(view, offsets)
-                }
-
-                ActionCommand::StartCommit { doc } => self.start_commit(doc),
-                ActionCommand::EndCommit { doc } => self.end_commit(doc),
-
-                ActionCommand::Undo { view } => self.undo(view),
-                ActionCommand::HotRedo { view } => self.hot_redo(view),
-
-                ActionCommand::Saved { doc } => self.saved(doc),
-
-                ActionCommand::Insert { view, text } => self.insert(view, text),
-                ActionCommand::InsertAt { view, text, offset } => {
-                    self.insert_at(view, text, offset)
-                }
-                ActionCommand::Backspace { view } => self.backspace(view),
-                ActionCommand::Delete { view } => self.delete(view),
-                ActionCommand::Remove { view, offset, len } => self.remove(view, offset, len),
-
-                ActionCommand::Sync { tx } => {
-                    let _ = tx.send(());
-                }
-
-                ActionCommand::SetDocMode { doc, mode } => self.set_doc_mode(doc, mode),
-                ActionCommand::PushViewMode { view, mode } => self.push_view_mode(view, mode),
-                ActionCommand::PopViewMode { view } => self.pop_view_mode(view),
-
-                ActionCommand::CanQuit { tx } => self.can_quit(tx),
+    pub fn exec(state: &mut State, cmd: ActionCmd) {
+        match cmd {
+            ActionCmd::MoveCursors { view, motion: direction, move_anchor } => {
+                Self::move_cursors(state, view, direction, move_anchor);
             }
+            ActionCmd::MoveCursorToPos { view, pos, move_anchor } => {
+                Self::move_cursor_to_pos(state, view, pos, move_anchor);
+            }
+            ActionCmd::CreateCursorAtPos { view, pos } => {
+                Self::create_cursor_at_pos(state, view, pos)
+            }
+            ActionCmd::CreateCursorsAtOffset { view, offsets } => {
+                Self::create_cursors_at_offset(state, view, offsets)
+            }
+            ActionCmd::RemoveCursors { view, offsets } => {
+                Self::remove_cursors(state, view, offsets)
+            }
+            ActionCmd::ResetCursorAnchors { view } => Self::reset_cursor_anchors(state, view),
+
+            ActionCmd::StartCommit { doc } => Self::start_commit(state, doc),
+            ActionCmd::EndCommit { doc } => Self::end_commit(state, doc),
+
+            ActionCmd::Undo { view } => Self::undo(state, view),
+            ActionCmd::HotRedo { view } => Self::hot_redo(state, view),
+
+            ActionCmd::Saved { doc } => Self::saved(state, doc),
+
+            ActionCmd::Insert { view, text } => Self::insert(state, view, text),
+            ActionCmd::InsertAt { view, text, offset } => {
+                Self::insert_at(state, view, text, offset)
+            }
+            ActionCmd::Backspace { view } => Self::backspace(state, view),
+            ActionCmd::Delete { view } => Self::delete(state, view),
+            ActionCmd::Remove { view, offset, len } => Self::remove(state, view, offset, len),
+
+            ActionCmd::SetDocPath { doc, path } => Self::set_doc_path(state, doc, path),
+
+            ActionCmd::SetDocMode { doc, mode } => Self::set_doc_mode(state, doc, mode),
+            ActionCmd::PushViewMode { view, mode } => Self::push_view_mode(state, view, mode),
+            ActionCmd::PopViewMode { view } => Self::pop_view_mode(state, view),
+
+            ActionCmd::SetDocDecorator { doc, id, dec } => {
+                Self::set_doc_decorator(state, doc, id, dec)
+            }
+            ActionCmd::SetViewDecorator { view, id, dec } => {
+                Self::set_view_decorator(state, view, id, dec)
+            }
+            ActionCmd::RemoveDocDecorator { doc, id } => Self::remove_doc_decorator(state, doc, id),
+            ActionCmd::RemoveViewDecorator { view, id } => {
+                Self::remove_view_decorator(state, view, id)
+            }
+
+            ActionCmd::SetActiveWindow { window } => Self::set_active_window(state, window),
         }
     }
 
-    fn move_cursors(&self, view: ViewId, motion: Motion, move_anchor: bool) {
-        let mut guard = self.state_lock.write();
-        // Fix the borrow checker.
-        let state = &mut *guard;
-
+    pub fn move_cursors(state: &mut State, view: ViewId, motion: Motion, move_anchor: bool) {
         let Some((vse, dse)) =
             State::vse_and_dse_mut(&mut state.view_store, &mut state.doc_store, &state.index, view)
         else {
@@ -89,31 +88,25 @@ impl ActionProtocol {
 
         let mut cursors = vse.cursors.clone();
         for cursor in &mut cursors.list {
-            util::apply_motion(cursor, motion, &vse, &dse);
+            util::motion::apply(cursor, motion, &vse, &dse);
 
             if move_anchor {
                 cursor.anchor = cursor.offset;
             }
         }
+        vse.cursors = cursors.clone();
 
-        cursors.normalize();
-        if cursors.list.is_empty() {
+        vse.cursors.normalize();
+        if vse.cursors.list.is_empty() {
             return;
         }
 
-        vse.cursors = cursors.clone();
-
-        let view_event_tx = state.view_event_tx.clone();
-        drop(guard);
-
-        let _ = view_event_tx.send(ViewStoreTypes::Event::CursorMoved { view });
+        let _ = state
+            .fevent_tx
+            .send(crate::fed::FEvent::View(ViewStoreTypes::Event::CursorMoved { view }));
     }
 
-    fn move_cursor_to_pos(&self, view: ViewId, pos: Pos, move_anchor: bool) {
-        let mut guard = self.state_lock.write();
-        // Fix the borrow checker.
-        let state = &mut *guard;
-
+    pub fn move_cursor_to_pos(state: &mut State, view: ViewId, pos: Pos, move_anchor: bool) {
         let Some((vse, dse)) =
             State::vse_and_dse_mut(&mut state.view_store, &mut state.doc_store, &state.index, view)
         else {
@@ -135,17 +128,10 @@ impl ActionProtocol {
         cursor.anchor = anchor;
         vse.cursors.list.push(cursor);
 
-        let view_event_tx = state.view_event_tx.clone();
-        drop(guard);
-
-        let _ = view_event_tx.send(ViewStoreTypes::Event::CursorMoved { view });
+        let _ = state.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorMoved { view }));
     }
 
-    fn create_cursor_at_pos(&self, view: ViewId, pos: Pos) {
-        let mut guard = self.state_lock.write();
-        // Fix the borrow checker.
-        let state = &mut *guard;
-
+    pub fn create_cursor_at_pos(state: &mut State, view: ViewId, pos: Pos) {
         let Some((vse, dse)) =
             State::vse_and_dse_mut(&mut state.view_store, &mut state.doc_store, &state.index, view)
         else {
@@ -164,17 +150,10 @@ impl ActionProtocol {
         vse.cursors.list.push(Cursor::new(offset, pos.x));
         vse.cursors.normalize();
 
-        let view_event_tx = state.view_event_tx.clone();
-        drop(guard);
-
-        let _ = view_event_tx.send(ViewStoreTypes::Event::CursorsChanged { view });
+        let _ = state.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorsChanged { view }));
     }
 
-    fn create_cursors_at_offset(&self, view: ViewId, mut offsets: Vec<usize>) {
-        let mut guard = self.state_lock.write();
-        // Fix the borrow checker.
-        let state = &mut *guard;
-
+    pub fn create_cursors_at_offset(state: &mut State, view: ViewId, mut offsets: Vec<usize>) {
         let Some((vse, dse)) =
             State::vse_and_dse_mut(&mut state.view_store, &mut state.doc_store, &state.index, view)
         else {
@@ -198,14 +177,10 @@ impl ActionProtocol {
 
         vse.cursors.normalize();
 
-        let view_event_tx = state.view_event_tx.clone();
-        drop(guard);
-
-        let _ = view_event_tx.send(ViewStoreTypes::Event::CursorMoved { view });
+        let _ = state.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorMoved { view }));
     }
 
-    fn remove_cursors(&self, view: ViewId, offsets: Vec<usize>) {
-        let mut state = self.state_lock.write();
+    pub fn remove_cursors(state: &mut State, view: ViewId, offsets: Vec<usize>) {
         let Some(vse) = state.view_store.get_mut(&view) else {
             debug_panic!();
             return;
@@ -213,14 +188,23 @@ impl ActionProtocol {
 
         vse.cursors.list.retain(|c| !offsets.contains(&c.offset));
 
-        let view_event_tx = state.view_event_tx.clone();
-        drop(state);
-
-        let _ = view_event_tx.send(ViewStoreTypes::Event::CursorsChanged { view });
+        let _ = state.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorsChanged { view }));
     }
 
-    fn start_commit(&self, doc: DocId) {
-        let mut state = self.state_lock.write();
+    pub fn reset_cursor_anchors(state: &mut State, view: ViewId) {
+        let Some(vse) = state.view_store.get_mut(&view) else {
+            debug_panic!();
+            return;
+        };
+
+        for cursor in &mut vse.cursors.list {
+            cursor.anchor = cursor.offset;
+        }
+
+        let _ = state.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorsChanged { view }));
+    }
+
+    pub fn start_commit(state: &mut State, doc: DocId) {
         let Some(dse) = state.doc_store.get_mut(&doc) else {
             debug_panic!();
             return;
@@ -232,11 +216,9 @@ impl ActionProtocol {
         }
 
         dse.doc.data.start_commit();
-        drop(state);
     }
 
-    fn end_commit(&self, doc: DocId) {
-        let mut state = self.state_lock.write();
+    pub fn end_commit(state: &mut State, doc: DocId) {
         let Some(dse) = state.doc_store.get_mut(&doc) else {
             debug_panic!();
             return;
@@ -248,23 +230,16 @@ impl ActionProtocol {
         }
 
         dse.doc.data.end_commit();
-        drop(state);
     }
 
-    fn undo(&self, view: ViewId) {
-        let mut guard = self.state_lock.write();
-        // Fix the borrow checker.
-        let state = &mut *guard;
-
+    pub fn undo(state: &mut State, view: ViewId) {
+        let Some((vse, dse)) =
+            State::vse_and_dse_mut(&mut state.view_store, &mut state.doc_store, &state.index, view)
+        else {
+            debug_panic!();
+            return;
+        };
         let Some(doc) = state.index.view_to_doc(view) else {
-            debug_panic!();
-            return;
-        };
-        let Some(vse) = state.view_store.get_mut(&view) else {
-            debug_panic!();
-            return;
-        };
-        let Some(dse) = state.doc_store.get_mut(&doc) else {
             debug_panic!();
             return;
         };
@@ -293,48 +268,38 @@ impl ActionProtocol {
             vse.decs.edit(*offset, remove, insert);
         }
 
-        let doc_event_tx = state.doc_event_tx.clone();
-        let view_event_tx = state.view_event_tx.clone();
-        drop(guard);
-
         for (offset, kind, data) in edits {
             match kind {
                 Kind::Deletion => {
-                    let _ = doc_event_tx.send(DocStoreTypes::Event::Removed {
+                    let _ = state.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Removed {
                         id: doc,
                         pos: offset,
                         n: data.len(),
                         str: data,
-                    });
+                    }));
                 }
                 Kind::Insertion => {
-                    let _ = doc_event_tx.send(DocStoreTypes::Event::Inserted {
+                    let _ = state.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Inserted {
                         id: doc,
                         pos: offset,
                         n: data.len(),
                         str: data,
-                    });
+                    }));
                 }
             }
         }
 
-        let _ = view_event_tx.send(ViewStoreTypes::Event::CursorsChanged { view });
+        let _ = state.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorsChanged { view }));
     }
 
-    fn hot_redo(&self, view: ViewId) {
-        let mut guard = self.state_lock.write();
-        // Fix the borrow checker.
-        let state = &mut *guard;
-
+    pub fn hot_redo(state: &mut State, view: ViewId) {
+        let Some((vse, dse)) =
+            State::vse_and_dse_mut(&mut state.view_store, &mut state.doc_store, &state.index, view)
+        else {
+            debug_panic!();
+            return;
+        };
         let Some(doc) = state.index.view_to_doc(view) else {
-            debug_panic!();
-            return;
-        };
-        let Some(vse) = state.view_store.get_mut(&view) else {
-            debug_panic!();
-            return;
-        };
-        let Some(dse) = state.doc_store.get_mut(&doc) else {
             debug_panic!();
             return;
         };
@@ -363,39 +328,31 @@ impl ActionProtocol {
             vse.decs.edit(*offset, remove, insert);
         }
 
-        let doc_event_tx = state.doc_event_tx.clone();
-        let view_event_tx = state.view_event_tx.clone();
-        drop(guard);
-
         for (offset, kind, data) in edits {
             match kind {
                 Kind::Deletion => {
-                    let _ = doc_event_tx.send(DocStoreTypes::Event::Removed {
+                    let _ = state.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Removed {
                         id: doc,
                         pos: offset,
                         n: data.len(),
                         str: data,
-                    });
+                    }));
                 }
                 Kind::Insertion => {
-                    let _ = doc_event_tx.send(DocStoreTypes::Event::Inserted {
+                    let _ = state.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Inserted {
                         id: doc,
                         pos: offset,
                         n: data.len(),
                         str: data,
-                    });
+                    }));
                 }
             }
         }
 
-        let _ = view_event_tx.send(ViewStoreTypes::Event::CursorsChanged { view });
+        let _ = state.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorsChanged { view }));
     }
 
-    fn saved(&self, doc: DocId) {
-        let mut guard = self.state_lock.write();
-        // Fix the borrow checker.
-        let state = &mut *guard;
-
+    pub fn saved(state: &mut State, doc: DocId) {
         let Some(dse) = state.doc_store.get_mut(&doc) else {
             debug_panic!();
             return;
@@ -407,18 +364,18 @@ impl ActionProtocol {
 
         dse.doc.modified = false;
 
-        let tx = state.doc_event_tx.clone();
         let path = dse.doc.path.clone();
-        let bytes_written = dse.doc.data.len();
-        drop(guard);
-
         if let Some(path) = path {
-            let _ = tx.send(DocStoreTypes::Event::Written { id: doc, path, bytes_written });
+            let _ = state.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Written {
+                id: doc,
+                path,
+                bytes_written: dse.doc.data.len(),
+            }));
         }
     }
 
-    fn insert(&self, view: ViewId, text: String) {
-        self.execute_transaction(view, |_, cursors, _| {
+    pub fn insert(state: &mut State, view: ViewId, text: String) {
+        Self::execute_transaction(state, view, |_, cursors, _| {
             cursors
                 .iter()
                 .map(|cursor| Edit { offset: cursor.offset, remove: 0, insert: text.clone() })
@@ -426,22 +383,35 @@ impl ActionProtocol {
         });
     }
 
-    fn insert_at(&self, view: ViewId, text: String, offset: usize) {
-        self.execute_transaction(view, |_, _, _| vec![Edit { offset, remove: 0, insert: text }]);
+    pub fn insert_at(state: &mut State, view: ViewId, text: String, offset: usize) {
+        Self::execute_transaction(state, view, |_, _, _| {
+            vec![Edit { offset, remove: 0, insert: text }]
+        });
     }
 
-    fn backspace(&self, view: ViewId) { self.execute_remove(view, true); }
+    pub fn backspace(state: &mut State, view: ViewId) { Self::execute_remove(state, view, true); }
 
-    fn delete(&self, view: ViewId) { self.execute_remove(view, false); }
+    pub fn delete(state: &mut State, view: ViewId) { Self::execute_remove(state, view, false); }
 
-    fn remove(&self, view: ViewId, offset: usize, len: usize) {
-        self.execute_transaction(view, |_, _, _| {
+    pub fn remove(state: &mut State, view: ViewId, offset: usize, len: usize) {
+        Self::execute_transaction(state, view, |_, _, _| {
             vec![Edit { offset, remove: len, insert: String::new() }]
         });
     }
 
-    fn set_doc_mode(&mut self, doc: DocId, mode: DocStoreTypes::Mode) {
-        let mut state = self.state_lock.write();
+    pub fn set_doc_path(state: &mut State, doc: DocId, path: Option<PathBuf>) {
+        let Some(dse) = state.doc_store.get_mut(&doc) else {
+            debug_panic!();
+            return;
+        };
+
+        dse.doc.path = path.clone();
+
+        let _ =
+            state.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::PathChanged { id: doc, path }));
+    }
+
+    pub fn set_doc_mode(state: &mut State, doc: DocId, mode: DocStoreTypes::Mode) {
         let Some(dse) = state.doc_store.get_mut(&doc) else {
             debug_panic!();
             return;
@@ -449,14 +419,11 @@ impl ActionProtocol {
 
         dse.mode = mode;
 
-        let doc_event_tx = state.doc_event_tx.clone();
-        drop(state);
-
-        let _ = doc_event_tx.send(DocStoreTypes::Event::ModeChanged { id: doc, mode });
+        let _ =
+            state.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::ModeChanged { id: doc, mode }));
     }
 
-    fn push_view_mode(&self, view: ViewId, mode: ViewStoreTypes::Mode) {
-        let mut state = self.state_lock.write();
+    pub fn push_view_mode(state: &mut State, view: ViewId, mode: ViewStoreTypes::Mode) {
         let Some(vse) = state.view_store.get_mut(&view) else {
             debug_panic!();
             return;
@@ -466,14 +433,12 @@ impl ActionProtocol {
             vse.modes.push(mode);
         }
 
-        let view_event_tx = state.view_event_tx.clone();
-        drop(state);
-
-        let _ = view_event_tx.send(ViewStoreTypes::Event::ModeChanged { id: view, mode });
+        let _ = state
+            .fevent_tx
+            .send(FEvent::View(ViewStoreTypes::Event::ModeChanged { id: view, mode }));
     }
 
-    fn pop_view_mode(&self, view: ViewId) {
-        let mut state = self.state_lock.write();
+    pub fn pop_view_mode(state: &mut State, view: ViewId) {
         let Some(vse) = state.view_store.get_mut(&view) else {
             return;
         };
@@ -481,16 +446,60 @@ impl ActionProtocol {
         if vse.modes.len() > 1 {
             vse.modes.pop();
         }
+
         let mode = vse.mode();
-
-        let view_event_tx = state.view_event_tx.clone();
-        drop(state);
-
-        let _ = view_event_tx.send(ViewStoreTypes::Event::ModeChanged { id: view, mode });
+        let _ = state
+            .fevent_tx
+            .send(FEvent::View(ViewStoreTypes::Event::ModeChanged { id: view, mode }));
     }
 
-    fn can_quit(&self, tx: oneshot::Sender<Result<(), String>>) {
-        let state = self.state_lock.read();
+    pub fn set_doc_decorator(
+        state: &mut State, doc: DocId, id: DocStoreTypes::DecorationId, dec: Box<dyn Decorator>,
+    ) {
+        let Some(dse) = state.doc_store.get_mut(&doc) else {
+            debug_panic!();
+            return;
+        };
+
+        dse.decs.decorators.insert(id, dec);
+    }
+
+    pub fn set_view_decorator(
+        state: &mut State, view: ViewId, id: ViewStoreTypes::DecorationId, dec: Box<dyn Decorator>,
+    ) {
+        let Some(vse) = state.view_store.get_mut(&view) else {
+            debug_panic!();
+            return;
+        };
+
+        vse.decs.decorators.insert(id, dec);
+    }
+
+    pub fn remove_doc_decorator(state: &mut State, doc: DocId, id: DocStoreTypes::DecorationId) {
+        let Some(dse) = state.doc_store.get_mut(&doc) else {
+            debug_panic!();
+            return;
+        };
+
+        dse.decs.decorators.remove(&id);
+    }
+
+    pub fn remove_view_decorator(
+        state: &mut State, view: ViewId, id: ViewStoreTypes::DecorationId,
+    ) {
+        let Some(vse) = state.view_store.get_mut(&view) else {
+            debug_panic!();
+            return;
+        };
+
+        vse.decs.decorators.remove(&id);
+    }
+
+    pub fn set_active_window(state: &mut State, window: Option<WindowId>) {
+        state.workspace.active_window = window;
+    }
+
+    pub fn can_quit(state: &State, _: &PState) -> Result<(), String> {
         for dse in state.doc_store.values() {
             if !dse.doc.modified {
                 continue;
@@ -503,17 +512,14 @@ impl ActionProtocol {
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|| "SCRATCHPAD".to_string());
 
-            let _ = tx.send(Err(format!("'{name}' has unsaved changes")));
-
-            return;
+            return Err(format!("'{name}' has unsaved changes"));
         }
-        drop(state);
 
-        let _ = tx.send(Ok(()));
+        Ok(())
     }
 
-    fn execute_remove(&self, view: ViewId, bksp: bool) {
-        self.execute_transaction(view, |doc_data, cursors, _| {
+    fn execute_remove(state: &mut State, view: ViewId, bksp: bool) {
+        Self::execute_transaction(state, view, |doc_data, cursors, _| {
             let mut edits = Vec::new();
             for cursor in cursors {
                 if bksp {
@@ -575,20 +581,16 @@ impl ActionProtocol {
     }
 
     fn execute_transaction(
-        &self, view: ViewId,
+        state: &mut State, view: ViewId,
         edits: impl FnOnce(&mut PieceTable, &Vec<Cursor>, ViewStoreTypes::TabWidth) -> Vec<Edit>,
     ) {
-        let mut guard = self.state_lock.write();
-        // Fix the borrow checker.
-        let state = &mut *guard;
-
-        let Some(doc) = state.index.view_to_doc(view) else {
-            debug_panic!();
-            return;
-        };
         let Some((vse, dse)) =
             State::vse_and_dse_mut(&mut state.view_store, &mut state.doc_store, &state.index, view)
         else {
+            debug_panic!();
+            return;
+        };
+        let Some(doc) = state.index.view_to_doc(view) else {
             debug_panic!();
             return;
         };
@@ -612,24 +614,24 @@ impl ActionProtocol {
                 dse.doc.data.remove(edit.offset, edit.remove);
                 dse.doc.modified = true;
 
-                let _ = state.doc_event_tx.send(DocStoreTypes::Event::Removed {
+                let _ = state.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Removed {
                     id: doc,
                     pos: edit.offset,
                     n: edit.remove,
                     str,
-                });
+                }));
             }
 
             if !edit.insert.is_empty() {
                 dse.doc.data.insert(edit.offset, &edit.insert);
                 dse.doc.modified = true;
 
-                let _ = state.doc_event_tx.send(DocStoreTypes::Event::Inserted {
+                let _ = state.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Inserted {
                     id: doc,
                     pos: edit.offset,
                     n: edit.insert.len(),
                     str: edit.insert.clone(),
-                });
+                }));
             }
 
             dse.decs.edit(edit.offset, edit.remove, edit.insert.len());
@@ -678,9 +680,6 @@ impl ActionProtocol {
 
         vse.cursors = cursors.clone();
 
-        let view_event_tx = state.view_event_tx.clone();
-        drop(guard);
-
-        let _ = view_event_tx.send(ViewStoreTypes::Event::CursorMoved { view });
+        let _ = state.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorMoved { view }));
     }
 }

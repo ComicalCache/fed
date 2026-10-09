@@ -1,6 +1,6 @@
 use crate::{state::ViewId, types::Pos};
 
-pub enum ViewCommand {
+pub enum ViewCmd {
     Update { view: ViewId },
     ScrollTo { view: ViewId, pos: Pos },
 

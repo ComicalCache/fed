@@ -1,17 +1,17 @@
 use crossterm::event::KeyEvent;
 use piece_table::Slice;
-use tokio::sync::mpsc::UnboundedSender;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     debug_panic::debug_panic,
-    input::{KeyInputHandler, priorities::KeyInputPriority},
+    fed::FCmd,
+    input_handler::{KeyInputHandler, KeyInputPriority},
     modes::{
         search,
         visual::{command::Command, keymap},
     },
-    protocols::{action::ActionCommand, mini_buffer::MiniBufferCommand},
-    state::{DocId, StateLock, ViewId, ViewStoreTypes},
+    protocols::action::ActionCmd,
+    state::{DocId, State, ViewId, ViewStoreTypes},
     types::{KeyChord, Keymap, ParseResult},
 };
 
@@ -20,83 +20,59 @@ pub struct VisualKeyInput {
     pending_keys: Vec<KeyChord>,
 
     last_view: Option<ViewId>,
-    state_lock: StateLock,
-
-    action_tx: UnboundedSender<ActionCommand>,
-    mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
 }
 
 impl VisualKeyInput {
-    pub fn new(
-        state_lock: StateLock, action_tx: UnboundedSender<ActionCommand>,
-        mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
-    ) -> Self {
+    pub fn new() -> Self {
         let keymap = keymap::keymap();
-        Self {
-            keymap,
-            pending_keys: Vec::new(),
-            last_view: None,
-            state_lock,
-            action_tx,
-            mini_buffer_tx,
-        }
+        Self { keymap, pending_keys: Vec::new(), last_view: None }
     }
 
-    fn execute(&self, cmd: Command) {
-        let state = self.state_lock.read();
-        let Some(view) = state.active_view() else {
-            // No active view, just abort.
-            return;
-        };
+    fn exec(&mut self, state: &State, cmd: Command) -> Option<Vec<FCmd>> {
+        let Some(view) = state.active_view() else { return None };
         let Some(doc) = state.index.view_to_doc(view) else {
             debug_panic!();
-            return;
+            return None;
         };
         let Some(dse) = state.doc_store.get(&doc) else {
             debug_panic!();
-            return;
+            return None;
         };
 
-        let read_only = dse.read_only;
-        drop(state);
-
         match cmd {
-            Command::Move(motion) => {
-                let _ = self.action_tx.send(ActionCommand::MoveCursors {
-                    view,
-                    motion,
-                    move_anchor: false,
-                });
-            }
+            Command::Move(motion) => Some(vec![FCmd::Action(ActionCmd::MoveCursors {
+                view,
+                motion,
+                move_anchor: false,
+            })]),
             Command::SwapLineDown | Command::SwapLineUp => {
-                if read_only {
-                    return;
+                if dse.read_only {
+                    return None;
                 }
 
-                self.swap_operation(view, doc, cmd)
+                self.swap_operation(state, view, doc, cmd)
             }
-            Command::EnterSearchMode => self.enter_search_mode(view, doc),
+            Command::EnterSearchMode => self.enter_search_mode(state, view, doc),
             Command::Escape => self.escape(view),
-            Command::Yank => self.operator(view, doc, cmd),
+            Command::Yank => self.operator(state, view, doc, cmd),
             Command::Delete | Command::Change => {
-                if read_only {
-                    return;
+                if dse.read_only {
+                    return None;
                 }
 
-                self.operator(view, doc, cmd)
+                self.operator(state, view, doc, cmd)
             }
         }
     }
 
-    fn swap_operation(&self, view: ViewId, doc: DocId, cmd: Command) {
-        let state = self.state_lock.read();
-        let Some(vse) = state.view_store.get(&view) else {
+    fn swap_operation(
+        &self, state: &State, view: ViewId, doc: DocId, cmd: Command,
+    ) -> Option<Vec<FCmd>> {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        else {
             debug_panic!();
-            return;
-        };
-        let Some(dse) = state.doc_store.get(&doc) else {
-            debug_panic!();
-            return;
+            return None;
         };
 
         let doc_lines = dse.doc.data.lines();
@@ -123,7 +99,7 @@ impl VisualKeyInput {
         lines.dedup();
 
         if lines.is_empty() {
-            return;
+            return None;
         }
 
         // Group contiguous lines into blocks and move them together.
@@ -139,7 +115,7 @@ impl VisualKeyInput {
             blocks.push((y, y));
         }
 
-        let mut actions = Vec::new();
+        let mut cmds = Vec::new();
         match cmd {
             Command::SwapLineDown => {
                 for &(start, end) in blocks.iter().rev() {
@@ -160,32 +136,36 @@ impl VisualKeyInput {
                         let mut target_text = target_text;
                         target_text.push('\n');
 
-                        actions.push(ActionCommand::Remove {
+                        cmds.push(FCmd::Action(ActionCmd::Remove {
                             view,
                             offset: target_start,
                             len: target_end - target_start,
-                        });
+                        }));
 
                         // Remove the newline of not the block since it will be
                         // at the end. This will break for Windows CRLF line
                         // endings.
-                        actions.push(ActionCommand::Remove { view, offset: block_end - 1, len: 1 });
-                        actions.push(ActionCommand::InsertAt {
+                        cmds.push(FCmd::Action(ActionCmd::Remove {
+                            view,
+                            offset: block_end - 1,
+                            len: 1,
+                        }));
+                        cmds.push(FCmd::Action(ActionCmd::InsertAt {
                             view,
                             text: target_text,
                             offset: block_start,
-                        });
+                        }));
                     } else {
-                        actions.push(ActionCommand::Remove {
+                        cmds.push(FCmd::Action(ActionCmd::Remove {
                             view,
                             offset: target_start,
                             len: target_end - target_start,
-                        });
-                        actions.push(ActionCommand::InsertAt {
+                        }));
+                        cmds.push(FCmd::Action(ActionCmd::InsertAt {
                             view,
                             text: target_text,
                             offset: block_start,
-                        });
+                        }));
                     }
                 }
             }
@@ -211,59 +191,54 @@ impl VisualKeyInput {
                         let mut target_text = target_text;
                         target_text.truncate(target_text.len() - 1);
 
-                        actions.push(ActionCommand::Remove {
+                        cmds.push(FCmd::Action(ActionCmd::Remove {
                             view,
                             offset: target_start,
                             len: target_len,
-                        });
-                        actions.push(ActionCommand::InsertAt {
+                        }));
+                        cmds.push(FCmd::Action(ActionCmd::InsertAt {
                             view,
                             text: "\n".to_string(),
                             offset: block_end - target_len,
-                        });
-                        actions.push(ActionCommand::InsertAt {
+                        }));
+                        cmds.push(FCmd::Action(ActionCmd::InsertAt {
                             view,
                             text: target_text,
                             offset: block_end - target_len + 1,
-                        });
+                        }));
                     } else {
-                        actions.push(ActionCommand::Remove {
+                        cmds.push(FCmd::Action(ActionCmd::Remove {
                             view,
                             offset: target_start,
                             len: target_len,
-                        });
-                        actions.push(ActionCommand::InsertAt {
+                        }));
+                        cmds.push(FCmd::Action(ActionCmd::InsertAt {
                             view,
                             text: target_text,
                             offset: block_end - target_len,
-                        });
+                        }));
                     }
                 }
             }
             _ => {}
         }
-        drop(state);
 
-        if actions.is_empty() {
-            return;
+        if cmds.is_empty() {
+            return None;
         }
 
-        let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
-        for action in actions {
-            let _ = self.action_tx.send(action);
-        }
-        let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
+        cmds.insert(0, FCmd::Action(ActionCmd::StartCommit { doc }));
+        cmds.push(FCmd::Action(ActionCmd::EndCommit { doc }));
+
+        Some(cmds)
     }
 
-    fn enter_search_mode(&self, view: ViewId, doc: DocId) {
-        let state = self.state_lock.read();
-        let Some(vse) = state.view_store.get(&view) else {
+    fn enter_search_mode(&self, state: &State, view: ViewId, doc: DocId) -> Option<Vec<FCmd>> {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        else {
             debug_panic!();
-            return;
-        };
-        let Some(dse) = state.doc_store.get(&doc) else {
-            debug_panic!();
-            return;
+            return None;
         };
 
         let mut offsets = Vec::new();
@@ -278,7 +253,6 @@ impl VisualKeyInput {
 
             offsets.push((start, end));
         }
-        drop(state);
 
         offsets.sort_by_key(|&(s, _)| s);
 
@@ -294,25 +268,15 @@ impl VisualKeyInput {
             bounds.push((start, end));
         }
 
-        search::util::start_search(
-            self.state_lock.clone(),
-            view,
-            doc,
-            Some(bounds),
-            self.action_tx.clone(),
-            self.mini_buffer_tx.clone(),
-        );
+        Some(search::util::start_search(view, doc, Some(bounds)))
     }
 
-    fn operator(&self, view: ViewId, doc: DocId, cmd: Command) {
-        let state = self.state_lock.read();
-        let Some(vse) = state.view_store.get(&view) else {
+    fn operator(&self, state: &State, view: ViewId, doc: DocId, cmd: Command) -> Option<Vec<FCmd>> {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        else {
             debug_panic!();
-            return;
-        };
-        let Some(dse) = state.doc_store.get(&doc) else {
-            debug_panic!();
-            return;
+            return None;
         };
 
         let mut offsets = Vec::new();
@@ -327,15 +291,8 @@ impl VisualKeyInput {
 
             offsets.push((start, end));
         }
-        drop(state);
 
         if matches!(cmd, Command::Yank) {
-            let state = self.state_lock.read();
-            let Some(dse) = state.doc_store.get(&doc) else {
-                debug_panic!();
-                return;
-            };
-
             let mut yanked = String::new();
             for &(start, end) in &offsets {
                 yanked.push_str(&dse.doc.data.slice(start..end));
@@ -343,8 +300,6 @@ impl VisualKeyInput {
                 // Newline to separate multi-cursor yanks.
                 yanked.push('\n');
             }
-            drop(state);
-
             yanked.pop();
 
             if !yanked.is_empty()
@@ -353,9 +308,7 @@ impl VisualKeyInput {
                 let _ = clipboard.set_text(yanked);
             }
 
-            let _ = self.action_tx.send(ActionCommand::PopViewMode { view });
-
-            return;
+            return Some(vec![FCmd::Action(ActionCmd::PopViewMode { view })]);
         }
 
         offsets.sort_by_key(|&(s, _)| s);
@@ -373,69 +326,60 @@ impl VisualKeyInput {
         }
         merged.sort_by_key(|&(s, _)| std::cmp::Reverse(s));
 
+        let mut cmds = Vec::new();
+
         if matches!(cmd, Command::Change) || matches!(cmd, Command::Delete) {
-            let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
+            cmds.push(FCmd::Action(ActionCmd::StartCommit { doc }));
         }
 
         for (start, end) in merged {
             if end > start {
-                let _ = self.action_tx.send(ActionCommand::Remove {
+                cmds.push(FCmd::Action(ActionCmd::Remove {
                     view,
                     offset: start,
                     len: end - start,
-                });
+                }));
             }
         }
 
         if matches!(cmd, Command::Change) {
-            let _ = self.action_tx.send(ActionCommand::PopViewMode { view });
-            let _ = self
-                .action_tx
-                .send(ActionCommand::PushViewMode { view, mode: ViewStoreTypes::Mode::Insert });
+            cmds.push(FCmd::Action(ActionCmd::PopViewMode { view }));
+            cmds.push(FCmd::Action(ActionCmd::PushViewMode {
+                view,
+                mode: ViewStoreTypes::Mode::Insert,
+            }));
         } else if matches!(cmd, Command::Delete) {
-            let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
-            let _ = self.action_tx.send(ActionCommand::PopViewMode { view });
+            cmds.push(FCmd::Action(ActionCmd::EndCommit { doc }));
+            cmds.push(FCmd::Action(ActionCmd::PopViewMode { view }));
         }
+
+        Some(cmds)
     }
 
-    fn escape(&self, view: ViewId) {
-        let mut state = self.state_lock.write();
-        let Some(vse) = state.view_store.get_mut(&view) else {
-            debug_panic!();
-            return;
-        };
-
-        for cursor in &mut vse.cursors.list {
-            cursor.anchor = cursor.offset;
-        }
-
-        let view_event_tx = state.view_event_tx.clone();
-        drop(state);
-
-        let _ = view_event_tx.send(ViewStoreTypes::Event::CursorsChanged { view });
-
-        let _ = self.action_tx.send(ActionCommand::PopViewMode { view });
+    fn escape(&self, view: ViewId) -> Option<Vec<FCmd>> {
+        Some(vec![
+            FCmd::Action(ActionCmd::ResetCursorAnchors { view }),
+            FCmd::Action(ActionCmd::PopViewMode { view }),
+        ])
     }
 }
 
 impl KeyInputHandler for VisualKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::VisualMode }
 
-    fn key(&mut self, event: &KeyEvent) -> bool {
-        let state = self.state_lock.read();
+    fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         let Some(view) = state.active_view() else {
             // No active view, just abort.
-            return false;
+            return None;
         };
         let Some(vse) = state.view_store.get(&view) else {
             debug_panic!();
-            return false;
+            return None;
         };
 
         if vse.mode() != ViewStoreTypes::Mode::Visual {
-            return false;
+            return None;
         }
-        drop(state);
 
         if self.last_view != Some(view) {
             self.pending_keys.clear();
@@ -448,15 +392,18 @@ impl KeyInputHandler for VisualKeyInput {
 
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
-                self.execute(cmd);
+                // Always treat entering execute as consuming the key.
+                let cmds = Some(self.exec(state, cmd).unwrap_or_else(|| Vec::new()));
                 self.pending_keys.clear();
+
+                cmds
             }
-            ParseResult::Prefix => {}
+            ParseResult::Prefix => Some(Vec::new()),
             ParseResult::Invalid => {
                 self.pending_keys.clear();
+
+                Some(Vec::new())
             }
         }
-
-        true
     }
 }

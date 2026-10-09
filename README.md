@@ -1,21 +1,16 @@
 # fed
 
-`fed` is an asynchronous, RPC based, extendable terminal text editor. It is the spiritual successor
-to [Cini](https://github.com/ComicalCache/Cini) (which itself is the spiritual successor to
+`fed` is an extendable terminal text editor. It is the spiritual successor to
+[Cini](https://github.com/ComicalCache/Cini) (which itself is the spiritual successor to
 [Mini](https://github.com/ComicalCache/Mini)).
 
 > The project targets UNIX-like systems and WILL NOT compile for Windows. Even if it would,
 > throughout the project a UNIX-like environment is assumed (e.g. no CRLF line endings in files) and 
 > will cause undefined runtime behaviour otherwise.
 
-See `architecture` to learn more about the editor's design and architecture. Since this is my
-first time designing a large asynchronous programm I'm bound to make ill-decisions in the design and
-implementation. If you have any suggestions, feel free to reach out or participate.
-
 ## Building and development
 
-The project can simply be built using `cargo build` or `cargo build -r`. It is recommended to read
-`architecture` for reference.
+The project can simply be built using `cargo build` or `cargo build -r`.
 
 The release build will be a stripped binary with LTO and compiled with `march=native` flag. This
 behaviour can be changed in `Cargo.toml` and `.cargo/config.toml`, if desired.

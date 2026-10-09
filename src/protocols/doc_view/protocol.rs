@@ -1,56 +1,40 @@
-use tokio::sync::{
-    mpsc::{UnboundedReceiver, UnboundedSender},
-    oneshot,
-};
+use tokio::sync::oneshot;
 
 use crate::{
     debug_panic::debug_panic,
     protocols::{
-        doc_view::{DocViewCommand, DocViewRenderer},
-        view::ViewCommand,
+        doc_view::{DocViewCmd, DocViewRenderer},
+        state::PState,
+        view::ViewProtocol,
     },
     render::{WindowId, ZLayer},
-    state::{DocId, StateLock, ViewId},
+    state::{DocId, State, ViewId},
     types::{Rect, RectSplit},
 };
 
-pub struct DocViewProtocol {
-    state_lock: StateLock,
-
-    rx: UnboundedReceiver<DocViewCommand>,
-    view_tx: UnboundedSender<ViewCommand>,
-}
+pub struct DocViewProtocol {}
 
 impl DocViewProtocol {
-    pub fn new(
-        state_lock: StateLock, rx: UnboundedReceiver<DocViewCommand>,
-        view_tx: UnboundedSender<ViewCommand>,
-    ) -> Self {
-        Self { state_lock, rx, view_tx }
-    }
-
-    pub async fn run(&mut self) {
-        while let Some(cmd) = self.rx.recv().await {
-            match cmd {
-                DocViewCommand::CreateTile { doc, view, split_window, direction, raw, tx } => {
-                    self.create_tile(doc, view, split_window, direction, raw, tx)
-                }
-                DocViewCommand::CreateFloating { doc, view, rect, z, raw, tx } => {
-                    self.create_floating(doc, view, rect, z, raw, tx)
-                }
-                DocViewCommand::ReplaceWindow { doc, view, window, raw, tx } => {
-                    self.replace_window(doc, view, window, raw, tx)
-                }
-                DocViewCommand::DestroyView { view } => self.destroy_view(view),
+    pub fn exec(state: &mut State, pstate: &mut PState, cmd: DocViewCmd) {
+        match cmd {
+            DocViewCmd::CreateTile { doc, view, split_window, direction, raw, tx } => {
+                Self::create_tile(state, pstate, doc, view, split_window, direction, raw, tx);
             }
+            DocViewCmd::CreateFloating { doc, view, rect, z, raw, tx } => {
+                Self::create_floating(state, pstate, doc, view, rect, z, raw, tx);
+            }
+            DocViewCmd::ReplaceWindow { doc, view, window, raw, tx } => {
+                Self::replace_window(state, pstate, doc, view, window, raw, tx);
+            }
+            DocViewCmd::DestroyView { view } => Self::destroy_view(state, view),
         }
     }
 
-    fn create_tile(
-        &self, doc: DocId, view: Option<ViewId>, split_window: WindowId, direction: RectSplit,
-        raw: bool, tx: oneshot::Sender<(ViewId, WindowId)>,
-    ) {
-        let mut state = self.state_lock.write();
+    pub fn create_tile(
+        state: &mut State, pstate: &mut PState, doc: DocId, view: Option<ViewId>,
+        split_window: WindowId, direction: RectSplit, raw: bool,
+        tx: Option<oneshot::Sender<Option<(ViewId, WindowId)>>>,
+    ) -> Option<(ViewId, WindowId)> {
         let view = view.unwrap_or_else(|| state.create_view(doc));
 
         let window = state.workspace.create_tile(
@@ -65,56 +49,64 @@ impl DocViewProtocol {
 
             debug_panic!();
 
-            return;
+            if let Some(tx) = tx {
+                let _ = tx.send(None);
+            }
+
+            return None;
         };
 
         state.index.link_window_to_view(window, view);
-        drop(state);
 
-        let _ = self.view_tx.send(ViewCommand::Update { view });
-        let _ = tx.send((view, window));
+        ViewProtocol::update(state, pstate, view);
+
+        if let Some(tx) = tx {
+            let _ = tx.send(Some((view, window)));
+        }
+
+        Some((view, window))
     }
 
-    fn create_floating(
-        &self, doc: DocId, view: Option<ViewId>, rect: Rect, z: ZLayer, raw: bool,
-        tx: oneshot::Sender<(ViewId, WindowId)>,
-    ) {
-        let mut state = self.state_lock.write();
+    pub fn create_floating(
+        state: &mut State, pstate: &mut PState, doc: DocId, view: Option<ViewId>, rect: Rect,
+        z: ZLayer, raw: bool, tx: Option<oneshot::Sender<(ViewId, WindowId)>>,
+    ) -> (ViewId, WindowId) {
         let view = view.unwrap_or_else(|| state.create_view(doc));
 
         let window =
             state.workspace.create_floating(rect, z, Box::new(DocViewRenderer::new(view, raw)));
-
         state.index.link_window_to_view(window, view);
-        drop(state);
 
-        let _ = self.view_tx.send(ViewCommand::Update { view });
-        let _ = tx.send((view, window));
+        ViewProtocol::update(state, pstate, view);
+
+        if let Some(tx) = tx {
+            let _ = tx.send((view, window));
+        }
+
+        (view, window)
     }
 
-    fn replace_window(
-        &self, doc: DocId, view: Option<ViewId>, window: WindowId, raw: bool,
-        tx: oneshot::Sender<ViewId>,
-    ) {
-        let mut state = self.state_lock.write();
+    pub fn replace_window(
+        state: &mut State, pstate: &mut PState, doc: DocId, view: Option<ViewId>, window: WindowId,
+        raw: bool, tx: Option<oneshot::Sender<ViewId>>,
+    ) -> ViewId {
         let view = view.unwrap_or_else(|| state.create_view(doc));
 
         state.workspace.replace_renderer(window, Box::new(DocViewRenderer::new(view, raw)));
-
         state.index.link_window_to_view(window, view);
-        drop(state);
 
-        let _ = self.view_tx.send(ViewCommand::Update { view });
-        let _ = tx.send(view);
+        ViewProtocol::update(state, pstate, view);
+
+        if let Some(tx) = tx {
+            let _ = tx.send(view);
+        }
+
+        view
     }
 
-    fn destroy_view(&self, view: ViewId) {
-        let mut state = self.state_lock.write();
-
+    pub fn destroy_view(state: &mut State, view: ViewId) {
         for window in state.index.unlink_view(view) {
             state.workspace.destroy_window(window);
         }
-
-        drop(state);
     }
 }

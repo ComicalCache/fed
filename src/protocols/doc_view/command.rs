@@ -6,14 +6,14 @@ use crate::{
     types::{Rect, RectSplit},
 };
 
-pub enum DocViewCommand {
+pub enum DocViewCmd {
     CreateTile {
         doc: DocId,
         view: Option<ViewId>,
         split_window: WindowId,
         direction: RectSplit,
         raw: bool,
-        tx: oneshot::Sender<(ViewId, WindowId)>,
+        tx: Option<oneshot::Sender<Option<(ViewId, WindowId)>>>,
     },
     CreateFloating {
         doc: DocId,
@@ -21,14 +21,14 @@ pub enum DocViewCommand {
         rect: Rect,
         z: ZLayer,
         raw: bool,
-        tx: oneshot::Sender<(ViewId, WindowId)>,
+        tx: Option<oneshot::Sender<(ViewId, WindowId)>>,
     },
     ReplaceWindow {
         doc: DocId,
         view: Option<ViewId>,
         window: WindowId,
         raw: bool,
-        tx: oneshot::Sender<ViewId>,
+        tx: Option<oneshot::Sender<ViewId>>,
     },
     DestroyView {
         view: ViewId,

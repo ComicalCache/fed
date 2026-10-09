@@ -1,10 +1,11 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, pin::Pin};
 
-use tokio::sync::oneshot;
+pub type IoFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
 
-pub enum IoCommand {
-    Read { path: PathBuf, tx: oneshot::Sender<Result<String, String>> },
-    Write { path: PathBuf, data: String, tx: oneshot::Sender<Result<(), String>> },
+pub type RCallback = Box<dyn FnOnce(Result<String, String>) -> IoFuture + Send>;
+pub type WCallback = Box<dyn FnOnce(Result<(), String>) -> IoFuture + Send>;
 
-    CanQuit { tx: oneshot::Sender<Result<(), String>> },
+pub enum IoCmd {
+    Read { path: PathBuf, rcallback: RCallback },
+    Write { path: PathBuf, data: String, wcallback: WCallback },
 }

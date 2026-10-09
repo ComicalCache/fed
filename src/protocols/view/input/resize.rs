@@ -1,20 +1,16 @@
-use tokio::sync::mpsc::UnboundedSender;
-
 use crate::{
-    input::{ResizeInputHandler, priorities::ResizeInputPriority},
-    protocols::view::ViewCommand,
+    fed::FCmd,
+    input_handler::{ResizeInputHandler, ResizeInputPriority},
+    protocols::view::ViewCmd,
+    state::State,
 };
 
-pub struct ViewResizeInput {
-    tx: UnboundedSender<ViewCommand>,
-}
-
-impl ViewResizeInput {
-    pub fn new(tx: UnboundedSender<ViewCommand>) -> Self { Self { tx } }
-}
+pub struct ViewResizeInput {}
 
 impl ResizeInputHandler for ViewResizeInput {
     fn priority(&self) -> ResizeInputPriority { ResizeInputPriority::ViewProtocol }
 
-    fn resize(&mut self, _: (u16, u16)) { let _ = self.tx.send(ViewCommand::Resize); }
+    fn resize(&mut self, _: &State, _: (u16, u16)) -> Vec<FCmd> {
+        vec![FCmd::View(ViewCmd::Resize)]
+    }
 }

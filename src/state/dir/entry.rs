@@ -23,3 +23,13 @@ pub struct Entry {
 
     pub path_offset: usize,
 }
+
+pub struct PrintableEntry {
+    pub perms: String,
+    pub links: String,
+    pub owner: String,
+    pub group: String,
+    pub size: String,
+    pub modified: String,
+    pub name: String,
+}

@@ -1,15 +1,15 @@
 use crossterm::event::KeyEvent;
 use fancy_regex::Regex;
 use piece_table::Slice;
-use tokio::sync::{mpsc::UnboundedSender, oneshot};
 
 use crate::{
     debug_panic::debug_panic,
     decorators::SearchDecorator,
-    input::{KeyInputHandler, priorities::KeyInputPriority},
+    fed::FCmd,
+    input_handler::{KeyInputHandler, KeyInputPriority},
     modes::search::{command::Command, keymap},
-    protocols::{action::ActionCommand, mini_buffer::MiniBufferCommand},
-    state::{DocId, StateLock, ViewId, ViewStoreTypes},
+    protocols::{action::ActionCmd, mp::MpCmd},
+    state::{DocId, State, ViewId, ViewStoreTypes},
     types::{KeyChord, Keymap, ParseResult},
 };
 
@@ -18,71 +18,46 @@ pub struct SearchKeyInput {
     pending_keys: Vec<KeyChord>,
 
     last_view: Option<ViewId>,
-    state_lock: StateLock,
-
-    action_tx: UnboundedSender<ActionCommand>,
-    mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
 }
 
 impl SearchKeyInput {
-    pub fn new(
-        state_lock: StateLock, action_tx: UnboundedSender<ActionCommand>,
-        mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
-    ) -> Self {
+    pub fn new() -> Self {
         let keymap = keymap::keymap();
-        Self {
-            keymap,
-            pending_keys: Vec::new(),
-            last_view: None,
-            state_lock,
-            action_tx,
-            mini_buffer_tx,
-        }
+        Self { keymap, pending_keys: Vec::new(), last_view: None }
     }
 
-    fn execute(&self, cmd: Command) {
-        let state = self.state_lock.read();
-        let Some(view) = state.active_view() else {
-            // No active view, just abort.
-            return;
-        };
+    fn exec(&mut self, state: &State, cmd: Command) -> Option<Vec<FCmd>> {
+        let Some(view) = state.active_view() else { return None };
         let Some(doc) = state.index.view_to_doc(view) else {
             debug_panic!();
-            return;
+            return None;
         };
         let Some(dse) = state.doc_store.get(&doc) else {
             debug_panic!();
-            return;
+            return None;
         };
-
-        let read_only = dse.read_only;
-        drop(state);
 
         match cmd {
             Command::Move(motion) => {
-                let _ = self.action_tx.send(ActionCommand::MoveCursors {
-                    view,
-                    motion,
-                    move_anchor: true,
-                });
+                Some(vec![FCmd::Action(ActionCmd::MoveCursors { view, motion, move_anchor: true })])
             }
-            Command::NextMatch => self.navigate_match(view, true),
-            Command::PrevMatch => self.navigate_match(view, false),
-            Command::CursorsBegin => self.cursors(view, true),
-            Command::CursorsEnd => self.cursors(view, false),
+            Command::NextMatch => self.navigate_match(state, view, true),
+            Command::PrevMatch => self.navigate_match(state, view, false),
+            Command::CursorsBegin => self.cursors(state, view, true),
+            Command::CursorsEnd => self.cursors(state, view, false),
             Command::Replace => {
-                if read_only {
-                    return;
+                if dse.read_only {
+                    return None;
                 }
 
-                self.replace(view, doc)
+                self.replace(state, view, doc)
             }
-            Command::Escape => Self::escape(self.state_lock.clone(), view, self.action_tx.clone()),
+            Command::Escape => Some(Self::escape(view)),
         }
     }
 
-    fn navigate_match(&self, view: ViewId, forward: bool) {
-        let Some((_, matches, offsets)) = self.search_state(view) else { return };
+    fn navigate_match(&self, state: &State, view: ViewId, forward: bool) -> Option<Vec<FCmd>> {
+        let Some((_, matches, offsets)) = self.search_state(state, view) else { return None };
         let offset = offsets.first().cloned().unwrap_or(0);
 
         let target = if forward {
@@ -91,123 +66,117 @@ impl SearchKeyInput {
             matches.iter().rev().find(|m| m.0 < offset).unwrap_or(matches.last().unwrap()).0
         };
 
-        let _ = self.action_tx.send(ActionCommand::RemoveCursors { view, offsets });
-        let _ = self
-            .action_tx
-            .send(ActionCommand::CreateCursorsAtOffset { view, offsets: vec![target] });
+        Some(vec![
+            FCmd::Action(ActionCmd::RemoveCursors { view, offsets }),
+            FCmd::Action(ActionCmd::CreateCursorsAtOffset { view, offsets: vec![target] }),
+        ])
     }
 
-    fn cursors(&self, view: ViewId, front: bool) {
-        let Some((_, matches, offsets)) = self.search_state(view) else { return };
+    fn cursors(&self, state: &State, view: ViewId, front: bool) -> Option<Vec<FCmd>> {
+        let mut cmds = Vec::new();
 
-        let _ = self.action_tx.send(ActionCommand::RemoveCursors { view, offsets });
+        let Some((_, matches, offsets)) = self.search_state(state, view) else { return None };
+        cmds.push(FCmd::Action(ActionCmd::RemoveCursors { view, offsets }));
         let offsets = matches.iter().map(|m| if front { m.0 } else { m.1 }).collect();
-        let _ = self.action_tx.send(ActionCommand::CreateCursorsAtOffset { view, offsets });
+        cmds.push(FCmd::Action(ActionCmd::CreateCursorsAtOffset { view, offsets }));
 
-        Self::escape(self.state_lock.clone(), view, self.action_tx.clone());
+        cmds.extend(Self::escape(view));
+
+        Some(cmds)
     }
 
-    fn replace(&self, view: ViewId, doc: DocId) {
-        let Some((query, matches, _)) = self.search_state(view) else { return };
+    fn replace(&self, state: &State, view: ViewId, doc: DocId) -> Option<Vec<FCmd>> {
+        let Some((query, matches, _)) = self.search_state(state, view) else { return None };
 
-        let (id_tx, _) = oneshot::channel();
-        let (res_tx, res_rx) = oneshot::channel();
-        let _ = self.mini_buffer_tx.send(MiniBufferCommand::Prompt {
-            prompt: "Replace with: ".to_string(),
-            initial_text: None,
-            id_tx,
-            res_tx,
+        let pcallback = Box::new(move |state: &State, replacement: String| {
+            let Some(dse) = state.doc_store.get(&doc) else {
+                debug_panic!();
+                return;
+            };
+
+            // TODO: somehow don't require copying the entire doc anymore?
+            let data = dse.doc.data.slice(0..dse.doc.data.len());
+            let async_fcmd_tx = state.async_fcmd_tx.clone();
+            tokio::spawn(async move {
+                // Delay actually processing the regex into an asynchronous
+                // task to not block the main loop.
+                let Ok(regex) = Regex::new(&query) else {
+                    // TODO: display error about regex.
+                    return;
+                };
+
+                let mut edits = Vec::new();
+                for (start, end) in matches {
+                    if let Ok(Some(caps)) = regex.captures(&data[start..end]) {
+                        let mut text = String::new();
+                        caps.expand(&replacement, &mut text);
+                        edits.push((start, end - start, text));
+                    }
+                }
+                edits.sort_by_key(|e| std::cmp::Reverse(e.0));
+
+                let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::StartCommit { doc }));
+
+                for (offset, len, text) in edits {
+                    let _ =
+                        async_fcmd_tx.send(FCmd::Action(ActionCmd::Remove { view, offset, len }));
+                    if !text.is_empty() {
+                        let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::InsertAt {
+                            view,
+                            text,
+                            offset,
+                        }));
+                    }
+                }
+
+                let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::EndCommit { doc }));
+
+                for cmd in Self::escape(view) {
+                    let _ = async_fcmd_tx.send(cmd);
+                }
+            });
         });
 
-        tokio::spawn(Self::replace_completion(
-            self.state_lock.clone(),
-            view,
-            doc,
-            query,
-            matches,
-            res_rx,
-            self.action_tx.clone(),
-        ));
+        Some(vec![FCmd::Mp(MpCmd::Prompt {
+            prompt: "Replace with: ".to_string(),
+            initial_text: None,
+            pcallback,
+            tx: None,
+        })])
     }
 
-    async fn replace_completion(
-        state_lock: StateLock, view: ViewId, doc: DocId, query: String,
-        matches: Vec<(usize, usize)>, res_rx: oneshot::Receiver<String>,
-        action_tx: UnboundedSender<ActionCommand>,
-    ) {
-        let Ok(replacement) = res_rx.await else { return };
-        let Ok(regex) = Regex::new(&query) else {
-            // TODO: display error about regex.
-            return;
-        };
-
-        let state = state_lock.read();
-        let Some(dse) = state.doc_store.get(&doc) else {
-            debug_panic!();
-            return;
-        };
-
-        let mut edits = Vec::new();
-        for (start, end) in matches {
-            let substring = dse.doc.data.slice(start..end);
-            if let Ok(Some(caps)) = regex.captures(&substring) {
-                let mut text = String::new();
-                caps.expand(&replacement, &mut text);
-                edits.push((start, end - start, text));
-            }
-        }
-        drop(state);
-
-        edits.sort_by_key(|e| std::cmp::Reverse(e.0));
-
-        let _ = action_tx.send(ActionCommand::StartCommit { doc });
-
-        for (offset, len, text) in edits {
-            let _ = action_tx.send(ActionCommand::Remove { view, offset, len });
-            if !text.is_empty() {
-                let _ = action_tx.send(ActionCommand::InsertAt { view, text, offset });
-            }
-        }
-
-        let _ = action_tx.send(ActionCommand::EndCommit { doc });
-
-        Self::escape(state_lock, view, action_tx);
+    fn escape(view: ViewId) -> Vec<FCmd> {
+        vec![
+            FCmd::Action(ActionCmd::RemoveViewDecorator {
+                view,
+                id: ViewStoreTypes::DecorationId::Search,
+            }),
+            FCmd::Action(ActionCmd::PopViewMode { view }),
+        ]
     }
 
-    fn escape(state_lock: StateLock, view: ViewId, action_tx: UnboundedSender<ActionCommand>) {
-        let mut state = state_lock.write();
-        let Some(vse) = state.view_store.get_mut(&view) else {
-            debug_panic!();
-            return;
-        };
-
-        vse.decs.decorators.remove(&ViewStoreTypes::DecorationId::Search);
-        drop(state);
-
-        let _ = action_tx.send(ActionCommand::PopViewMode { view });
-    }
-
-    fn search_state(&self, view: ViewId) -> Option<(String, Vec<(usize, usize)>, Vec<usize>)> {
-        let state = self.state_lock.read();
+    fn search_state(
+        &self, state: &State, view: ViewId,
+    ) -> Option<(String, Vec<(usize, usize)>, Vec<usize>)> {
         let Some(vse) = state.view_store.get(&view) else {
             debug_panic!();
             return None;
         };
-        let Some(provider) = vse.decs.decorators.get(&ViewStoreTypes::DecorationId::Search) else {
+        let Some(decorator) = vse.decs.decorators.get(&ViewStoreTypes::DecorationId::Search) else {
             debug_panic!();
             return None;
         };
-        let Some(search_provider) = provider.any().downcast_ref::<SearchDecorator>() else {
+        let Some(decorator) = decorator.any().downcast_ref::<SearchDecorator>() else {
             debug_panic!();
             return None;
         };
 
-        if search_provider.matches.is_empty() {
+        if decorator.matches.is_empty() {
             return None;
         }
 
-        let query = search_provider.query.clone();
-        let matches = search_provider.matches.clone();
+        let query = decorator.query.clone();
+        let matches = decorator.matches.clone();
         let offsets: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();
 
         Some((query, matches, offsets))
@@ -217,21 +186,19 @@ impl SearchKeyInput {
 impl KeyInputHandler for SearchKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::SearchMode }
 
-    fn key(&mut self, event: &KeyEvent) -> bool {
-        let state = self.state_lock.read();
+    fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         let Some(view) = state.active_view() else {
             // No active view, just abort.
-            return false;
+            return None;
         };
         let Some(vse) = state.view_store.get(&view) else {
             debug_panic!();
-            return false;
+            return None;
         };
 
         if vse.mode() != ViewStoreTypes::Mode::Search {
-            return false;
+            return None;
         }
-        drop(state);
 
         if self.last_view != Some(view) {
             self.pending_keys.clear();
@@ -244,15 +211,18 @@ impl KeyInputHandler for SearchKeyInput {
 
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
-                self.execute(cmd);
+                // Always treat entering execute as consuming the key.
+                let cmds = Some(self.exec(state, cmd).unwrap_or_else(|| Vec::new()));
                 self.pending_keys.clear();
+
+                cmds
             }
-            ParseResult::Prefix => {}
+            ParseResult::Prefix => Some(Vec::new()),
             ParseResult::Invalid => {
                 self.pending_keys.clear();
+
+                Some(Vec::new())
             }
         }
-
-        true
     }
 }

@@ -8,7 +8,7 @@ pub struct Theme {
     pub mode_line: Face,
     pub ruler: Face,
 
-    pub mini_buffer: Face,
+    pub mp: Face,
     pub selection: Face,
     pub search_match: Face,
 
@@ -50,7 +50,7 @@ impl Default for Theme {
                 bg: Some(Rgb::new(229, 192, 123)),
                 ..Face::default()
             },
-            mini_buffer: Face {
+            mp: Face {
                 fg: Some(Rgb::new(172, 178, 190)),
                 bg: Some(Rgb::new(59, 61, 66)),
                 ..Face::default()

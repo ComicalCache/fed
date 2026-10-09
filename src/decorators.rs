@@ -1,5 +1,5 @@
-mod mini_buffer;
+mod mp;
 mod search;
 
-pub use mini_buffer::MiniBufferDecorator;
+pub use mp::MpDecorator;
 pub use search::SearchDecorator;

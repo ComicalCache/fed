@@ -3,7 +3,7 @@ mod mode_line;
 
 pub mod types {
     pub use crate::state::dir::{
-        entry::{Entry, EntryKind},
+        entry::{Entry, EntryKind, PrintableEntry},
         mode_line::DirModeLine,
     };
 }

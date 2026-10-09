@@ -7,17 +7,21 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     debug_panic::debug_panic,
-    input::{KeyInputHandler, priorities::KeyInputPriority},
+    fed::FCmd,
+    input_handler::{KeyInputHandler, KeyInputPriority},
     modes::{
         normal::{command::Command, keymap},
         search,
     },
     protocols::{
-        action::ActionCommand, dir::DirCommand, io::IoCommand, mini_buffer::MiniBufferCommand,
-        view::ViewCommand,
+        action::ActionCmd,
+        dir::DirCmd,
+        io::{IoCmd, IoFuture},
+        mp::MpCmd,
+        view::ViewCmd,
     },
-    state::{DocId, State, StateLock, ViewId, ViewStoreTypes},
-    types::{KeyChord, Keymap, Motion, ParseResult},
+    state::{DocId, State, ViewId, ViewStoreTypes},
+    types::{KeyChord, Keymap, Motion, ParseResult, Pos},
     util,
 };
 
@@ -28,191 +32,154 @@ pub struct NormalKeyInput {
     replace: bool,
 
     last_view: Option<ViewId>,
-    state_lock: StateLock,
-
-    action_tx: UnboundedSender<ActionCommand>,
-    io_tx: UnboundedSender<IoCommand>,
-    mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
-    quit_tx: UnboundedSender<()>,
-    view_tx: UnboundedSender<ViewCommand>,
-    dir_tx: UnboundedSender<DirCommand>,
 }
 
 impl NormalKeyInput {
-    pub fn new(
-        state_lock: StateLock, action_tx: UnboundedSender<ActionCommand>,
-        io_tx: UnboundedSender<IoCommand>, mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
-        quit_tx: UnboundedSender<()>, view_tx: UnboundedSender<ViewCommand>,
-        dir_tx: UnboundedSender<DirCommand>,
-    ) -> Self {
-        Self {
-            keymap: keymap::keymap(),
-            pending_keys: Vec::new(),
-            replace: false,
-            last_view: None,
-            state_lock,
-            action_tx,
-            io_tx,
-            mini_buffer_tx,
-            quit_tx,
-            view_tx,
-            dir_tx,
-        }
+    pub fn new() -> Self {
+        Self { keymap: keymap::keymap(), pending_keys: Vec::new(), replace: false, last_view: None }
     }
 
-    fn execute(&mut self, cmd: Command) {
-        let state = self.state_lock.read();
-        let Some(view) = state.active_view() else {
-            // Click active view, just abort.
-            return;
-        };
+    fn exec(&mut self, state: &State, cmd: Command) -> Option<Vec<FCmd>> {
+        let Some(view) = state.active_view() else { return None };
         let Some(doc) = state.index.view_to_doc(view) else {
             debug_panic!();
-            return;
+            return None;
         };
         let Some(dse) = state.doc_store.get(&doc) else {
             debug_panic!();
-            return;
+            return None;
         };
 
-        let read_only = dse.read_only;
-        drop(state);
-
         match cmd {
-            Command::Yank(_) | Command::Move(_) => self.motion(view, doc, cmd),
+            Command::Yank(_) | Command::Move(_) => self.motion(state, view, doc, cmd),
             Command::Delete(_) | Command::Change(_) => {
-                if read_only {
-                    return;
+                if dse.read_only {
+                    return None;
                 }
 
-                self.motion(view, doc, cmd)
+                self.motion(state, view, doc, cmd)
             }
-            Command::YankLine => self.line_operation(view, doc, cmd),
+            Command::YankLine => self.line_operation(state, view, doc, cmd),
             Command::DeleteLine | Command::ChangeLine => {
-                if read_only {
-                    return;
+                if dse.read_only {
+                    return None;
                 }
 
-                self.line_operation(view, doc, cmd)
+                self.line_operation(state, view, doc, cmd)
             }
-            Command::ScrollView(motion) => self.scroll_view(view, motion),
+            Command::ScrollView(motion) => self.scroll_view(state, view, motion),
             Command::Undo => {
-                if read_only {
-                    return;
+                if dse.read_only {
+                    return None;
                 }
 
-                let _ = self.action_tx.send(ActionCommand::Undo { view });
+                Some(vec![FCmd::Action(ActionCmd::Undo { view })])
             }
             Command::HotRedo => {
-                if read_only {
-                    return;
+                if dse.read_only {
+                    return None;
                 }
 
-                let _ = self.action_tx.send(ActionCommand::HotRedo { view });
+                Some(vec![FCmd::Action(ActionCmd::HotRedo { view })])
             }
             Command::Append
             | Command::AppendEndOfLine
             | Command::InsertLineBelow
             | Command::InsertLineAbove => {
-                if read_only {
-                    return;
+                if dse.read_only {
+                    return None;
                 }
 
                 self.insert(view, doc, cmd)
             }
             Command::SwapLineDown | Command::SwapLineUp => {
-                if read_only {
-                    return;
+                if dse.read_only {
+                    return None;
                 }
 
-                self.swap_operation(view, doc, cmd)
+                self.swap_operation(state, view, doc, cmd)
             }
             Command::Indent | Command::Dedent => {
-                if read_only {
-                    return;
+                if dse.read_only {
+                    return None;
                 }
 
-                self.line_operation(view, doc, cmd)
+                self.line_operation(state, view, doc, cmd)
             }
             Command::Paste => {
-                if !read_only
+                if !dse.read_only
                     && let Ok(mut clipboard) = arboard::Clipboard::new()
                     && let Ok(text) = clipboard.get_text()
                 {
-                    let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
-                    let _ = self.action_tx.send(ActionCommand::Insert { view, text });
-                    let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
+                    Some(vec![
+                        FCmd::Action(ActionCmd::StartCommit { doc }),
+                        FCmd::Action(ActionCmd::Insert { view, text }),
+                        FCmd::Action(ActionCmd::EndCommit { doc }),
+                    ])
+                } else {
+                    None
                 }
             }
             Command::DeleteChar => {
-                if read_only {
-                    return;
+                if dse.read_only {
+                    return None;
                 }
 
-                let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
-                let _ = self.action_tx.send(ActionCommand::Delete { view });
-                let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
+                Some(vec![
+                    FCmd::Action(ActionCmd::StartCommit { doc }),
+                    FCmd::Action(ActionCmd::Delete { view }),
+                    FCmd::Action(ActionCmd::EndCommit { doc }),
+                ])
             }
             Command::Replace => {
-                if read_only {
-                    return;
+                if dse.read_only {
+                    return None;
                 }
 
-                self.replace = true
+                self.replace = true;
+
+                None
             }
             Command::ReplaceChar(ch) => {
-                if read_only {
-                    return;
+                if dse.read_only {
+                    return None;
                 }
 
-                self.replace_char(view, doc, ch)
+                self.replace_char(state, view, doc, ch)
             }
-            Command::SaveFile => self.save_file(doc),
-            Command::Jump => self.jump(view),
+            Command::SaveFile => self.save_file(state, doc),
+            Command::Jump => self.jump(state, view),
             Command::EnterInsertMode => {
-                if read_only {
-                    return;
+                if dse.read_only {
+                    return None;
                 }
 
-                let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
-                let _ = self
-                    .action_tx
-                    .send(ActionCommand::PushViewMode { view, mode: ViewStoreTypes::Mode::Insert });
+                Some(vec![
+                    FCmd::Action(ActionCmd::StartCommit { doc }),
+                    FCmd::Action(ActionCmd::PushViewMode {
+                        view,
+                        mode: ViewStoreTypes::Mode::Insert,
+                    }),
+                ])
             }
-            Command::EnterVisualMode => {
-                let _ = self
-                    .action_tx
-                    .send(ActionCommand::PushViewMode { view, mode: ViewStoreTypes::Mode::Visual });
-            }
-            Command::EnterSearchMode => search::util::start_search(
-                self.state_lock.clone(),
+            Command::EnterVisualMode => Some(vec![FCmd::Action(ActionCmd::PushViewMode {
                 view,
-                doc,
-                None,
-                self.action_tx.clone(),
-                self.mini_buffer_tx.clone(),
-            ),
+                mode: ViewStoreTypes::Mode::Visual,
+            })]),
+            Command::EnterSearchMode => Some(search::util::start_search(view, doc, None)),
             Command::EnterDirMode => {
-                let state = self.state_lock.read();
-                let Some(windows) = state.index.view_to_windows(view) else {
+                let Some(window) = state.workspace.active_window else {
                     debug_panic!();
-                    return;
+                    return None;
                 };
-                let Some(&window) = windows.iter().nth(0) else {
-                    debug_panic!();
-                    return;
-                };
-                drop(state);
 
-                let _ = self.dir_tx.send(DirCommand::ReplaceWindow { window });
+                Some(vec![FCmd::Dir(DirCmd::ReplaceWindow { window })])
             }
-            Command::Quit => {
-                let _ = self.quit_tx.send(());
-            }
+            Command::Quit => Some(vec![FCmd::Quit]),
         }
     }
 
-    fn motion(&self, view: ViewId, doc: DocId, cmd: Command) {
+    fn motion(&self, state: &State, view: ViewId, doc: DocId, cmd: Command) -> Option<Vec<FCmd>> {
         let motion = match cmd {
             Command::Move(motion) => motion,
             Command::Delete(motion) => motion,
@@ -222,34 +189,26 @@ impl NormalKeyInput {
         };
 
         if matches!(cmd, Command::Move(_)) {
-            let _ =
-                self.action_tx.send(ActionCommand::MoveCursors { view, motion, move_anchor: true });
-            return;
+            return Some(vec![FCmd::Action(ActionCmd::MoveCursors {
+                view,
+                motion,
+                move_anchor: true,
+            })]);
         }
 
-        let state = self.state_lock.read();
-        let Some(vse) = state.view_store.get(&view) else {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        else {
             debug_panic!();
-            return;
-        };
-        let Some(dse) = state.doc_store.get(&doc) else {
-            debug_panic!();
-            return;
+            return None;
         };
 
-        let offsets = util::motion_offsets(motion, vse, dse);
+        let offsets = util::motion::offsets(motion, vse, dse);
         if offsets.is_empty() {
-            return;
+            return None;
         }
-        drop(state);
 
         if matches!(cmd, Command::Yank(_)) {
-            let state = self.state_lock.read();
-            let Some(dse) = state.doc_store.get(&doc) else {
-                debug_panic!();
-                return;
-            };
-
             let mut yanked = String::new();
             for &(start, end) in &offsets {
                 let s = start.min(end);
@@ -261,15 +220,13 @@ impl NormalKeyInput {
             }
             yanked.pop();
 
-            drop(state);
-
             if !yanked.is_empty()
                 && let Ok(mut clipboard) = arboard::Clipboard::new()
             {
                 let _ = clipboard.set_text(yanked);
             }
 
-            return;
+            return Some(Vec::new());
         }
 
         let mut normalized: Vec<_> =
@@ -289,38 +246,41 @@ impl NormalKeyInput {
         }
         merged.sort_by_key(|&(s, _)| std::cmp::Reverse(s));
 
+        let mut cmds = Vec::new();
         if matches!(cmd, Command::Change(_)) || matches!(cmd, Command::Delete(_)) {
-            let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
+            cmds.push(FCmd::Action(ActionCmd::StartCommit { doc }));
         }
 
         for (start, end) in merged {
             if end > start {
-                let _ = self.action_tx.send(ActionCommand::Remove {
+                cmds.push(FCmd::Action(ActionCmd::Remove {
                     view,
                     offset: start,
                     len: end - start,
-                });
+                }));
             }
         }
 
         if matches!(cmd, Command::Change(_)) {
-            let _ = self
-                .action_tx
-                .send(ActionCommand::PushViewMode { view, mode: ViewStoreTypes::Mode::Insert });
+            cmds.push(FCmd::Action(ActionCmd::PushViewMode {
+                view,
+                mode: ViewStoreTypes::Mode::Insert,
+            }));
         } else if matches!(cmd, Command::Delete(_)) {
-            let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
+            cmds.push(FCmd::Action(ActionCmd::EndCommit { doc }));
         }
+
+        Some(cmds)
     }
 
-    fn line_operation(&self, view: ViewId, doc: DocId, cmd: Command) {
-        let state = self.state_lock.read();
-        let Some(vse) = state.view_store.get(&view) else {
+    fn line_operation(
+        &self, state: &State, view: ViewId, doc: DocId, cmd: Command,
+    ) -> Option<Vec<FCmd>> {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        else {
             debug_panic!();
-            return;
-        };
-        let Some(dse) = state.doc_store.get(&doc) else {
-            debug_panic!();
-            return;
+            return None;
         };
 
         let mut lines: Vec<_> =
@@ -329,10 +289,10 @@ impl NormalKeyInput {
         lines.dedup();
 
         if lines.is_empty() {
-            return;
+            return None;
         }
 
-        let mut actions = Vec::new();
+        let mut cmds = Vec::new();
         match cmd {
             Command::DeleteLine => {
                 for y in lines.into_iter().rev() {
@@ -346,7 +306,11 @@ impl NormalKeyInput {
                         start = start.saturating_sub(1);
                     }
 
-                    actions.push(ActionCommand::Remove { view, offset: start, len: end - start });
+                    cmds.push(FCmd::Action(ActionCmd::Remove {
+                        view,
+                        offset: start,
+                        len: end - start,
+                    }));
                 }
             }
             Command::ChangeLine => {
@@ -360,11 +324,17 @@ impl NormalKeyInput {
                         end -= 1;
                     }
 
-                    actions.push(ActionCommand::Remove { view, offset: start, len: end - start });
+                    cmds.push(FCmd::Action(ActionCmd::Remove {
+                        view,
+                        offset: start,
+                        len: end - start,
+                    }));
                 }
 
-                actions
-                    .push(ActionCommand::PushViewMode { view, mode: ViewStoreTypes::Mode::Insert });
+                cmds.push(FCmd::Action(ActionCmd::PushViewMode {
+                    view,
+                    mode: ViewStoreTypes::Mode::Insert,
+                }));
             }
             Command::YankLine => {
                 let mut yanked = String::new();
@@ -394,11 +364,11 @@ impl NormalKeyInput {
             Command::Indent => {
                 // FIXME: option to convert tab to spaces.
                 for y in lines.into_iter().rev() {
-                    actions.push(ActionCommand::InsertAt {
+                    cmds.push(FCmd::Action(ActionCmd::InsertAt {
                         view,
                         text: "\t".to_string(),
                         offset: dse.doc.data.get_line_start_byte(y),
-                    });
+                    }));
                 }
             }
             Command::Dedent => {
@@ -408,38 +378,34 @@ impl NormalKeyInput {
                     let end = dse.doc.data.get_line_end_byte(y);
 
                     if dse.doc.data.slice(start..end).starts_with('\t') {
-                        actions.push(ActionCommand::Remove { view, offset: start, len: 1 });
+                        cmds.push(FCmd::Action(ActionCmd::Remove { view, offset: start, len: 1 }));
                     }
                 }
             }
             _ => unreachable!(),
         }
-        drop(state);
 
-        if actions.is_empty() {
-            return;
+        if cmds.is_empty() {
+            return None;
         }
 
         if !matches!(cmd, Command::YankLine) {
-            let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
-        }
-        for action in actions {
-            let _ = self.action_tx.send(action);
+            cmds.insert(0, FCmd::Action(ActionCmd::StartCommit { doc }));
         }
         if !matches!(cmd, Command::YankLine) && !matches!(cmd, Command::ChangeLine) {
-            let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
+            cmds.push(FCmd::Action(ActionCmd::EndCommit { doc }));
         }
+
+        Some(cmds)
     }
 
-    fn scroll_view(&self, view: ViewId, motion: Motion) {
-        let state = self.state_lock.read();
+    fn scroll_view(&self, state: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>> {
         let Some(vse) = state.view_store.get(&view) else {
             debug_panic!();
-            return;
+            return None;
         };
 
         let mut scroll = *vse.scroll;
-        drop(state);
 
         match motion {
             Motion::Up => scroll.y = scroll.y.saturating_sub(1),
@@ -449,65 +415,67 @@ impl NormalKeyInput {
             _ => {}
         }
 
-        let _ = self.view_tx.send(ViewCommand::ScrollTo { view, pos: scroll });
+        Some(vec![FCmd::View(ViewCmd::ScrollTo { view, pos: scroll })])
     }
 
-    fn insert(&self, view: ViewId, doc: DocId, cmd: Command) {
-        let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
+    fn insert(&self, view: ViewId, doc: DocId, cmd: Command) -> Option<Vec<FCmd>> {
+        let mut cmds = vec![FCmd::Action(ActionCmd::StartCommit { doc })];
 
         match cmd {
             Command::Append => {
-                let _ = self.action_tx.send(ActionCommand::MoveCursors {
+                cmds.push(FCmd::Action(ActionCmd::MoveCursors {
                     view,
                     motion: Motion::Right,
                     move_anchor: true,
-                });
+                }));
             }
             Command::AppendEndOfLine => {
-                let _ = self.action_tx.send(ActionCommand::MoveCursors {
+                cmds.push(FCmd::Action(ActionCmd::MoveCursors {
                     view,
                     motion: Motion::EndOfLine,
                     move_anchor: true,
-                });
+                }));
             }
             Command::InsertLineBelow => {
-                let _ = self.action_tx.send(ActionCommand::MoveCursors {
+                cmds.push(FCmd::Action(ActionCmd::MoveCursors {
                     view,
                     motion: Motion::EndOfLine,
                     move_anchor: true,
-                });
-                let _ = self.action_tx.send(ActionCommand::Insert { view, text: "\n".to_string() });
+                }));
+                cmds.push(FCmd::Action(ActionCmd::Insert { view, text: "\n".to_string() }));
             }
             Command::InsertLineAbove => {
-                let _ = self.action_tx.send(ActionCommand::MoveCursors {
+                cmds.push(FCmd::Action(ActionCmd::MoveCursors {
                     view,
                     motion: Motion::BeginningOfLine,
                     move_anchor: true,
-                });
-                let _ = self.action_tx.send(ActionCommand::Insert { view, text: "\n".to_string() });
-                let _ = self.action_tx.send(ActionCommand::MoveCursors {
+                }));
+                cmds.push(FCmd::Action(ActionCmd::Insert { view, text: "\n".to_string() }));
+                cmds.push(FCmd::Action(ActionCmd::MoveCursors {
                     view,
                     motion: Motion::Left,
                     move_anchor: true,
-                });
+                }));
             }
             _ => unreachable!(),
         }
 
-        let _ = self
-            .action_tx
-            .send(ActionCommand::PushViewMode { view, mode: ViewStoreTypes::Mode::Insert });
+        cmds.push(FCmd::Action(ActionCmd::PushViewMode {
+            view,
+            mode: ViewStoreTypes::Mode::Insert,
+        }));
+
+        Some(cmds)
     }
 
-    fn swap_operation(&self, view: ViewId, doc: DocId, cmd: Command) {
-        let state = self.state_lock.read();
-        let Some(vse) = state.view_store.get(&view) else {
+    fn swap_operation(
+        &self, state: &State, view: ViewId, doc: DocId, cmd: Command,
+    ) -> Option<Vec<FCmd>> {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        else {
             debug_panic!();
-            return;
-        };
-        let Some(dse) = state.doc_store.get(&doc) else {
-            debug_panic!();
-            return;
+            return None;
         };
 
         let doc_lines = dse.doc.data.lines();
@@ -518,7 +486,7 @@ impl NormalKeyInput {
         lines.dedup();
 
         if lines.is_empty() {
-            return;
+            return None;
         }
 
         // Group contiguous lines into blocks and move them together.
@@ -534,7 +502,7 @@ impl NormalKeyInput {
             blocks.push((y, y));
         }
 
-        let mut actions = Vec::new();
+        let mut cmds = Vec::new();
         match cmd {
             Command::SwapLineDown => {
                 for &(start, end) in blocks.iter().rev() {
@@ -555,32 +523,36 @@ impl NormalKeyInput {
                         let mut target_text = target_text;
                         target_text.push('\n');
 
-                        actions.push(ActionCommand::Remove {
+                        cmds.push(FCmd::Action(ActionCmd::Remove {
                             view,
                             offset: target_start,
                             len: target_end - target_start,
-                        });
+                        }));
 
                         // Remove the newline of not the block since it will be
                         // at the end. This will break for Windows CRLF line
                         // endings.
-                        actions.push(ActionCommand::Remove { view, offset: block_end - 1, len: 1 });
-                        actions.push(ActionCommand::InsertAt {
+                        cmds.push(FCmd::Action(ActionCmd::Remove {
+                            view,
+                            offset: block_end - 1,
+                            len: 1,
+                        }));
+                        cmds.push(FCmd::Action(ActionCmd::InsertAt {
                             view,
                             text: target_text,
                             offset: block_start,
-                        });
+                        }));
                     } else {
-                        actions.push(ActionCommand::Remove {
+                        cmds.push(FCmd::Action(ActionCmd::Remove {
                             view,
                             offset: target_start,
                             len: target_end - target_start,
-                        });
-                        actions.push(ActionCommand::InsertAt {
+                        }));
+                        cmds.push(FCmd::Action(ActionCmd::InsertAt {
                             view,
                             text: target_text,
                             offset: block_start,
-                        });
+                        }));
                     }
                 }
             }
@@ -606,68 +578,62 @@ impl NormalKeyInput {
                         let mut target_text = target_text;
                         target_text.truncate(target_text.len() - 1);
 
-                        actions.push(ActionCommand::Remove {
+                        cmds.push(FCmd::Action(ActionCmd::Remove {
                             view,
                             offset: target_start,
                             len: target_len,
-                        });
-                        actions.push(ActionCommand::InsertAt {
+                        }));
+                        cmds.push(FCmd::Action(ActionCmd::InsertAt {
                             view,
                             text: "\n".to_string(),
                             offset: block_end - target_len,
-                        });
-                        actions.push(ActionCommand::InsertAt {
+                        }));
+                        cmds.push(FCmd::Action(ActionCmd::InsertAt {
                             view,
                             text: target_text,
                             offset: block_end - target_len + 1,
-                        });
+                        }));
                     } else {
-                        actions.push(ActionCommand::Remove {
+                        cmds.push(FCmd::Action(ActionCmd::Remove {
                             view,
                             offset: target_start,
                             len: target_len,
-                        });
-                        actions.push(ActionCommand::InsertAt {
+                        }));
+                        cmds.push(FCmd::Action(ActionCmd::InsertAt {
                             view,
                             text: target_text,
                             offset: block_end - target_len,
-                        });
+                        }));
                     }
                 }
             }
             _ => {}
         }
-        drop(state);
 
-        if actions.is_empty() {
-            return;
+        if cmds.is_empty() {
+            return None;
         }
 
-        let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
-        for action in actions {
-            let _ = self.action_tx.send(action);
-        }
-        let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
+        cmds.insert(0, FCmd::Action(ActionCmd::StartCommit { doc }));
+        cmds.push(FCmd::Action(ActionCmd::EndCommit { doc }));
+
+        Some(cmds)
     }
 
-    fn replace_char(&self, view: ViewId, doc: DocId, ch: char) {
-        let state = self.state_lock.read();
-        let Some(vse) = state.view_store.get(&view) else {
+    fn replace_char(&self, state: &State, view: ViewId, doc: DocId, ch: char) -> Option<Vec<FCmd>> {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        else {
             debug_panic!();
-            return;
-        };
-        let Some(dse) = state.doc_store.get(&doc) else {
-            debug_panic!();
-            return;
+            return None;
         };
 
         let mut edits = Vec::new();
         for cursor in &vse.cursors.list {
-            let offset = cursor.offset;
-            let end = dse.doc.data.get_line_end_byte(dse.doc.data.get_line_of_byte(offset));
+            let end = dse.doc.data.get_line_end_byte(dse.doc.data.get_line_of_byte(cursor.offset));
 
-            if offset < end {
-                let text = dse.doc.data.slice(offset..end);
+            if cursor.offset < end {
+                let text = dse.doc.data.slice(cursor.offset..end);
 
                 // Disallow replacing newline characters.This will break for
                 // Windows CRLF line endings.
@@ -676,36 +642,35 @@ impl NormalKeyInput {
                 }
 
                 let len = text.graphemes(true).next().map(|g| g.len()).unwrap_or(1);
-                edits.push((offset, len));
+                edits.push((cursor.offset, len));
             }
         }
-        drop(state);
 
         if edits.is_empty() {
-            return;
+            return None;
         }
         edits.sort_unstable_by_key(|&(o, _)| std::cmp::Reverse(o));
         edits.dedup_by_key(|&mut (o, _)| o);
 
-        let _ = self.action_tx.send(ActionCommand::StartCommit { doc });
+        let mut cmds = vec![FCmd::Action(ActionCmd::StartCommit { doc })];
         for (offset, len) in edits {
-            let _ = self.action_tx.send(ActionCommand::Remove { view, offset, len });
-            let _ =
-                self.action_tx.send(ActionCommand::InsertAt { view, text: ch.to_string(), offset });
+            cmds.push(FCmd::Action(ActionCmd::Remove { view, offset, len }));
+            cmds.push(FCmd::Action(ActionCmd::InsertAt { view, text: ch.to_string(), offset }));
         }
-        let _ = self.action_tx.send(ActionCommand::MoveCursors {
+        cmds.push(FCmd::Action(ActionCmd::MoveCursors {
             view,
             motion: Motion::Left,
             move_anchor: true,
-        });
-        let _ = self.action_tx.send(ActionCommand::EndCommit { doc });
+        }));
+        cmds.push(FCmd::Action(ActionCmd::EndCommit { doc }));
+
+        Some(cmds)
     }
 
-    fn save_file(&self, doc: DocId) {
-        let state = self.state_lock.read();
+    fn save_file(&self, state: &State, doc: DocId) -> Option<Vec<FCmd>> {
         let Some(dse) = state.doc_store.get(&doc) else {
             debug_panic!();
-            return;
+            return None;
         };
 
         let path = dse.doc.path.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| {
@@ -715,181 +680,150 @@ impl NormalKeyInput {
                 std::path::MAIN_SEPARATOR
             )
         });
-        drop(state);
 
-        let (id_tx, _) = oneshot::channel();
-        let (res_tx, res_rx) = oneshot::channel();
-        let _ = self.mini_buffer_tx.send(MiniBufferCommand::Prompt {
-            prompt: "Save file: ".to_string(),
-            initial_text: if path.is_empty() { None } else { Some(path) },
-            id_tx,
-            res_tx,
+        let pcallback = Box::new(move |state: &State, res: String| {
+            if res.is_empty() {
+                return;
+            }
+
+            let Some(dse) = state.doc_store.get(&doc) else {
+                debug_panic!();
+                return;
+            };
+
+            let path = util::path::normalize(res);
+            let data = dse.doc.data.slice(0..dse.doc.data.len());
+
+            let cb_path = path.clone();
+            let async_fcmd_tx = state.async_fcmd_tx.clone();
+            let wcallback = Box::new(move |res| -> IoFuture {
+                Box::pin(Self::save_file_completion(async_fcmd_tx, res, doc, cb_path))
+            });
+
+            let _ = state.fcmd_tx.send(FCmd::Io(IoCmd::Write { path, data, wcallback }));
         });
 
-        tokio::spawn(Self::save_file_completion(
-            self.state_lock.clone(),
-            doc,
-            res_rx,
-            self.io_tx.clone(),
-            self.action_tx.clone(),
-            self.mini_buffer_tx.clone(),
-        ));
+        Some(vec![FCmd::Mp(MpCmd::Prompt {
+            prompt: "Save file: ".to_string(),
+            initial_text: if path.is_empty() { None } else { Some(path) },
+            pcallback,
+            tx: None,
+        })])
     }
 
     async fn save_file_completion(
-        state_lock: StateLock, doc: DocId, res_rx: oneshot::Receiver<String>,
-        io_tx: UnboundedSender<IoCommand>, action_tx: UnboundedSender<ActionCommand>,
-        mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
+        async_fcmd_tx: UnboundedSender<FCmd>, res: Result<(), String>, doc: DocId, path: PathBuf,
     ) {
-        let Ok(res) = res_rx.await else { return };
+        match res {
+            Ok(()) => {
+                let _ = async_fcmd_tx
+                    .send(FCmd::Action(ActionCmd::SetDocPath { doc, path: Some(path) }));
+                let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::Saved { doc }));
 
-        if res.is_empty() {
-            return;
-        }
-
-        let path = util::path::normalize(res);
-
-        // The scoping is kind of a hack: the compiler incorrectly doesn't
-        // acknowledge that the dropped state.. has been dropped and claims that
-        // the `rx.await` call following this scope is illegal because the
-        // `RwLockReadGuard` is not `Send`.
-        let (tx, rx) = oneshot::channel();
-        {
-            let state = state_lock.read();
-            let Some(dse) = state.doc_store.get(&doc) else { return };
-            let data = dse.doc.data.slice(0..dse.doc.data.len());
-            drop(state);
-
-            let _ = io_tx.send(IoCommand::Write { path: path.clone(), data, tx });
-        }
-
-        match rx.await {
-            Ok(Ok(())) => {
-                let mut state = state_lock.write();
-                if let Some(dse) = state.doc_store.get_mut(&doc) {
-                    dse.doc.path = Some(path);
-                }
-                drop(state);
-
-                let _ = action_tx.send(ActionCommand::Saved { doc });
-
-                let (msg_tx, msg_rx) = oneshot::channel();
-                let _ = mini_buffer_tx.send(MiniBufferCommand::Message {
+                let (tx, rx) = oneshot::channel();
+                let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Message {
                     message: "File saved".to_string(),
-                    tx: msg_tx,
-                });
+                    tx: Some(tx),
+                }));
 
                 tokio::spawn(async move {
-                    let Ok(id) = msg_rx.await else { return };
+                    let Ok(id) = rx.await else {
+                        debug_panic!();
+                        return;
+                    };
 
                     tokio::time::sleep(Duration::from_secs(3)).await;
 
-                    let _ = mini_buffer_tx.send(MiniBufferCommand::Close { id });
+                    let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Close { id }));
                 });
             }
-            Ok(Err(err)) => {
-                let (msg_tx, msg_rx) = oneshot::channel();
-                let _ = mini_buffer_tx.send(MiniBufferCommand::Message {
+            Err(err) => {
+                let (tx, rx) = oneshot::channel();
+                let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Message {
                     message: format!("Error saving file: {err}"),
-                    tx: msg_tx,
-                });
+                    tx: Some(tx),
+                }));
 
                 tokio::spawn(async move {
-                    let Ok(id) = msg_rx.await else { return };
+                    let Ok(id) = rx.await else {
+                        debug_panic!();
+                        return;
+                    };
 
-                    tokio::time::sleep(Duration::from_secs(4)).await;
+                    tokio::time::sleep(Duration::from_secs(3)).await;
 
-                    let _ = mini_buffer_tx.send(MiniBufferCommand::Close { id });
+                    let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Close { id }));
                 });
             }
-            Err(_) => {}
         }
     }
 
-    fn jump(&self, view: ViewId) {
-        let (id_tx, _) = oneshot::channel();
-        let (res_tx, res_rx) = oneshot::channel();
-
-        let _ = self.mini_buffer_tx.send(MiniBufferCommand::Prompt {
-            prompt: "Jump to: ".to_string(),
-            initial_text: None,
-            id_tx,
-            res_tx,
-        });
-
-        tokio::spawn(Self::jump_completion(
-            self.state_lock.clone(),
-            view,
-            res_rx,
-            self.action_tx.clone(),
-        ));
-    }
-
-    async fn jump_completion(
-        state_lock: StateLock, view: ViewId, res_rx: oneshot::Receiver<String>,
-        action_tx: UnboundedSender<ActionCommand>,
-    ) {
-        let Ok(res) = res_rx.await else { return };
-        if res.is_empty() {
-            return;
-        }
-
-        let parts: Vec<&str> = res.split(':').collect();
-
-        let state = state_lock.read();
+    fn jump(&self, state: &State, view: ViewId) -> Option<Vec<FCmd>> {
         let Some((vse, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
         else {
             debug_panic!();
-            return;
+            return None;
         };
         let Some(cursor) = vse.cursors.list.first() else {
-            return;
+            return None;
         };
 
         let pos = util::offset_to_pos(cursor.offset, vse, dse);
-        drop(state);
 
         let mut x = pos.x;
         let mut y = pos.y;
 
-        if parts.len() > 0 && !parts[0].is_empty() {
-            if let Ok(val) = parts[0].parse::<usize>() {
-                y = val.saturating_sub(1);
+        let pcallback = Box::new(move |state: &State, res: String| {
+            if res.is_empty() {
+                return;
             }
-        }
-        if parts.len() > 1 && !parts[1].is_empty() {
-            if let Ok(val) = parts[1].parse::<usize>() {
-                x = val.saturating_sub(1);
-            }
-        }
 
-        let _ = action_tx.send(ActionCommand::MoveCursorToPos {
-            view,
-            pos: crate::types::Pos::new(x, y),
-            move_anchor: true,
+            let parts: Vec<&str> = res.split(':').collect();
+
+            if parts.len() > 0 && !parts[0].is_empty() {
+                if let Ok(val) = parts[0].parse::<usize>() {
+                    y = val.saturating_sub(1);
+                }
+            }
+            if parts.len() > 1 && !parts[1].is_empty() {
+                if let Ok(val) = parts[1].parse::<usize>() {
+                    x = val.saturating_sub(1);
+                }
+            }
+
+            let _ = state.fcmd_tx.send(FCmd::Action(ActionCmd::MoveCursorToPos {
+                view,
+                pos: Pos::new(x, y),
+                move_anchor: true,
+            }));
         });
+
+        Some(vec![FCmd::Mp(MpCmd::Prompt {
+            prompt: "Jump to: ".to_string(),
+            initial_text: None,
+            pcallback,
+            tx: None,
+        })])
     }
 }
 
 impl KeyInputHandler for NormalKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::NormalMode }
 
-    fn key(&mut self, event: &KeyEvent) -> bool {
-        let state = self.state_lock.read();
+    fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         let Some(view) = state.active_view() else {
             // No active view, just abort.
-            return false;
+            return None;
         };
         let Some(vse) = state.view_store.get(&view) else {
             debug_panic!();
-            return false;
+            return None;
         };
 
         if vse.mode() != ViewStoreTypes::Mode::Normal {
-            return false;
+            return None;
         }
-        drop(state);
 
         if self.last_view != Some(view) {
             self.replace = false;
@@ -899,14 +833,17 @@ impl KeyInputHandler for NormalKeyInput {
         }
 
         if self.replace {
-            if let KeyCode::Char(ch) = event.code {
-                self.execute(Command::ReplaceChar(ch));
-            }
+            let cmds = if let KeyCode::Char(ch) = event.code {
+                // Always treat entering execute as consuming the key.
+                Some(self.exec(state, Command::ReplaceChar(ch)).unwrap_or_else(|| Vec::new()))
+            } else {
+                None
+            };
 
             self.replace = false;
             self.pending_keys.clear();
 
-            return true;
+            return cmds;
         }
 
         let chord = KeyChord::from(event);
@@ -914,15 +851,18 @@ impl KeyInputHandler for NormalKeyInput {
 
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
-                self.execute(cmd);
+                // Always treat entering execute as consuming the key.
+                let cmds = Some(self.exec(state, cmd).unwrap_or_else(|| Vec::new()));
                 self.pending_keys.clear();
+
+                cmds
             }
-            ParseResult::Prefix => {}
+            ParseResult::Prefix => Some(Vec::new()),
             ParseResult::Invalid => {
                 self.pending_keys.clear();
+
+                Some(Vec::new())
             }
         }
-
-        true
     }
 }

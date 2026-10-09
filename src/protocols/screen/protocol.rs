@@ -1,40 +1,31 @@
-use tokio::sync::mpsc::UnboundedReceiver;
+use crate::{
+    protocols::{screen::ScreenCmd, state::PState},
+    state::State,
+};
 
-use crate::{protocols::screen::ScreenCommand, render::Screen, state::StateLock};
-
-pub struct ScreenProtocol {
-    screen: Screen,
-
-    state_lock: StateLock,
-
-    rx: UnboundedReceiver<ScreenCommand>,
-}
+pub struct ScreenProtocol {}
 
 impl ScreenProtocol {
-    pub fn new(
-        state_lock: StateLock, width: usize, height: usize, rx: UnboundedReceiver<ScreenCommand>,
-    ) -> Self {
-        Self { screen: Screen::new(width, height), state_lock, rx }
+    pub fn exec(state: &mut State, pstate: &mut PState, cmd: ScreenCmd) {
+        match cmd {
+            ScreenCmd::Resize(width, height) => {
+                state.workspace.resize(width, height);
+                pstate.screen.screen.resize(width, height)
+            }
+            ScreenCmd::Render => Self::render(pstate),
+        }
     }
 
-    pub async fn run(&mut self) {
-        while let Some(mut cmd) = self.rx.recv().await {
-            loop {
-                match cmd {
-                    ScreenCommand::Resize(width, height) => self.screen.resize(width, height),
-                    ScreenCommand::Render => {}
-                }
+    pub fn render(pstate: &mut PState) { pstate.screen.render = true }
 
-                // Debounce.
-                let try_res = self.rx.try_recv();
-                cmd = if try_res.is_ok() { try_res.unwrap() } else { break };
-            }
-
-            let state = self.state_lock.read();
-            state.workspace.render(&state, &mut self.screen);
-            drop(state);
-
-            self.screen.render();
+    pub fn do_render(state: &mut State, pstate: &mut PState) {
+        if !pstate.screen.render {
+            return;
         }
+
+        state.workspace.render(&state, &mut pstate.screen.screen);
+
+        pstate.screen.screen.render();
+        pstate.screen.render = false;
     }
 }

@@ -71,11 +71,8 @@ impl Renderer for ViewRenderer {
                     break;
                 }
 
-                let mut face = if state.mini_buffer.view == self.view {
-                    state.theme.mini_buffer
-                } else {
-                    state.theme.default
-                };
+                let mut face =
+                    if state.mp.view == self.view { state.theme.mp } else { state.theme.default };
                 face.merge(cell.face);
 
                 if visual_x == vse.scroll.x && cell.width == 0 {
@@ -94,11 +91,8 @@ impl Renderer for ViewRenderer {
 
             // Undrawn tail of line.
             while x < width {
-                let face = if state.mini_buffer.view == self.view {
-                    state.theme.mini_buffer
-                } else {
-                    state.theme.default
-                };
+                let face =
+                    if state.mp.view == self.view { state.theme.mp } else { state.theme.default };
 
                 row[x] = Cell::new(" ".to_string(), 1, face);
                 x += 1;
@@ -116,11 +110,7 @@ impl Renderer for ViewRenderer {
         }
 
         // Undrawn trailing lines.
-        let face = if state.mini_buffer.view == self.view {
-            state.theme.mini_buffer
-        } else {
-            state.theme.default
-        };
+        let face = if state.mp.view == self.view { state.theme.mp } else { state.theme.default };
         for y in lines_drawn..height {
             let mut row = vec![Cell::new(" ".to_string(), 1, face); width];
 

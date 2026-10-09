@@ -1,62 +1,49 @@
 use std::time::Duration;
 
-use tokio::sync::{
-    mpsc::{UnboundedReceiver, UnboundedSender},
-    oneshot,
+use crate::{
+    debug_panic::debug_panic,
+    fed::FCmd,
+    protocols::{
+        mp::{MpCmd, MpProtocol},
+        state::PState,
+    },
+    state::State,
 };
 
-use crate::protocols::mini_buffer::MiniBufferCommand;
-
-pub type QuitCallback = Box<dyn Send + Sync + Fn() -> oneshot::Receiver<Result<(), String>>>;
-
-pub struct QuitProtocol {
-    callbacks: Vec<QuitCallback>,
-
-    rx: UnboundedReceiver<()>,
-    mini_buffer_tx: UnboundedSender<MiniBufferCommand>,
-    shutdown_tx: UnboundedSender<()>,
-}
+pub struct QuitProtocol {}
 
 impl QuitProtocol {
-    pub fn new(
-        callbacks: Vec<QuitCallback>, rx: UnboundedReceiver<()>,
-        mini_buffer_tx: UnboundedSender<MiniBufferCommand>, shutdown_tx: UnboundedSender<()>,
-    ) -> Self {
-        Self { callbacks, rx, mini_buffer_tx, shutdown_tx }
-    }
+    pub fn exec(state: &mut State, pstate: &mut PState) {
+        let mut quit = true;
 
-    pub async fn run(&mut self) {
-        while let Some(_) = self.rx.recv().await {
-            let mut can_quit = true;
+        for callback in pstate.quit.callbacks {
+            match callback(state, pstate) {
+                Ok(()) => continue,
+                Err(message) => {
+                    quit = false;
 
-            for callback in &self.callbacks {
-                match callback().await {
-                    Ok(Ok(())) => continue,
-                    Ok(Err(message)) => {
-                        can_quit = false;
+                    let Some(id) = MpProtocol::message(state, pstate, message, None) else {
+                        debug_panic!();
 
-                        let (tx, rx) = oneshot::channel();
-                        let _ =
-                            self.mini_buffer_tx.send(MiniBufferCommand::Message { message, tx });
+                        pstate.quit.quit = false;
 
-                        let tx = self.mini_buffer_tx.clone();
-                        tokio::spawn(async move {
-                            let Ok(id) = rx.await else { return };
-                            tokio::time::sleep(Duration::from_secs(3)).await;
+                        return;
+                    };
 
-                            let _ = tx.send(MiniBufferCommand::Close { id });
-                        });
+                    let async_fcmd_tx = state.async_fcmd_tx.clone();
+                    tokio::spawn(async move {
+                        tokio::time::sleep(Duration::from_secs(3)).await;
 
-                        break;
-                    }
-                    Err(_) => continue,
+                        let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Close { id }));
+                    });
+
+                    break;
                 }
             }
-
-            if can_quit {
-                let _ = self.shutdown_tx.send(());
-                break;
-            }
         }
+
+        pstate.quit.quit = quit;
     }
+
+    pub fn can_quit(pstate: &PState) -> bool { pstate.quit.quit }
 }
