@@ -1,6 +1,6 @@
 use crate::types::Pos;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RectSplit {
     Vertical,
     Horizontal,

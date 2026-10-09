@@ -2,12 +2,8 @@ use crate::render::Screen;
 
 pub struct ScreenState {
     pub screen: Screen,
-
-    pub render: bool,
 }
 
 impl ScreenState {
-    pub fn new(width: usize, height: usize) -> Self {
-        Self { screen: Screen::new(width, height), render: false }
-    }
+    pub fn new(width: usize, height: usize) -> Self { Self { screen: Screen::new(width, height) } }
 }

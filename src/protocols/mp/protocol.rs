@@ -43,7 +43,6 @@ impl MpProtocol {
 
         let (_, window) = DocViewProtocol::create_floating(
             state,
-            pstate,
             state.mp.doc,
             Some(state.mp.view),
             Rect::new(Pos::new(0, pstate.mp.height.saturating_sub(1)), pstate.mp.width, 1),
@@ -87,7 +86,6 @@ impl MpProtocol {
 
         let (_, window) = DocViewProtocol::create_floating(
             state,
-            pstate,
             state.mp.doc,
             Some(state.mp.view),
             Rect::new(Pos::new(0, pstate.mp.height.saturating_sub(1)), pstate.mp.width, 1),

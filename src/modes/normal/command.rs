@@ -1,4 +1,4 @@
-use crate::types::Motion;
+use crate::types::{Motion, RectSplit};
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum Command {
@@ -26,6 +26,8 @@ pub enum Command {
     ReplaceChar(char),
     SaveFile,
     Jump,
+    SplitWindow(RectSplit),
+    FocusWindow(Motion),
     EnterInsertMode,
     EnterVisualMode,
     EnterSearchMode,

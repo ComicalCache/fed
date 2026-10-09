@@ -2,7 +2,7 @@ use piece_table::Slice;
 
 use crate::{
     debug_panic::debug_panic,
-    protocols::{screen::ScreenProtocol, state::PState, view::ViewCmd},
+    protocols::view::ViewCmd,
     render::WindowId,
     state::{DocId, DocStoreTypes, State, ViewId, ViewStoreTypes},
     types::Pos,
@@ -12,18 +12,15 @@ use crate::{
 pub struct ViewProtocol {}
 
 impl ViewProtocol {
-    pub fn exec(state: &mut State, pstate: &mut PState, cmd: ViewCmd) {
+    pub fn exec(state: &mut State, cmd: ViewCmd) {
         match cmd {
-            ViewCmd::Update { view } => Self::update(state, pstate, view),
+            ViewCmd::Update { view } => Self::update(state, view),
             ViewCmd::ScrollTo { view, pos } => Self::scroll_to(state, view, pos),
             ViewCmd::Resize => Self::resize(state),
         }
-
-        // Always redraw the screen after any view command or event.
-        ScreenProtocol::render(pstate);
     }
 
-    pub fn exec_doc_event(state: &mut State, pstate: &mut PState, event: DocStoreTypes::Event) {
+    pub fn exec_doc_event(state: &mut State, event: DocStoreTypes::Event) {
         let doc = match event {
             DocStoreTypes::Event::Created { .. } => return,
             DocStoreTypes::Event::Destroyed { .. } => return,
@@ -40,25 +37,19 @@ impl ViewProtocol {
             .map(|views| views.iter().copied().collect())
             .unwrap_or_default();
         for view in views {
-            Self::update(state, pstate, view);
+            Self::update(state, view);
         }
-
-        // Always redraw the screen after any view command or event.
-        ScreenProtocol::render(pstate);
     }
 
-    pub fn exec_view_event(state: &mut State, pstate: &mut PState, event: ViewStoreTypes::Event) {
+    pub fn exec_view_event(state: &mut State, event: ViewStoreTypes::Event) {
         match event {
             ViewStoreTypes::Event::CursorMoved { view } => Self::cursor_moved(state, view),
             ViewStoreTypes::Event::CursorsChanged { .. } => {}
             ViewStoreTypes::Event::ModeChanged { .. } => {}
         }
-
-        // Always redraw the screen after any view command or event.
-        ScreenProtocol::render(pstate);
     }
 
-    pub fn update(state: &mut State, pstate: &mut PState, view: ViewId) {
+    pub fn update(state: &mut State, view: ViewId) {
         let Some(windows) = state.index.view_to_windows(view) else { return };
         let Some(vse) = state.view_store.get(&view) else {
             debug_panic!();
@@ -79,8 +70,6 @@ impl ViewProtocol {
         if height > 0 {
             Self::fetch(state, view, doc, vse.scroll, height);
         }
-
-        ScreenProtocol::render(pstate);
     }
 
     pub fn scroll_to(state: &mut State, view: ViewId, pos: Pos) {

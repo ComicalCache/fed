@@ -16,12 +16,13 @@ use crate::{
     protocols::{
         action::ActionCmd,
         dir::DirCmd,
+        doc_view::DocViewCmd,
         io::{IoCmd, IoFuture},
         mp::MpCmd,
         view::ViewCmd,
     },
     state::{DocId, State, ViewId, ViewStoreTypes},
-    types::{KeyChord, Keymap, Motion, ParseResult, Pos},
+    types::{KeyChord, Keymap, Motion, ParseResult, Pos, RectSplit},
     util,
 };
 
@@ -149,6 +150,14 @@ impl NormalKeyInput {
             }
             Command::SaveFile => self.save_file(state, doc),
             Command::Jump => self.jump(state, view),
+            Command::SplitWindow(direction) => Self::split_window(state, doc, direction),
+            Command::FocusWindow(motion) => {
+                if let Some(window) = state.workspace.navigate(motion) {
+                    Some(vec![FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) })])
+                } else {
+                    None
+                }
+            }
             Command::EnterInsertMode => {
                 if dse.read_only {
                     return None;
@@ -175,7 +184,7 @@ impl NormalKeyInput {
 
                 Some(vec![FCmd::Dir(DirCmd::ReplaceWindow { window })])
             }
-            Command::Quit => Some(vec![FCmd::Quit]),
+            Command::Quit => Self::quit(state, view),
         }
     }
 
@@ -805,6 +814,50 @@ impl NormalKeyInput {
             pcallback,
             tx: None,
         })])
+    }
+
+    fn split_window(state: &State, doc: DocId, direction: RectSplit) -> Option<Vec<FCmd>> {
+        let Some(window) = state.workspace.active_window else {
+            debug_panic!();
+            return None;
+        };
+
+        let (tx, rx) = oneshot::channel();
+
+        let async_fcmd_tx = state.async_fcmd_tx.clone();
+        tokio::spawn(async move {
+            let Ok(Some((_, window))) = rx.await else {
+                debug_panic!();
+                return;
+            };
+
+            let _ = async_fcmd_tx
+                .send(FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) }));
+        });
+
+        Some(vec![FCmd::DocView(DocViewCmd::CreateTile {
+            doc,
+            view: None,
+            split_window: window,
+            direction,
+            raw: false,
+            tx: Some(tx),
+        })])
+    }
+
+    fn quit(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
+        let mut cmds = vec![FCmd::DocView(DocViewCmd::DestroyView { view })];
+
+        let fallback =
+            state.workspace.tiles().into_iter().find(|&w| Some(w) != state.workspace.active_window);
+
+        if let Some(fallback) = fallback {
+            cmds.push(FCmd::Action(ActionCmd::SetActiveWindow { window: Some(fallback) }));
+        } else {
+            cmds.push(FCmd::Quit);
+        }
+
+        Some(cmds)
     }
 }
 

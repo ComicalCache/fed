@@ -18,8 +18,8 @@ impl ProtocolRouter {
             FCmd::Mp(cmd) => MpProtocol::exec(state, pstate, cmd),
             FCmd::Quit => QuitProtocol::exec(state, pstate),
             FCmd::Screen(cmd) => ScreenProtocol::exec(state, pstate, cmd),
-            FCmd::View(cmd) => ViewProtocol::exec(state, pstate, cmd),
-            FCmd::DocView(cmd) => DocViewProtocol::exec(state, pstate, cmd),
+            FCmd::View(cmd) => ViewProtocol::exec(state, cmd),
+            FCmd::DocView(cmd) => DocViewProtocol::exec(state, cmd),
             FCmd::Dir(cmd) => DirProtocol::exec(state, pstate, cmd),
         }
     }

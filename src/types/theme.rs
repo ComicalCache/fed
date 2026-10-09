@@ -4,6 +4,7 @@ use crate::types::{Face, Rgb};
 pub struct Theme {
     pub default: Face,
     pub cursor: Face,
+    pub active_cursor: Face,
     pub gutter: Face,
     pub mode_line: Face,
     pub ruler: Face,
@@ -27,6 +28,11 @@ impl Default for Theme {
             cursor: Face {
                 fg: Some(Rgb::new(41, 44, 51)),
                 bg: Some(Rgb::new(172, 178, 190)),
+                ..Face::default()
+            },
+            active_cursor: Face {
+                fg: Some(Rgb::new(41, 44, 51)),
+                bg: Some(Rgb::new(254, 120, 25)),
                 ..Face::default()
             },
             selection: Face {

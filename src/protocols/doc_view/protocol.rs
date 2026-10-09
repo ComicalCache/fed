@@ -4,7 +4,6 @@ use crate::{
     debug_panic::debug_panic,
     protocols::{
         doc_view::{DocViewCmd, DocViewRenderer},
-        state::PState,
         view::ViewProtocol,
     },
     render::{WindowId, ZLayer},
@@ -15,25 +14,24 @@ use crate::{
 pub struct DocViewProtocol {}
 
 impl DocViewProtocol {
-    pub fn exec(state: &mut State, pstate: &mut PState, cmd: DocViewCmd) {
+    pub fn exec(state: &mut State, cmd: DocViewCmd) {
         match cmd {
             DocViewCmd::CreateTile { doc, view, split_window, direction, raw, tx } => {
-                Self::create_tile(state, pstate, doc, view, split_window, direction, raw, tx);
+                Self::create_tile(state, doc, view, split_window, direction, raw, tx);
             }
             DocViewCmd::CreateFloating { doc, view, rect, z, raw, tx } => {
-                Self::create_floating(state, pstate, doc, view, rect, z, raw, tx);
+                Self::create_floating(state, doc, view, rect, z, raw, tx);
             }
             DocViewCmd::ReplaceWindow { doc, view, window, raw, tx } => {
-                Self::replace_window(state, pstate, doc, view, window, raw, tx);
+                Self::replace_window(state, doc, view, window, raw, tx);
             }
             DocViewCmd::DestroyView { view } => Self::destroy_view(state, view),
         }
     }
 
     pub fn create_tile(
-        state: &mut State, pstate: &mut PState, doc: DocId, view: Option<ViewId>,
-        split_window: WindowId, direction: RectSplit, raw: bool,
-        tx: Option<oneshot::Sender<Option<(ViewId, WindowId)>>>,
+        state: &mut State, doc: DocId, view: Option<ViewId>, split_window: WindowId,
+        direction: RectSplit, raw: bool, tx: Option<oneshot::Sender<Option<(ViewId, WindowId)>>>,
     ) -> Option<(ViewId, WindowId)> {
         let view = view.unwrap_or_else(|| state.create_view(doc));
 
@@ -58,7 +56,7 @@ impl DocViewProtocol {
 
         state.index.link_window_to_view(window, view);
 
-        ViewProtocol::update(state, pstate, view);
+        ViewProtocol::update(state, view);
 
         if let Some(tx) = tx {
             let _ = tx.send(Some((view, window)));
@@ -68,8 +66,8 @@ impl DocViewProtocol {
     }
 
     pub fn create_floating(
-        state: &mut State, pstate: &mut PState, doc: DocId, view: Option<ViewId>, rect: Rect,
-        z: ZLayer, raw: bool, tx: Option<oneshot::Sender<(ViewId, WindowId)>>,
+        state: &mut State, doc: DocId, view: Option<ViewId>, rect: Rect, z: ZLayer, raw: bool,
+        tx: Option<oneshot::Sender<(ViewId, WindowId)>>,
     ) -> (ViewId, WindowId) {
         let view = view.unwrap_or_else(|| state.create_view(doc));
 
@@ -77,7 +75,7 @@ impl DocViewProtocol {
             state.workspace.create_floating(rect, z, Box::new(DocViewRenderer::new(view, raw)));
         state.index.link_window_to_view(window, view);
 
-        ViewProtocol::update(state, pstate, view);
+        ViewProtocol::update(state, view);
 
         if let Some(tx) = tx {
             let _ = tx.send((view, window));
@@ -87,15 +85,15 @@ impl DocViewProtocol {
     }
 
     pub fn replace_window(
-        state: &mut State, pstate: &mut PState, doc: DocId, view: Option<ViewId>, window: WindowId,
-        raw: bool, tx: Option<oneshot::Sender<ViewId>>,
+        state: &mut State, doc: DocId, view: Option<ViewId>, window: WindowId, raw: bool,
+        tx: Option<oneshot::Sender<ViewId>>,
     ) -> ViewId {
         let view = view.unwrap_or_else(|| state.create_view(doc));
 
         state.workspace.replace_renderer(window, Box::new(DocViewRenderer::new(view, raw)));
         state.index.link_window_to_view(window, view);
 
-        ViewProtocol::update(state, pstate, view);
+        ViewProtocol::update(state, view);
 
         if let Some(tx) = tx {
             let _ = tx.send(view);

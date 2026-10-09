@@ -12,20 +12,11 @@ impl ScreenProtocol {
                 state.workspace.resize(width, height);
                 pstate.screen.screen.resize(width, height)
             }
-            ScreenCmd::Render => Self::render(pstate),
         }
     }
 
-    pub fn render(pstate: &mut PState) { pstate.screen.render = true }
-
-    pub fn do_render(state: &mut State, pstate: &mut PState) {
-        if !pstate.screen.render {
-            return;
-        }
-
+    pub fn render(state: &mut State, pstate: &mut PState) {
         state.workspace.render(&state, &mut pstate.screen.screen);
-
         pstate.screen.screen.render();
-        pstate.screen.render = false;
     }
 }

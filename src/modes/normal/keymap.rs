@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyModifiers};
 
 use crate::{
     modes::{motions::MOTIONS, normal::command::Command},
-    types::{KeyChord, Keymap, Motion},
+    types::{KeyChord, Keymap, Motion, RectSplit},
 };
 
 pub fn keymap() -> Keymap<Command> {
@@ -88,6 +88,50 @@ pub fn keymap() -> Keymap<Command> {
 
     keymap.bind(&[KeyChord::new(KeyCode::Char('s'), KeyModifiers::CONTROL)], Command::SaveFile);
     keymap.bind(&[KeyChord::new(KeyCode::Char('j'), KeyModifiers::CONTROL)], Command::Jump);
+
+    keymap.bind(
+        &[
+            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+            KeyChord::new(KeyCode::Char('H'), KeyModifiers::SHIFT),
+        ],
+        Command::SplitWindow(RectSplit::Horizontal),
+    );
+    keymap.bind(
+        &[
+            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+            KeyChord::new(KeyCode::Char('V'), KeyModifiers::SHIFT),
+        ],
+        Command::SplitWindow(RectSplit::Vertical),
+    );
+
+    keymap.bind(
+        &[
+            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+            KeyChord::new(KeyCode::Char('h'), KeyModifiers::empty()),
+        ],
+        Command::FocusWindow(Motion::Left),
+    );
+    keymap.bind(
+        &[
+            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+            KeyChord::new(KeyCode::Char('j'), KeyModifiers::empty()),
+        ],
+        Command::FocusWindow(Motion::Down),
+    );
+    keymap.bind(
+        &[
+            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+            KeyChord::new(KeyCode::Char('k'), KeyModifiers::empty()),
+        ],
+        Command::FocusWindow(Motion::Up),
+    );
+    keymap.bind(
+        &[
+            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+            KeyChord::new(KeyCode::Char('l'), KeyModifiers::empty()),
+        ],
+        Command::FocusWindow(Motion::Right),
+    );
 
     keymap.bind(
         &[KeyChord::new(KeyCode::Char('i'), KeyModifiers::empty())],

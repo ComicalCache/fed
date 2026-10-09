@@ -32,7 +32,7 @@ impl DirProtocol {
             DirCmd::InitCompletion { entries, printables } => {
                 Self::init_completion(state, entries, printables)
             }
-            DirCmd::ReplaceWindow { window } => Self::replace_window(state, pstate, window),
+            DirCmd::ReplaceWindow { window } => Self::replace_window(state, window),
             DirCmd::Create { path, dir } => Self::create(state, path, dir),
             DirCmd::Rename { old, new } => Self::rename(state, old, new),
             DirCmd::Delete { path, recursive } => Self::delete(state, path, recursive),
@@ -102,11 +102,11 @@ impl DirProtocol {
         };
     }
 
-    fn replace_window(state: &mut State, pstate: &mut PState, window: WindowId) {
+    fn replace_window(state: &mut State, window: WindowId) {
         state.workspace.replace_renderer(window, Box::new(DirRenderer::new(state.dir.view)));
         state.index.link_window_to_view(window, state.dir.view);
 
-        ViewProtocol::update(state, pstate, state.dir.view);
+        ViewProtocol::update(state, state.dir.view);
     }
 
     fn create(state: &mut State, path: PathBuf, dir: bool) {
@@ -252,9 +252,7 @@ impl DirProtocol {
                             .flatten()
                             .cloned();
 
-                        DocViewProtocol::replace_window(
-                            state, pstate, doc, view, window, false, None,
-                        );
+                        DocViewProtocol::replace_window(state, doc, view, window, false, None);
 
                         return;
                     }

@@ -120,10 +120,10 @@ impl Fed {
             while let Ok(event) = self.fevent_rx.try_recv() {
                 match event {
                     FEvent::Doc(event) => {
-                        ViewProtocol::exec_doc_event(&mut self.state, &mut self.pstate, event);
+                        ViewProtocol::exec_doc_event(&mut self.state, event);
                     }
                     FEvent::View(event) => {
-                        ViewProtocol::exec_view_event(&mut self.state, &mut self.pstate, event);
+                        ViewProtocol::exec_view_event(&mut self.state, event);
                     }
                 }
             }
@@ -133,7 +133,7 @@ impl Fed {
                 break;
             }
 
-            ScreenProtocol::do_render(&mut self.state, &mut self.pstate);
+            ScreenProtocol::render(&mut self.state, &mut self.pstate);
         }
     }
 
