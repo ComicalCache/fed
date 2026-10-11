@@ -148,6 +148,11 @@ impl ManageProtocol {
             }
         };
 
+        // Ignore selecting oneself.
+        if view == Some(state.manage.view) {
+            return;
+        }
+
         if let Some(view) = view
             && let Some(windows) = state.index.view_to_windows(view)
             && let Some(&window) = windows.iter().next()
