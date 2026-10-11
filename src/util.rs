@@ -1,5 +1,6 @@
 pub mod format;
 pub mod motion;
+pub mod mp;
 pub mod path;
 
 use piece_table::Slice;

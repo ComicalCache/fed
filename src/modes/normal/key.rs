@@ -154,6 +154,22 @@ impl NormalKeyInput {
             Cmd::Jump => common::jump(state, view),
             Cmd::SplitWindow(direction) => Self::split_window(state, doc, direction),
             Cmd::FocusWindow(motion) => common::focus_window(state, motion),
+            Cmd::EnterDirMode => {
+                let Some(window) = state.workspace.active_window else {
+                    debug_panic!();
+                    return None;
+                };
+
+                Some(vec![FCmd::Dir(DirCmd::ReplaceWindow { window })])
+            }
+            Cmd::EnterManageMode => {
+                let Some(window) = state.workspace.active_window else {
+                    debug_panic!();
+                    return None;
+                };
+
+                Some(vec![FCmd::Manage(ManageCmd::ReplaceWindow { window })])
+            }
             Cmd::EnterInsertMode => {
                 if dse.read_only {
                     return None;
@@ -172,22 +188,6 @@ impl NormalKeyInput {
                 mode: ViewStoreTypes::Mode::Visual,
             })]),
             Cmd::EnterSearchMode => Some(search::util::start_search(view, doc, None)),
-            Cmd::EnterDirMode => {
-                let Some(window) = state.workspace.active_window else {
-                    debug_panic!();
-                    return None;
-                };
-
-                Some(vec![FCmd::Dir(DirCmd::ReplaceWindow { window })])
-            }
-            Cmd::EnterManageMode => {
-                let Some(window) = state.workspace.active_window else {
-                    debug_panic!();
-                    return None;
-                };
-
-                Some(vec![FCmd::Manage(ManageCmd::ReplaceWindow { window })])
-            }
             Cmd::Quit => common::quit(state, view),
         }
     }
@@ -492,40 +492,18 @@ impl NormalKeyInput {
                     .send(FCmd::Action(ActionCmd::SetDocPath { doc, path: Some(path) }));
                 let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::Saved { doc }));
 
-                let (tx, rx) = oneshot::channel();
-                let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Message {
-                    message: "File saved".to_string(),
-                    tx: Some(tx),
-                }));
-
-                tokio::spawn(async move {
-                    let Ok(id) = rx.await else {
-                        debug_panic!();
-                        return;
-                    };
-
-                    tokio::time::sleep(Duration::from_secs(3)).await;
-
-                    let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Close { id }));
-                });
+                util::mp::async_message(
+                    async_fcmd_tx,
+                    "File saved".to_string(),
+                    Duration::from_secs(3),
+                );
             }
             Err(err) => {
-                let (tx, rx) = oneshot::channel();
-                let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Message {
-                    message: format!("Error saving file: {err}"),
-                    tx: Some(tx),
-                }));
-
-                tokio::spawn(async move {
-                    let Ok(id) = rx.await else {
-                        debug_panic!();
-                        return;
-                    };
-
-                    tokio::time::sleep(Duration::from_secs(3)).await;
-
-                    let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Close { id }));
-                });
+                util::mp::async_message(
+                    async_fcmd_tx,
+                    format!("Error saving file: {err}"),
+                    Duration::from_secs(3),
+                );
             }
         }
     }

@@ -25,6 +25,7 @@ use crate::{
     render::{WindowId, Workspace},
     state::{DocId, DocStoreTypes, State, ViewId, ViewStoreTypes},
     types::{Pos, Rect, RectSplit},
+    util,
 };
 
 pub enum FCmd {
@@ -172,22 +173,11 @@ impl Fed {
         let text = match res {
             Ok(text) => text,
             Err(err) => {
-                let (id_tx, id_rx) = oneshot::channel();
-                let _ = tx.send(FCmd::Mp(MpCmd::Message {
-                    message: format!("Error reading file: {err}"),
-                    tx: Some(id_tx),
-                }));
-
-                tokio::spawn(async move {
-                    let Ok(id) = id_rx.await else {
-                        debug_panic!();
-                        return;
-                    };
-
-                    tokio::time::sleep(Duration::from_secs(3)).await;
-
-                    let _ = tx.send(FCmd::Mp(MpCmd::Close { id }));
-                });
+                util::mp::async_message(
+                    tx,
+                    format!("Error reading file: {err}"),
+                    Duration::from_secs(3),
+                );
 
                 return;
             }

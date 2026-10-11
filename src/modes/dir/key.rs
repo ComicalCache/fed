@@ -14,6 +14,7 @@ use crate::{
     protocols::{
         action::ActionCmd,
         dir::{DirCmd, DirProtocol},
+        manage::ManageCmd,
         mp::MpCmd,
         state::PState,
     },
@@ -52,6 +53,14 @@ impl DirKeyInput {
             Cmd::DeleteRecursive => self.delete(state, view, true),
             Cmd::Select => Some(vec![FCmd::Dir(DirCmd::Select)]),
             Cmd::FocusWindow(motion) => common::focus_window(state, motion),
+            Cmd::EnterManageMode => {
+                let Some(window) = state.workspace.active_window else {
+                    debug_panic!();
+                    return None;
+                };
+
+                Some(vec![FCmd::Manage(ManageCmd::ReplaceWindow { window })])
+            }
             Cmd::EnterVisualMode => Some(vec![FCmd::Action(ActionCmd::PushViewMode {
                 view,
                 mode: ViewStoreTypes::Mode::Visual,

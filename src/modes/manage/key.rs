@@ -1,6 +1,7 @@
 use crossterm::event::KeyEvent;
 
 use crate::{
+    debug_panic::debug_panic,
     fed::FCmd,
     input_handler::{KeyInputHandler, KeyInputPriority},
     modes::{
@@ -8,7 +9,7 @@ use crate::{
         manage::{cmd::Cmd, keymap},
         search,
     },
-    protocols::{action::ActionCmd, manage::ManageCmd},
+    protocols::{action::ActionCmd, dir::DirCmd, manage::ManageCmd},
     state::{DocStoreTypes, State, ViewId, ViewStoreTypes},
     types::{KeyChord, Keymap, ParseResult},
 };
@@ -40,6 +41,14 @@ impl ManageKeyInput {
             Cmd::Select => Some(vec![FCmd::Manage(ManageCmd::Select)]),
             Cmd::Close => Some(vec![FCmd::Manage(ManageCmd::Close)]),
             Cmd::FocusWindow(motion) => common::focus_window(state, motion),
+            Cmd::EnterDirMode => {
+                let Some(window) = state.workspace.active_window else {
+                    debug_panic!();
+                    return None;
+                };
+
+                Some(vec![FCmd::Dir(DirCmd::ReplaceWindow { window })])
+            }
             Cmd::EnterVisualMode => Some(vec![FCmd::Action(ActionCmd::PushViewMode {
                 view,
                 mode: ViewStoreTypes::Mode::Visual,

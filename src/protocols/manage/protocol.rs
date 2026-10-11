@@ -2,13 +2,11 @@ use std::time::Duration;
 
 use crate::{
     debug_panic::debug_panic,
-    fed::FCmd,
     protocols::{
         action::ActionProtocol,
         dir::DirProtocol,
         doc_view::DocViewProtocol,
         manage::{ManageCmd, ManageRenderer},
-        mp::{MpCmd, MpProtocol},
         state::PState,
         view::ViewProtocol,
     },
@@ -201,22 +199,12 @@ impl ManageProtocol {
         match entry {
             ManageTypes::Entry::Doc(id) => {
                 if state.doc_store.get(&id).unwrap().doc.modified {
-                    let Some(id) = MpProtocol::message(
+                    util::mp::message(
                         state,
                         pstate,
                         "There are unsaved changes".to_string(),
-                        None,
-                    ) else {
-                        debug_panic!();
-                        return;
-                    };
-
-                    let async_fcmd_tx = state.async_fcmd_tx.clone();
-                    tokio::spawn(async move {
-                        tokio::time::sleep(Duration::from_secs(3)).await;
-
-                        let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Close { id }));
-                    });
+                        Duration::from_secs(3),
+                    );
                 } else {
                     for view in state.destroy_doc(id) {
                         DocViewProtocol::destroy_view(state, view);

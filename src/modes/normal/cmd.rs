@@ -29,9 +29,9 @@ pub enum Cmd {
     SplitWindow(RectSplit),
     FocusWindow(Motion),
     EnterInsertMode,
-    EnterVisualMode,
-    EnterSearchMode,
     EnterDirMode,
     EnterManageMode,
+    EnterVisualMode,
+    EnterSearchMode,
     Quit,
 }

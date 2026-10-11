@@ -13,6 +13,7 @@ pub enum Cmd {
     DeleteRecursive,
     Select,
     FocusWindow(Motion),
+    EnterManageMode,
     EnterVisualMode,
     EnterSearchMode,
     Quit,

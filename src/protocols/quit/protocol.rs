@@ -1,14 +1,6 @@
 use std::time::Duration;
 
-use crate::{
-    debug_panic::debug_panic,
-    fed::FCmd,
-    protocols::{
-        mp::{MpCmd, MpProtocol},
-        state::PState,
-    },
-    state::State,
-};
+use crate::{protocols::state::PState, state::State, util};
 
 pub struct QuitProtocol {}
 
@@ -22,20 +14,7 @@ impl QuitProtocol {
                 Err(message) => {
                     quit = false;
 
-                    let Some(id) = MpProtocol::message(state, pstate, message, None) else {
-                        debug_panic!();
-
-                        pstate.quit.quit = false;
-
-                        return;
-                    };
-
-                    let async_fcmd_tx = state.async_fcmd_tx.clone();
-                    tokio::spawn(async move {
-                        tokio::time::sleep(Duration::from_secs(3)).await;
-
-                        let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Close { id }));
-                    });
+                    util::mp::message(state, pstate, message, Duration::from_secs(3));
 
                     break;
                 }

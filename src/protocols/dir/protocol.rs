@@ -10,7 +10,6 @@ use crate::{
         dir::{DirCmd, DirRenderer},
         doc_view::{DocViewCmd, DocViewProtocol},
         io::{IoFuture, IoProtocol},
-        mp::{MpCmd, MpProtocol},
         state::PState,
         view::ViewProtocol,
     },
@@ -132,22 +131,11 @@ impl DirProtocol {
             };
 
             if let Err(err) = res {
-                let (tx, rx) = oneshot::channel();
-                let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Message {
-                    message: format!("Failed to create path: {err}"),
-                    tx: Some(tx),
-                }));
-
-                tokio::spawn(async move {
-                    let Ok(id) = rx.await else {
-                        debug_panic!();
-                        return;
-                    };
-
-                    tokio::time::sleep(Duration::from_secs(3)).await;
-
-                    let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Close { id }));
-                });
+                util::mp::async_message(
+                    async_fcmd_tx,
+                    format!("Failed to create path: {err}"),
+                    Duration::from_secs(3),
+                );
             } else {
                 let _ = async_fcmd_tx.send(FCmd::Dir(DirCmd::Init));
             }
@@ -158,22 +146,11 @@ impl DirProtocol {
         let async_fcmd_tx = state.async_fcmd_tx.clone();
         tokio::spawn(async move {
             if let Err(err) = tokio::fs::rename(&old, &new).await {
-                let (tx, rx) = oneshot::channel();
-                let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Message {
-                    message: format!("Failed to rename path: {err}"),
-                    tx: Some(tx),
-                }));
-
-                tokio::spawn(async move {
-                    let Ok(id) = rx.await else {
-                        debug_panic!();
-                        return;
-                    };
-
-                    tokio::time::sleep(Duration::from_secs(3)).await;
-
-                    let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Close { id }));
-                });
+                util::mp::async_message(
+                    async_fcmd_tx,
+                    format!("Failed to rename path: {err}"),
+                    Duration::from_secs(3),
+                );
             } else {
                 let _ = async_fcmd_tx.send(FCmd::Dir(DirCmd::Init));
             }
@@ -198,22 +175,11 @@ impl DirProtocol {
             };
 
             if let Err(err) = res {
-                let (tx, rx) = oneshot::channel();
-                let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Message {
-                    message: format!("Failed to delete path: {err}"),
-                    tx: Some(tx),
-                }));
-
-                tokio::spawn(async move {
-                    let Ok(id) = rx.await else {
-                        debug_panic!();
-                        return;
-                    };
-
-                    tokio::time::sleep(Duration::from_secs(3)).await;
-
-                    let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Close { id }));
-                });
+                util::mp::async_message(
+                    async_fcmd_tx,
+                    format!("Failed to delete path: {err}"),
+                    Duration::from_secs(3),
+                );
             } else {
                 let _ = async_fcmd_tx.send(FCmd::Dir(DirCmd::Init));
             }
@@ -287,22 +253,12 @@ impl DirProtocol {
                 Self::init(state);
             }
             DirTypes::EntryKind::Symlink => {
-                let Some(id) = MpProtocol::message(
+                util::mp::message(
                     state,
                     pstate,
                     "Symlinks are not (yet) supported".to_string(),
-                    None,
-                ) else {
-                    debug_panic!();
-                    return;
-                };
-
-                let async_fcmd_tx = state.async_fcmd_tx.clone();
-                tokio::spawn(async move {
-                    tokio::time::sleep(Duration::from_secs(3)).await;
-
-                    let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Close { id }));
-                });
+                    Duration::from_secs(3),
+                );
             }
             DirTypes::EntryKind::Header => {}
         }
@@ -446,22 +402,11 @@ impl DirProtocol {
         let text = match res {
             Ok(text) => text,
             Err(err) => {
-                let (tx, rx) = oneshot::channel();
-                let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Message {
-                    message: format!("Error reading file: {err}"),
-                    tx: Some(tx),
-                }));
-
-                tokio::spawn(async move {
-                    let Ok(id) = rx.await else {
-                        debug_panic!();
-                        return;
-                    };
-
-                    tokio::time::sleep(Duration::from_secs(3)).await;
-
-                    let _ = async_fcmd_tx.send(FCmd::Mp(MpCmd::Close { id }));
-                });
+                util::mp::async_message(
+                    async_fcmd_tx,
+                    format!("Error reading file: {err}"),
+                    Duration::from_secs(3),
+                );
 
                 return;
             }
