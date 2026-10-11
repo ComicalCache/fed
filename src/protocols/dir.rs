@@ -1,7 +1,7 @@
-mod command;
+mod cmd;
 mod protocol;
 mod render;
 
-pub use command::DirCmd;
+pub use cmd::DirCmd;
 pub use protocol::DirProtocol;
 pub use render::DirRenderer;

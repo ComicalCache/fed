@@ -4,7 +4,7 @@ use crate::types::{Decoration, Decorator, Span};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum DecorationId {
-    MiniBuffer,
+    Mp,
     Search,
 }
 

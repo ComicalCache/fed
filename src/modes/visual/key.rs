@@ -7,8 +7,8 @@ use crate::{
     fed::FCmd,
     input_handler::{KeyInputHandler, KeyInputPriority},
     modes::{
-        search,
-        visual::{command::Command, keymap},
+        common, search,
+        visual::{cmd::Cmd, keymap},
     },
     protocols::action::ActionCmd,
     state::{DocId, State, ViewId, ViewStoreTypes},
@@ -16,7 +16,7 @@ use crate::{
 };
 
 pub struct VisualKeyInput {
-    keymap: Keymap<Command>,
+    keymap: Keymap<Cmd>,
     pending_keys: Vec<KeyChord>,
 
     last_view: Option<ViewId>,
@@ -28,7 +28,7 @@ impl VisualKeyInput {
         Self { keymap, pending_keys: Vec::new(), last_view: None }
     }
 
-    fn exec(&mut self, state: &State, cmd: Command) -> Option<Vec<FCmd>> {
+    fn exec(&mut self, state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
         let Some(view) = state.active_view() else { return None };
         let Some(doc) = state.index.view_to_doc(view) else {
             debug_panic!();
@@ -40,33 +40,33 @@ impl VisualKeyInput {
         };
 
         match cmd {
-            Command::Move(motion) => Some(vec![FCmd::Action(ActionCmd::MoveCursors {
+            Cmd::Move(motion) => Some(vec![FCmd::Action(ActionCmd::MoveCursors {
                 view,
                 motion,
                 move_anchor: false,
             })]),
-            Command::SwapLineDown | Command::SwapLineUp => {
-                if dse.read_only {
-                    return None;
-                }
-
-                self.swap_operation(state, view, doc, cmd)
-            }
-            Command::EnterSearchMode => self.enter_search_mode(state, view, doc),
-            Command::Escape => self.escape(view),
-            Command::Yank => self.operator(state, view, doc, cmd),
-            Command::Delete | Command::Change => {
+            Cmd::Delete | Cmd::Change => {
                 if dse.read_only {
                     return None;
                 }
 
                 self.operator(state, view, doc, cmd)
             }
+            Cmd::Yank => self.operator(state, view, doc, cmd),
+            Cmd::SwapLineDown | Cmd::SwapLineUp => {
+                if dse.read_only {
+                    return None;
+                }
+
+                self.swap_operation(state, view, doc, cmd)
+            }
+            Cmd::EnterSearchMode => self.enter_search_mode(state, view, doc),
+            Cmd::Escape => self.escape(view),
         }
     }
 
     fn swap_operation(
-        &self, state: &State, view: ViewId, doc: DocId, cmd: Command,
+        &self, state: &State, view: ViewId, doc: DocId, cmd: Cmd,
     ) -> Option<Vec<FCmd>> {
         let Some((vse, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
@@ -95,142 +95,8 @@ impl VisualKeyInput {
                 }
             }
         }
-        lines.sort_unstable();
-        lines.dedup();
 
-        if lines.is_empty() {
-            return None;
-        }
-
-        // Group contiguous lines into blocks and move them together.
-        let mut blocks: Vec<(usize, usize)> = Vec::new();
-        for &y in &lines {
-            if let Some(last) = blocks.last_mut()
-                && last.1 + 1 == y
-            {
-                last.1 = y;
-                continue;
-            }
-
-            blocks.push((y, y));
-        }
-
-        let mut cmds = Vec::new();
-        match cmd {
-            Command::SwapLineDown => {
-                for &(start, end) in blocks.iter().rev() {
-                    if end + 1 >= doc_lines {
-                        continue;
-                    }
-
-                    let block_start = dse.doc.data.get_line_start_byte(start);
-                    let block_end = dse.doc.data.get_line_end_byte(end);
-
-                    let target = end + 1;
-                    let target_start = dse.doc.data.get_line_start_byte(target);
-                    let target_end = dse.doc.data.get_line_end_byte(target);
-                    let target_text = dse.doc.data.slice(target_start..target_end);
-
-                    // Target line is the last line of the document.
-                    if target + 1 == doc_lines {
-                        let mut target_text = target_text;
-                        target_text.push('\n');
-
-                        cmds.push(FCmd::Action(ActionCmd::Remove {
-                            view,
-                            offset: target_start,
-                            len: target_end - target_start,
-                        }));
-
-                        // Remove the newline of not the block since it will be
-                        // at the end. This will break for Windows CRLF line
-                        // endings.
-                        cmds.push(FCmd::Action(ActionCmd::Remove {
-                            view,
-                            offset: block_end - 1,
-                            len: 1,
-                        }));
-                        cmds.push(FCmd::Action(ActionCmd::InsertAt {
-                            view,
-                            text: target_text,
-                            offset: block_start,
-                        }));
-                    } else {
-                        cmds.push(FCmd::Action(ActionCmd::Remove {
-                            view,
-                            offset: target_start,
-                            len: target_end - target_start,
-                        }));
-                        cmds.push(FCmd::Action(ActionCmd::InsertAt {
-                            view,
-                            text: target_text,
-                            offset: block_start,
-                        }));
-                    }
-                }
-            }
-            Command::SwapLineUp => {
-                for &(start, end) in blocks.iter().rev() {
-                    if start == 0 {
-                        continue;
-                    }
-
-                    let block_end = dse.doc.data.get_line_end_byte(end);
-
-                    let target = start - 1;
-                    let target_start = dse.doc.data.get_line_start_byte(target);
-                    let target_end = dse.doc.data.get_line_end_byte(target);
-                    let target_text = dse.doc.data.slice(target_start..target_end);
-                    let target_len = target_text.len();
-
-                    // Block is the last line(s) of the document.
-                    if end + 1 == doc_lines {
-                        // Remove the newline of not block since it wont be
-                        // at the end. This will break for Windows CRLF line
-                        // endings.
-                        let mut target_text = target_text;
-                        target_text.truncate(target_text.len() - 1);
-
-                        cmds.push(FCmd::Action(ActionCmd::Remove {
-                            view,
-                            offset: target_start,
-                            len: target_len,
-                        }));
-                        cmds.push(FCmd::Action(ActionCmd::InsertAt {
-                            view,
-                            text: "\n".to_string(),
-                            offset: block_end - target_len,
-                        }));
-                        cmds.push(FCmd::Action(ActionCmd::InsertAt {
-                            view,
-                            text: target_text,
-                            offset: block_end - target_len + 1,
-                        }));
-                    } else {
-                        cmds.push(FCmd::Action(ActionCmd::Remove {
-                            view,
-                            offset: target_start,
-                            len: target_len,
-                        }));
-                        cmds.push(FCmd::Action(ActionCmd::InsertAt {
-                            view,
-                            text: target_text,
-                            offset: block_end - target_len,
-                        }));
-                    }
-                }
-            }
-            _ => {}
-        }
-
-        if cmds.is_empty() {
-            return None;
-        }
-
-        cmds.insert(0, FCmd::Action(ActionCmd::StartCommit { doc }));
-        cmds.push(FCmd::Action(ActionCmd::EndCommit { doc }));
-
-        Some(cmds)
+        common::swap_lines(state, view, doc, lines, matches!(cmd, Cmd::SwapLineDown))
     }
 
     fn enter_search_mode(&self, state: &State, view: ViewId, doc: DocId) -> Option<Vec<FCmd>> {
@@ -271,7 +137,7 @@ impl VisualKeyInput {
         Some(search::util::start_search(view, doc, Some(bounds)))
     }
 
-    fn operator(&self, state: &State, view: ViewId, doc: DocId, cmd: Command) -> Option<Vec<FCmd>> {
+    fn operator(&self, state: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
         let Some((vse, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
         else {
@@ -292,7 +158,7 @@ impl VisualKeyInput {
             offsets.push((start, end));
         }
 
-        if matches!(cmd, Command::Yank) {
+        if matches!(cmd, Cmd::Yank) {
             let mut yanked = String::new();
             for &(start, end) in &offsets {
                 yanked.push_str(&dse.doc.data.slice(start..end));
@@ -311,44 +177,16 @@ impl VisualKeyInput {
             return Some(vec![FCmd::Action(ActionCmd::PopViewMode { view })]);
         }
 
-        offsets.sort_by_key(|&(s, _)| s);
+        let mut cmds = vec![FCmd::Action(ActionCmd::StartCommit { doc })];
+        cmds.extend(common::remove_offsets(view, offsets));
 
-        let mut merged: Vec<(usize, usize)> = Vec::new();
-        for (start, end) in offsets {
-            if let Some(last) = merged.last_mut()
-                && start <= last.1
-            {
-                last.1 = last.1.max(end);
-                continue;
-            }
-
-            merged.push((start, end));
-        }
-        merged.sort_by_key(|&(s, _)| std::cmp::Reverse(s));
-
-        let mut cmds = Vec::new();
-
-        if matches!(cmd, Command::Change) || matches!(cmd, Command::Delete) {
-            cmds.push(FCmd::Action(ActionCmd::StartCommit { doc }));
-        }
-
-        for (start, end) in merged {
-            if end > start {
-                cmds.push(FCmd::Action(ActionCmd::Remove {
-                    view,
-                    offset: start,
-                    len: end - start,
-                }));
-            }
-        }
-
-        if matches!(cmd, Command::Change) {
+        if matches!(cmd, Cmd::Change) {
             cmds.push(FCmd::Action(ActionCmd::PopViewMode { view }));
             cmds.push(FCmd::Action(ActionCmd::PushViewMode {
                 view,
                 mode: ViewStoreTypes::Mode::Insert,
             }));
-        } else if matches!(cmd, Command::Delete) {
+        } else if matches!(cmd, Cmd::Delete) {
             cmds.push(FCmd::Action(ActionCmd::EndCommit { doc }));
             cmds.push(FCmd::Action(ActionCmd::PopViewMode { view }));
         }

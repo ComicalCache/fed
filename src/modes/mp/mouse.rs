@@ -12,7 +12,7 @@ use crate::{
 pub struct MpMouseInput {}
 
 impl MouseInputHandler for MpMouseInput {
-    fn priority(&self) -> MouseInputPriority { MouseInputPriority::MiniBufferMode }
+    fn priority(&self) -> MouseInputPriority { MouseInputPriority::MpMode }
 
     fn mouse(&mut self, state: &State, event: &MouseEvent) -> Option<Vec<FCmd>> {
         let mut pos = (event.column, event.row).into();

@@ -1,10 +1,11 @@
 use crate::types::Motion;
 
 #[derive(Clone, PartialEq, Eq)]
-pub enum Command {
+pub enum Cmd {
     Input(String),
     Move(Motion),
     Backspace,
     Delete,
-    Escape,
+    Submit,
+    Close,
 }

@@ -16,7 +16,11 @@ mod state;
 mod types;
 mod util;
 
-use std::io::stdout;
+use std::{
+    backtrace::{Backtrace, BacktraceStatus},
+    fs::OpenOptions,
+    io::{Write, stdout},
+};
 
 use crossterm::{
     cursor::{Hide, Show},
@@ -57,6 +61,26 @@ fn setup(
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
+    std::panic::set_hook(Box::new(|info| {
+        if let Ok(mut file) = OpenOptions::new().create(true).append(true).open("fed.log") {
+            let _ = writeln!(file, "{info}");
+            let _ = writeln!(file, "{}", Backtrace::force_capture());
+        }
+
+        // Try to restore the terminal.
+        let mut stdout = stdout();
+        let _ = execute!(stdout, Show);
+        let _ = execute!(stdout, DisableMouseCapture);
+        let _ = execute!(stdout, LeaveAlternateScreen);
+        let _ = disable_raw_mode();
+
+        let backtrace = Backtrace::capture();
+        eprintln!("{info}");
+        if backtrace.status() == BacktraceStatus::Captured {
+            eprintln!("{backtrace}");
+        }
+    }));
+
     let cli = Cli::parse();
 
     enable_raw_mode()?;

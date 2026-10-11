@@ -9,7 +9,7 @@ pub struct DirLayer {}
 impl Layer for DirLayer {
     fn apply(
         &self, state: &State, row: &mut [Cell], y: usize, scroll: ViewStoreTypes::Scroll,
-        voms: &[VisualOffsetMapping], vse: &ViewStoreEntry, dse: &DocStoreEntry,
+        voms: &[VisualOffsetMapping], _: &ViewStoreEntry, dse: &DocStoreEntry,
     ) {
         if let Some(entry) = state.dir.entries.get(y) {
             let path = match entry.kind {
@@ -17,7 +17,9 @@ impl Layer for DirLayer {
                 DirTypes::EntryKind::Dir => {
                     Face { fg: state.theme.selection.bg, ..Face::default() }
                 }
-                DirTypes::EntryKind::Symlink => state.theme.dir_symlink,
+                DirTypes::EntryKind::Symlink => {
+                    Face { fg: state.theme.gutter.fg, ..Face::default() }
+                }
                 DirTypes::EntryKind::Header => {
                     for cell in row.iter_mut() {
                         cell.face.merge(state.theme.dir_header);
@@ -44,18 +46,6 @@ impl Layer for DirLayer {
                     }
                 }
             }
-        }
-
-        let offset = vse.cursors.list.first().map(|c| c.offset).unwrap_or(0);
-        let cursor_y = dse.doc.data.get_line_of_byte(offset);
-
-        if cursor_y != y {
-            return;
-        }
-
-        for cell in row {
-            cell.face.underline = Some(true);
-            cell.face.uc = state.theme.selection.bg;
         }
     }
 }

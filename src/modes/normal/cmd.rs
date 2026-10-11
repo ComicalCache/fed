@@ -1,7 +1,7 @@
 use crate::types::{Motion, RectSplit};
 
 #[derive(Clone, PartialEq, Eq)]
-pub enum Command {
+pub enum Cmd {
     Move(Motion),
     Delete(Motion),
     DeleteLine,
@@ -32,5 +32,6 @@ pub enum Command {
     EnterVisualMode,
     EnterSearchMode,
     EnterDirMode,
+    EnterManageMode,
     Quit,
 }

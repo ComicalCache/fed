@@ -3,7 +3,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::{
     debug_panic::debug_panic,
-    layers::{CursorLayer, DirLayer, SelectionLayer},
+    layers::{CurrLineLayer, CursorLayer, DirLayer, SelectionLayer},
     protocols::view::ViewRenderer,
     render::{Cell, Renderer, Viewport, WindowId},
     state::{State, ViewId},
@@ -21,7 +21,12 @@ impl DirRenderer {
             view,
             inner: ViewRenderer::new(
                 view,
-                vec![Box::new(DirLayer {}), Box::new(SelectionLayer {}), Box::new(CursorLayer {})],
+                vec![
+                    Box::new(DirLayer {}),
+                    Box::new(CurrLineLayer {}),
+                    Box::new(SelectionLayer {}),
+                    Box::new(CursorLayer {}),
+                ],
             ),
         }
     }

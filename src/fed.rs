@@ -15,6 +15,7 @@ use crate::{
         dir::DirCmd,
         doc_view::DocViewCmd,
         io::{IoCmd, IoProtocol, IoState},
+        manage::ManageCmd,
         mp::{MpCmd, MpState},
         quit::{QuitProtocol, QuitState},
         screen::{ScreenCmd, ScreenProtocol, ScreenState},
@@ -35,6 +36,7 @@ pub enum FCmd {
     View(ViewCmd),
     DocView(DocViewCmd),
     Dir(DirCmd),
+    Manage(ManageCmd),
 }
 
 pub enum FEvent {
@@ -52,7 +54,6 @@ pub struct Fed {
     shutdown_tx: UnboundedSender<()>,
 
     fevent_rx: UnboundedReceiver<FEvent>,
-    fcmd_rx: UnboundedReceiver<FCmd>,
     async_fcmd_rx: UnboundedReceiver<FCmd>,
 }
 
@@ -62,13 +63,11 @@ impl Fed {
         shutdown_tx: UnboundedSender<()>,
     ) -> (Self, UnboundedSender<FCmd>, DocId) {
         let (fevent_tx, fevent_rx) = unbounded_channel();
-        let (fcmd_tx, fcmd_rx) = unbounded_channel();
         let (async_fcmd_tx, async_fcmd_rx) = unbounded_channel();
 
         let mut state = State::new(
             Workspace::new(Rect::new(Pos::default(), width, height)),
             fevent_tx.clone(),
-            fcmd_tx.clone(),
             async_fcmd_tx.clone(),
         );
 
@@ -88,7 +87,6 @@ impl Fed {
             input_rx,
             shutdown_tx,
             fevent_rx: fevent_rx,
-            fcmd_rx: fcmd_rx,
             async_fcmd_rx: async_fcmd_rx,
         };
 
@@ -100,21 +98,17 @@ impl Fed {
             tokio::select! {
                 Some(event) = self.input_rx.recv() => {
                     for cmd in self.input_router.exec(&mut self.state, event) {
-                        let _ = self.state.fcmd_tx.send(cmd);
+                        ProtocolRouter::exec(&mut self.state, &mut self.pstate, cmd);
                     }
                 }
                 Some(cmd) = self.async_fcmd_rx.recv() => {
-                    let _ = self.state.fcmd_tx.send(cmd);
+                    ProtocolRouter::exec(&mut self.state, &mut self.pstate, cmd);
 
                     while let Ok(cmd) = self.async_fcmd_rx.try_recv() {
-                        let _ = self.state.fcmd_tx.send(cmd);
+                        ProtocolRouter::exec(&mut self.state, &mut self.pstate, cmd);
                     }
                 }
                 else => break,
-            }
-
-            while let Ok(cmd) = self.fcmd_rx.try_recv() {
-                ProtocolRouter::exec(&mut self.state, &mut self.pstate, cmd);
             }
 
             while let Ok(event) = self.fevent_rx.try_recv() {

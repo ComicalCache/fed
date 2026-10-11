@@ -46,7 +46,7 @@ impl MpProtocol {
             state.mp.doc,
             Some(state.mp.view),
             Rect::new(Pos::new(0, pstate.mp.height.saturating_sub(1)), pstate.mp.width, 1),
-            ZLayer::MiniBuffer,
+            ZLayer::Mp,
             true,
             None,
         );
@@ -89,7 +89,7 @@ impl MpProtocol {
             state.mp.doc,
             Some(state.mp.view),
             Rect::new(Pos::new(0, pstate.mp.height.saturating_sub(1)), pstate.mp.width, 1),
-            ZLayer::MiniBuffer,
+            ZLayer::Mp,
             true,
             None,
         );
@@ -106,7 +106,7 @@ impl MpProtocol {
         };
 
         vse.decs.decorators.insert(
-            ViewStoreTypes::DecorationId::MiniBuffer,
+            ViewStoreTypes::DecorationId::Mp,
             Box::new(MpDecorator::new(prompt, state.theme.mp)),
         );
 
@@ -141,7 +141,7 @@ impl MpProtocol {
         Self::close(state, state.mp.id);
 
         if let Some(cb) = pstate.mp.pcallback.take() {
-            cb(state, res);
+            cb(state, pstate, res);
         }
     }
 
@@ -172,7 +172,7 @@ impl MpProtocol {
             return;
         };
 
-        vse.decs.decorators.remove(&ViewStoreTypes::DecorationId::MiniBuffer);
+        vse.decs.decorators.remove(&ViewStoreTypes::DecorationId::Mp);
 
         let len = dse.doc.data.len();
         let offsets: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();

@@ -2,6 +2,7 @@ pub mod action;
 pub mod dir;
 pub mod doc_view;
 pub mod io;
+pub mod manage;
 pub mod mp;
 pub mod quit;
 pub mod screen;

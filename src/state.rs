@@ -1,6 +1,7 @@
 mod dir;
 mod doc;
 mod index;
+mod manage;
 mod mp;
 mod view;
 
@@ -8,12 +9,14 @@ use std::{collections::HashSet, path::PathBuf};
 
 pub use dir::{Dir, types as DirTypes};
 pub use doc::{DocId, DocStore, DocStoreEntry, types as DocStoreTypes};
+pub use manage::{Manage, types as ManageTypes};
 pub use mp::{Mp, MpId, types as MpTypes};
 use piece_table::PieceTable;
 use tokio::sync::mpsc::UnboundedSender;
 pub use view::{ViewId, ViewStore, ViewStoreEntry, types as ViewStoreTypes};
 
 use crate::{
+    debug_panic::debug_panic,
     fed::{FCmd, FEvent},
     render::{WindowId, Workspace},
     state::{ViewStoreTypes::TabWidth, index::Index},
@@ -30,20 +33,20 @@ pub struct State {
 
     pub doc_store: DocStore,
     pub view_store: ViewStore,
-    pub mp: Mp,
 
+    pub mp: Mp,
     pub dir: Dir,
+    pub manage: Manage,
 
     pub theme: Theme,
 
     pub fevent_tx: UnboundedSender<FEvent>,
-    pub fcmd_tx: UnboundedSender<FCmd>,
     pub async_fcmd_tx: UnboundedSender<FCmd>,
 }
 
 impl State {
     pub fn new(
-        workspace: Workspace, fevent_tx: UnboundedSender<FEvent>, fcmd_tx: UnboundedSender<FCmd>,
+        workspace: Workspace, fevent_tx: UnboundedSender<FEvent>,
         async_fcmd_tx: UnboundedSender<FCmd>,
     ) -> Self {
         let mut state = Self {
@@ -55,18 +58,18 @@ impl State {
             view_store: ViewStore::default(),
             mp: Mp::default(),
             dir: Dir::default(),
+            manage: Manage::default(),
             theme: Theme::default(),
             fevent_tx,
-            fcmd_tx,
             async_fcmd_tx,
         };
 
-        // Mini buffer.
+        // Mp.
         state.mp.doc = state.create_doc(None).unwrap();
         state.mp.view = state.create_view(state.mp.doc);
 
         let mp_dse = state.doc_store.get_mut(&state.mp.doc).unwrap();
-        mp_dse.mode = DocStoreTypes::Mode::MiniBuffer;
+        mp_dse.mode = DocStoreTypes::Mode::Mp;
 
         let mp_vse = state.view_store.get_mut(&state.mp.view).unwrap();
         mp_vse.layout = ViewStoreTypes::Layout {
@@ -96,6 +99,25 @@ impl State {
             rulers: Vec::new(),
         };
         dir_vse.mode_line_config = DirTypes::DirModeLine::mode_line();
+
+        // Manage.
+        state.manage.doc = state.create_doc(None).unwrap();
+        state.manage.view = state.create_view(state.manage.doc);
+
+        let manage_dse = state.doc_store.get_mut(&state.manage.doc).unwrap();
+        manage_dse.mode = DocStoreTypes::Mode::Manage;
+        manage_dse.read_only = true;
+        manage_dse.max_cursors = Some(1);
+
+        let manage_vse = state.view_store.get_mut(&state.manage.view).unwrap();
+        manage_vse.layout = ViewStoreTypes::Layout {
+            tab_width: TabWidth::default(),
+            gutter: true,
+            mode_line: 1,
+            replacements: ViewStoreTypes::Replacements::none(),
+            rulers: Vec::new(),
+        };
+        manage_vse.mode_line_config = ManageTypes::ManageModeLine::mode_line();
 
         state
     }
@@ -129,6 +151,19 @@ impl State {
 
     /// Returns all views which contained the document.
     pub fn destroy_doc(&mut self, doc: DocId) -> HashSet<ViewId> {
+        // Don't destroy internal docs.
+        let Some(dse) = self.doc_store.get(&doc) else {
+            debug_panic!();
+            return HashSet::new();
+        };
+
+        match dse.mode {
+            DocStoreTypes::Mode::Mp | DocStoreTypes::Mode::Dir | DocStoreTypes::Mode::Manage => {
+                return HashSet::new();
+            }
+            _ => {}
+        }
+
         self.doc_store.remove(&doc);
         let views = self.index.unlink_doc(doc);
 
@@ -151,6 +186,49 @@ impl State {
 
     /// Returns all windows which contained the view.
     pub fn destroy_view(&mut self, view: ViewId) -> HashSet<WindowId> {
+        // Don't destroy internal views, just return their windows.
+        if let Some(doc) = self.index.view_to_doc(view) {
+            let Some(dse) = self.doc_store.get(&doc) else {
+                debug_panic!();
+                return HashSet::new();
+            };
+
+            match dse.mode {
+                DocStoreTypes::Mode::Mp => {
+                    let Some(windows) = self.index.view_to_windows(self.mp.view) else {
+                        debug_panic!();
+                        return HashSet::new();
+                    };
+
+                    return windows.clone();
+                }
+                DocStoreTypes::Mode::Dir => {
+                    let Some(windows) = self.index.view_to_windows(self.dir.view) else {
+                        debug_panic!();
+                        return HashSet::new();
+                    };
+
+                    return windows.clone();
+                }
+                DocStoreTypes::Mode::Manage => {
+                    let Some(windows) = self.index.view_to_windows(self.manage.view) else {
+                        debug_panic!();
+                        return HashSet::new();
+                    };
+
+                    return windows.clone();
+                }
+                _ => {}
+            }
+
+            if matches!(
+                dse.mode,
+                DocStoreTypes::Mode::Mp | DocStoreTypes::Mode::Dir | DocStoreTypes::Mode::Manage
+            ) {
+                return HashSet::new();
+            }
+        }
+
         self.view_store.remove(&view);
 
         self.index.unlink_view(view)

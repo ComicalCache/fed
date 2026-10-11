@@ -55,9 +55,10 @@ pub trait ResizeInputHandler {
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum KeyInputPriority {
     // Needs the highest priority for intercepting with active mini buffer.
-    MiniBufferMode = 0,
+    MpMode = 0,
     SearchMode,
     VisualMode,
+    ManageMode,
     DirMode,
     InsertMode,
     NormalMode,
@@ -66,9 +67,10 @@ pub enum KeyInputPriority {
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum MouseInputPriority {
     // Needs the highest priority for intercepting with active mini buffer.
-    MiniBufferMode = 0,
+    MpMode = 0,
     SearchMode,
     VisualMode,
+    ManageMode,
     DirMode,
     InsertMode,
     NormalMode,

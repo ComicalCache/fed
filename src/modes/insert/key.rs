@@ -4,14 +4,14 @@ use crate::{
     debug_panic::debug_panic,
     fed::FCmd,
     input_handler::{KeyInputHandler, KeyInputPriority},
-    modes::insert::{command::Command, keymap},
+    modes::insert::{cmd::Cmd, keymap},
     protocols::action::ActionCmd,
     state::{State, ViewId, ViewStoreTypes},
     types::{KeyChord, Keymap, ParseResult},
 };
 
 pub struct InsertKeyInput {
-    keymap: Keymap<Command>,
+    keymap: Keymap<Cmd>,
     pending_keys: Vec<KeyChord>,
 
     whitespace: bool,
@@ -25,7 +25,7 @@ impl InsertKeyInput {
         Self { keymap, pending_keys: Vec::new(), whitespace: false, last_view: None }
     }
 
-    fn exec(&mut self, state: &State, cmd: Command) -> Option<Vec<FCmd>> {
+    fn exec(&mut self, state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
         let Some(view) = state.active_view() else { return None };
         let Some(doc) = state.index.view_to_doc(view) else {
             debug_panic!();
@@ -33,7 +33,7 @@ impl InsertKeyInput {
         };
 
         match cmd {
-            Command::Input(text) => {
+            Cmd::Input(text) => {
                 let mut cmds = Vec::new();
 
                 let whitespace = text.chars().all(|c| c.is_whitespace());
@@ -47,22 +47,22 @@ impl InsertKeyInput {
 
                 Some(cmds)
             }
-            Command::Move(motion) => {
+            Cmd::Move(motion) => {
                 self.whitespace = false;
 
                 Some(vec![FCmd::Action(ActionCmd::MoveCursors { view, motion, move_anchor: true })])
             }
-            Command::Backspace => {
+            Cmd::Backspace => {
                 self.whitespace = false;
 
                 Some(vec![FCmd::Action(ActionCmd::Backspace { view })])
             }
-            Command::Delete => {
+            Cmd::Delete => {
                 self.whitespace = false;
 
                 Some(vec![FCmd::Action(ActionCmd::Delete { view })])
             }
-            Command::Escape => {
+            Cmd::Escape => {
                 self.whitespace = false;
 
                 Some(vec![
@@ -139,14 +139,13 @@ impl KeyInputHandler for InsertKeyInput {
                 if !modifiers.is_empty() {
                     // Always treat entering execute as consuming the key.
                     let cmds = self
-                        .exec(state, Command::Input(format!("<{modifiers}-{ch}>")))
+                        .exec(state, Cmd::Input(format!("<{modifiers}-{ch}>")))
                         .unwrap_or_else(|| Vec::new());
                     Some(cmds)
                 } else {
                     // Always treat entering execute as consuming the key.
-                    let cmds = self
-                        .exec(state, Command::Input(ch.to_string()))
-                        .unwrap_or_else(|| Vec::new());
+                    let cmds =
+                        self.exec(state, Cmd::Input(ch.to_string())).unwrap_or_else(|| Vec::new());
                     Some(cmds)
                 }
             }

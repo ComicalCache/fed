@@ -1,7 +1,7 @@
-mod command;
+mod cmd;
 mod protocol;
 mod state;
 
-pub use command::{IoCmd, IoFuture};
+pub use cmd::{IoCmd, IoFuture};
 pub use protocol::IoProtocol;
 pub use state::IoState;

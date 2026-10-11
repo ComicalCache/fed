@@ -4,8 +4,9 @@ use std::fmt::{Display, Formatter, Result};
 pub enum Mode {
     #[default]
     Text,
-    MiniBuffer,
+    Mp,
     Dir,
+    Manage,
 }
 
 impl Display for Mode {

@@ -1,18 +1,18 @@
 use crossterm::event::{KeyCode, KeyModifiers};
 
 use crate::{
-    modes::{dir::command::Command, motions::MOTIONS},
+    modes::{dir::cmd::Cmd, motions::MOTIONS},
     types::{KeyChord, Keymap, Motion},
 };
 
-pub fn keymap() -> Keymap<Command> {
+pub fn keymap() -> Keymap<Cmd> {
     let mut keymap = Keymap::new();
 
     for (chord, motion) in MOTIONS {
-        keymap.bind(&[chord], Command::Move(motion));
+        keymap.bind(&[chord], Cmd::Move(motion));
         keymap.bind(
             &[KeyChord::new(KeyCode::Char('y'), KeyModifiers::empty()), chord],
-            Command::Yank(motion),
+            Cmd::Yank(motion),
         );
     }
     keymap.bind(
@@ -20,45 +20,67 @@ pub fn keymap() -> Keymap<Command> {
             KeyChord::new(KeyCode::Char('y'), KeyModifiers::empty()),
             KeyChord::new(KeyCode::Char('y'), KeyModifiers::empty()),
         ],
-        Command::YankLine,
+        Cmd::YankLine,
     );
 
     keymap.bind(
         &[KeyChord::new(KeyCode::Char('H'), KeyModifiers::SHIFT)],
-        Command::ScrollView(Motion::Left),
+        Cmd::ScrollView(Motion::Left),
     );
     keymap.bind(
         &[KeyChord::new(KeyCode::Char('J'), KeyModifiers::SHIFT)],
-        Command::ScrollView(Motion::Down),
+        Cmd::ScrollView(Motion::Down),
     );
     keymap.bind(
         &[KeyChord::new(KeyCode::Char('K'), KeyModifiers::SHIFT)],
-        Command::ScrollView(Motion::Up),
+        Cmd::ScrollView(Motion::Up),
     );
     keymap.bind(
         &[KeyChord::new(KeyCode::Char('L'), KeyModifiers::SHIFT)],
-        Command::ScrollView(Motion::Right),
+        Cmd::ScrollView(Motion::Right),
     );
 
-    keymap.bind(&[KeyChord::new(KeyCode::Char('j'), KeyModifiers::CONTROL)], Command::Jump);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('j'), KeyModifiers::CONTROL)], Cmd::Jump);
 
-    keymap.bind(&[KeyChord::new(KeyCode::Char('n'), KeyModifiers::empty())], Command::Create);
-    keymap.bind(&[KeyChord::new(KeyCode::Char('r'), KeyModifiers::empty())], Command::Rename);
-    keymap.bind(&[KeyChord::new(KeyCode::Char('d'), KeyModifiers::empty())], Command::Delete);
-    keymap
-        .bind(&[KeyChord::new(KeyCode::Char('D'), KeyModifiers::SHIFT)], Command::DeleteRecursive);
-    keymap.bind(&[KeyChord::new(KeyCode::Enter, KeyModifiers::NONE)], Command::Select);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('n'), KeyModifiers::empty())], Cmd::Create);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('r'), KeyModifiers::empty())], Cmd::Rename);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('d'), KeyModifiers::empty())], Cmd::Delete);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('D'), KeyModifiers::SHIFT)], Cmd::DeleteRecursive);
+    keymap.bind(&[KeyChord::new(KeyCode::Enter, KeyModifiers::NONE)], Cmd::Select);
 
     keymap.bind(
-        &[KeyChord::new(KeyCode::Char('v'), KeyModifiers::empty())],
-        Command::EnterVisualMode,
+        &[
+            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+            KeyChord::new(KeyCode::Char('h'), KeyModifiers::empty()),
+        ],
+        Cmd::FocusWindow(Motion::Left),
     );
     keymap.bind(
-        &[KeyChord::new(KeyCode::Char('f'), KeyModifiers::empty())],
-        Command::EnterSearchMode,
+        &[
+            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+            KeyChord::new(KeyCode::Char('j'), KeyModifiers::empty()),
+        ],
+        Cmd::FocusWindow(Motion::Down),
+    );
+    keymap.bind(
+        &[
+            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+            KeyChord::new(KeyCode::Char('k'), KeyModifiers::empty()),
+        ],
+        Cmd::FocusWindow(Motion::Up),
+    );
+    keymap.bind(
+        &[
+            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+            KeyChord::new(KeyCode::Char('l'), KeyModifiers::empty()),
+        ],
+        Cmd::FocusWindow(Motion::Right),
     );
 
-    keymap.bind(&[KeyChord::new(KeyCode::Char('q'), KeyModifiers::CONTROL)], Command::Quit);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('v'), KeyModifiers::empty())], Cmd::EnterVisualMode);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('f'), KeyModifiers::empty())], Cmd::EnterSearchMode);
+
+    keymap.bind(&[KeyChord::new(KeyCode::Char('q'), KeyModifiers::CONTROL)], Cmd::Quit);
 
     keymap
 }

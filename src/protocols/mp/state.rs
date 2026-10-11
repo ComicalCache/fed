@@ -1,6 +1,6 @@
-use crate::state::State;
+use crate::{protocols::state::PState, state::State};
 
-pub type PCallback = Box<dyn FnOnce(&State, String) + Send>;
+pub type PCallback = Box<dyn FnOnce(&mut State, &mut PState, String) + Send>;
 
 pub struct MpState {
     pub next_id: usize,

@@ -2,8 +2,8 @@ use crate::{
     fed::FCmd,
     protocols::{
         action::ActionProtocol, dir::DirProtocol, doc_view::DocViewProtocol, io::IoProtocol,
-        mp::MpProtocol, quit::QuitProtocol, screen::ScreenProtocol, state::PState,
-        view::ViewProtocol,
+        manage::ManageProtocol, mp::MpProtocol, quit::QuitProtocol, screen::ScreenProtocol,
+        state::PState, view::ViewProtocol,
     },
     state::State,
 };
@@ -21,6 +21,7 @@ impl ProtocolRouter {
             FCmd::View(cmd) => ViewProtocol::exec(state, cmd),
             FCmd::DocView(cmd) => DocViewProtocol::exec(state, cmd),
             FCmd::Dir(cmd) => DirProtocol::exec(state, pstate, cmd),
+            FCmd::Manage(cmd) => ManageProtocol::exec(state, pstate, cmd),
         }
     }
 }

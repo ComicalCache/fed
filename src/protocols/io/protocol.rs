@@ -4,7 +4,7 @@ use crate::{
     protocols::{
         io::{
             IoCmd,
-            command::{RCallback, WCallback},
+            cmd::{RCallback, WCallback},
         },
         state::PState,
     },

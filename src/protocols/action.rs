@@ -1,5 +1,5 @@
-mod command;
+mod cmd;
 mod protocol;
 
-pub use command::ActionCmd;
+pub use cmd::ActionCmd;
 pub use protocol::ActionProtocol;

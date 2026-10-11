@@ -6,6 +6,7 @@ use crate::{
     modes::{
         dir::{DirKeyInput, DirMouseInput},
         insert::{InsertKeyInput, InsertMouseInput},
+        manage::{ManageKeyInput, ManageMouseInput},
         mp::{MpKeyInput, MpMouseInput},
         normal::{NormalKeyInput, NormalMouseInput},
         search::{SearchKeyInput, SearchMouseInput},
@@ -77,6 +78,7 @@ impl Default for InputRouter {
             Box::new(MpKeyInput::new()),
             Box::new(SearchKeyInput::new()),
             Box::new(VisualKeyInput::new()),
+            Box::new(ManageKeyInput::new()),
             Box::new(DirKeyInput::new()),
             Box::new(InsertKeyInput::new()),
             Box::new(NormalKeyInput::new()),
@@ -86,6 +88,7 @@ impl Default for InputRouter {
             Box::new(MpMouseInput {}),
             Box::new(SearchMouseInput {}),
             Box::new(VisualMouseInput {}),
+            Box::new(ManageMouseInput {}),
             Box::new(DirMouseInput {}),
             Box::new(InsertMouseInput {}),
             Box::new(NormalMouseInput {}),

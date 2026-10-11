@@ -1,25 +1,25 @@
 use crossterm::event::{KeyCode, KeyModifiers};
 
 use crate::{
-    modes::{motions::MOTIONS, search::command::Command},
+    modes::{motions::MOTIONS, search::cmd::Cmd},
     types::{KeyChord, Keymap},
 };
 
-pub fn keymap() -> Keymap<Command> {
+pub fn keymap() -> Keymap<Cmd> {
     let mut keymap = Keymap::new();
 
     for (chord, motion) in MOTIONS {
-        keymap.bind(&[chord], Command::Move(motion));
+        keymap.bind(&[chord], Cmd::Move(motion));
     }
 
-    keymap.bind(&[KeyChord::new(KeyCode::Char('n'), KeyModifiers::empty())], Command::NextMatch);
-    keymap.bind(&[KeyChord::new(KeyCode::Char('N'), KeyModifiers::SHIFT)], Command::PrevMatch);
-    keymap.bind(&[KeyChord::new(KeyCode::Char('c'), KeyModifiers::empty())], Command::CursorsBegin);
-    keymap.bind(&[KeyChord::new(KeyCode::Char('C'), KeyModifiers::SHIFT)], Command::CursorsEnd);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('n'), KeyModifiers::empty())], Cmd::NextMatch);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('N'), KeyModifiers::SHIFT)], Cmd::PrevMatch);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('c'), KeyModifiers::empty())], Cmd::CursorsBegin);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('C'), KeyModifiers::SHIFT)], Cmd::CursorsEnd);
 
-    keymap.bind(&[KeyChord::new(KeyCode::Char('r'), KeyModifiers::empty())], Command::Replace);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('r'), KeyModifiers::empty())], Cmd::Replace);
 
-    keymap.bind(&[KeyChord::new(KeyCode::Esc, KeyModifiers::empty())], Command::Escape);
+    keymap.bind(&[KeyChord::new(KeyCode::Esc, KeyModifiers::empty())], Cmd::Escape);
 
     keymap
 }

@@ -7,14 +7,14 @@ use crate::{
     decorators::SearchDecorator,
     fed::FCmd,
     input_handler::{KeyInputHandler, KeyInputPriority},
-    modes::search::{command::Command, keymap},
-    protocols::{action::ActionCmd, mp::MpCmd},
+    modes::search::{cmd::Cmd, keymap},
+    protocols::{action::ActionCmd, mp::MpCmd, state::PState},
     state::{DocId, State, ViewId, ViewStoreTypes},
     types::{KeyChord, Keymap, ParseResult},
 };
 
 pub struct SearchKeyInput {
-    keymap: Keymap<Command>,
+    keymap: Keymap<Cmd>,
     pending_keys: Vec<KeyChord>,
 
     last_view: Option<ViewId>,
@@ -26,7 +26,7 @@ impl SearchKeyInput {
         Self { keymap, pending_keys: Vec::new(), last_view: None }
     }
 
-    fn exec(&mut self, state: &State, cmd: Command) -> Option<Vec<FCmd>> {
+    fn exec(&mut self, state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
         let Some(view) = state.active_view() else { return None };
         let Some(doc) = state.index.view_to_doc(view) else {
             debug_panic!();
@@ -38,21 +38,21 @@ impl SearchKeyInput {
         };
 
         match cmd {
-            Command::Move(motion) => {
+            Cmd::Move(motion) => {
                 Some(vec![FCmd::Action(ActionCmd::MoveCursors { view, motion, move_anchor: true })])
             }
-            Command::NextMatch => self.navigate_match(state, view, true),
-            Command::PrevMatch => self.navigate_match(state, view, false),
-            Command::CursorsBegin => self.cursors(state, view, true),
-            Command::CursorsEnd => self.cursors(state, view, false),
-            Command::Replace => {
+            Cmd::NextMatch => self.navigate_match(state, view, true),
+            Cmd::PrevMatch => self.navigate_match(state, view, false),
+            Cmd::CursorsBegin => self.cursors(state, view, true),
+            Cmd::CursorsEnd => self.cursors(state, view, false),
+            Cmd::Replace => {
                 if dse.read_only {
                     return None;
                 }
 
                 self.replace(state, view, doc)
             }
-            Command::Escape => Some(Self::escape(view)),
+            Cmd::Escape => Some(Self::escape(view)),
         }
     }
 
@@ -88,7 +88,7 @@ impl SearchKeyInput {
     fn replace(&self, state: &State, view: ViewId, doc: DocId) -> Option<Vec<FCmd>> {
         let Some((query, matches, _)) = self.search_state(state, view) else { return None };
 
-        let pcallback = Box::new(move |state: &State, replacement: String| {
+        let pcallback = Box::new(move |state: &mut State, _: &mut PState, replacement: String| {
             let Some(dse) = state.doc_store.get(&doc) else {
                 debug_panic!();
                 return;

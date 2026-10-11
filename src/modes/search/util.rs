@@ -5,7 +5,7 @@ use crate::{
     debug_panic::debug_panic,
     decorators::SearchDecorator,
     fed::FCmd,
-    protocols::{action::ActionCmd, mp::MpCmd},
+    protocols::{action::ActionCmd, mp::MpCmd, state::PState},
     state::{DocId, State, ViewId, ViewStoreTypes},
 };
 
@@ -16,7 +16,7 @@ pub fn start_search(view: ViewId, doc: DocId, bounds: Option<Vec<(usize, usize)>
         "Search doc: ".to_string()
     };
 
-    let pcallback = Box::new(move |state: &State, query: String| {
+    let pcallback = Box::new(move |state: &mut State, _: &mut PState, query: String| {
         if query.is_empty() {
             return;
         }

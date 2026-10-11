@@ -1,4 +1,4 @@
-mod command;
+mod cmd;
 mod key;
 mod keymap;
 mod mouse;

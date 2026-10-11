@@ -103,7 +103,7 @@ impl DocViewProtocol {
     }
 
     pub fn destroy_view(state: &mut State, view: ViewId) {
-        for window in state.index.unlink_view(view) {
+        for window in state.destroy_view(view) {
             state.workspace.destroy_window(window);
         }
     }

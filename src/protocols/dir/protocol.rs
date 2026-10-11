@@ -40,7 +40,7 @@ impl DirProtocol {
         }
     }
 
-    fn init(state: &mut State) {
+    pub fn init(state: &mut State) {
         state.dir.pwd = std::env::current_dir()
             .map(|p| p.canonicalize())
             .flatten()
@@ -49,7 +49,7 @@ impl DirProtocol {
         tokio::spawn(Self::fetch_entries(state.dir.pwd.clone(), state.async_fcmd_tx.clone()));
     }
 
-    fn init_completion(
+    pub fn init_completion(
         state: &mut State, mut entries: Vec<Entry>, printables: Vec<PrintableEntry>,
     ) {
         let perms = printables.iter().map(|c| c.perms.len()).max().unwrap_or(0);
@@ -102,14 +102,16 @@ impl DirProtocol {
         };
     }
 
-    fn replace_window(state: &mut State, window: WindowId) {
+    pub fn replace_window(state: &mut State, window: WindowId) {
+        Self::init(state);
+
         state.workspace.replace_renderer(window, Box::new(DirRenderer::new(state.dir.view)));
         state.index.link_window_to_view(window, state.dir.view);
 
         ViewProtocol::update(state, state.dir.view);
     }
 
-    fn create(state: &mut State, path: PathBuf, dir: bool) {
+    pub fn create(state: &mut State, path: PathBuf, dir: bool) {
         let path = util::path::normalize(path);
 
         let async_fcmd_tx = state.async_fcmd_tx.clone();
@@ -152,7 +154,7 @@ impl DirProtocol {
         });
     }
 
-    fn rename(state: &mut State, old: PathBuf, new: PathBuf) {
+    pub fn rename(state: &mut State, old: PathBuf, new: PathBuf) {
         let async_fcmd_tx = state.async_fcmd_tx.clone();
         tokio::spawn(async move {
             if let Err(err) = tokio::fs::rename(&old, &new).await {
@@ -178,7 +180,7 @@ impl DirProtocol {
         });
     }
 
-    fn delete(state: &mut State, path: PathBuf, recursive: bool) {
+    pub fn delete(state: &mut State, path: PathBuf, recursive: bool) {
         let async_fcmd_tx = state.async_fcmd_tx.clone();
         tokio::spawn(async move {
             let res = if recursive {
@@ -218,7 +220,7 @@ impl DirProtocol {
         });
     }
 
-    fn select(state: &mut State, pstate: &mut PState) {
+    pub fn select(state: &mut State, pstate: &mut PState) {
         let Some((vse, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, state.dir.view)
         else {
@@ -251,6 +253,14 @@ impl DirProtocol {
                             .map(|vs| vs.iter().next())
                             .flatten()
                             .cloned();
+
+                        if let Some(view) = view
+                            && let Some(windows) = state.index.view_to_windows(view)
+                            && let Some(&window) = windows.iter().next()
+                        {
+                            state.workspace.active_window = Some(window);
+                            return;
+                        }
 
                         DocViewProtocol::replace_window(state, doc, view, window, false, None);
 

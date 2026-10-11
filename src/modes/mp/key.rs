@@ -4,14 +4,14 @@ use crate::{
     debug_panic::debug_panic,
     fed::FCmd,
     input_handler::{KeyInputHandler, KeyInputPriority},
-    modes::mp::{command::Command, keymap},
+    modes::mp::{cmd::Cmd, keymap},
     protocols::{action::ActionCmd, mp::MpCmd},
     state::{MpTypes, State, ViewId},
     types::{KeyChord, Keymap, ParseResult},
 };
 
 pub struct MpKeyInput {
-    keymap: Keymap<Command>,
+    keymap: Keymap<Cmd>,
     pending_keys: Vec<KeyChord>,
 
     last_view: Option<ViewId>,
@@ -23,27 +23,27 @@ impl MpKeyInput {
         Self { keymap, pending_keys: Vec::new(), last_view: None }
     }
 
-    fn exec(&mut self, state: &State, cmd: Command) -> Option<Vec<FCmd>> {
+    fn exec(&mut self, state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
         let id = state.mp.id;
         let view = state.mp.view;
 
         match cmd {
-            Command::Input(text) => {
+            Cmd::Input(text) => {
                 Some(vec![FCmd::Action(ActionCmd::Insert { view, text: text.clone() })])
             }
-            Command::Move(motion) => {
+            Cmd::Move(motion) => {
                 Some(vec![FCmd::Action(ActionCmd::MoveCursors { view, motion, move_anchor: true })])
             }
-            Command::Backspace => Some(vec![FCmd::Action(ActionCmd::Backspace { view })]),
-            Command::Delete => Some(vec![FCmd::Action(ActionCmd::Delete { view })]),
-            Command::Submit => Some(vec![FCmd::Mp(MpCmd::Submit)]),
-            Command::Close => Some(vec![FCmd::Mp(MpCmd::Close { id })]),
+            Cmd::Backspace => Some(vec![FCmd::Action(ActionCmd::Backspace { view })]),
+            Cmd::Delete => Some(vec![FCmd::Action(ActionCmd::Delete { view })]),
+            Cmd::Submit => Some(vec![FCmd::Mp(MpCmd::Submit)]),
+            Cmd::Close => Some(vec![FCmd::Mp(MpCmd::Close { id })]),
         }
     }
 }
 
 impl KeyInputHandler for MpKeyInput {
-    fn priority(&self) -> KeyInputPriority { KeyInputPriority::MiniBufferMode }
+    fn priority(&self) -> KeyInputPriority { KeyInputPriority::MpMode }
 
     fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         if state.workspace.active_window != state.mp.window {
@@ -106,14 +106,13 @@ impl KeyInputHandler for MpKeyInput {
                 if !modifiers.is_empty() {
                     // Always treat entering execute as consuming the key.
                     let cmds = self
-                        .exec(state, Command::Input(format!("<{modifiers}-{ch}>")))
+                        .exec(state, Cmd::Input(format!("<{modifiers}-{ch}>")))
                         .unwrap_or_else(|| Vec::new());
                     Some(cmds)
                 } else {
                     // Always treat entering execute as consuming the key.
-                    let cmds = self
-                        .exec(state, Command::Input(ch.to_string()))
-                        .unwrap_or_else(|| Vec::new());
+                    let cmds =
+                        self.exec(state, Cmd::Input(ch.to_string())).unwrap_or_else(|| Vec::new());
                     Some(cmds)
                 }
             }

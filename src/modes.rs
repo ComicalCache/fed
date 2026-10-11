@@ -1,5 +1,7 @@
+mod common;
 pub mod dir;
 pub mod insert;
+pub mod manage;
 mod motions;
 pub mod mp;
 pub mod normal;
