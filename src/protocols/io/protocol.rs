@@ -6,7 +6,7 @@ use crate::{
             IoCmd,
             cmd::{RCallback, WCallback},
         },
-        state::PState,
+        pstate::PState,
     },
     state::State,
 };

@@ -6,7 +6,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use crate::{
     debug_panic::debug_panic,
     fed::FEvent,
-    protocols::{action::ActionCmd, state::PState},
+    protocols::{action::ActionCmd, pstate::PState},
     render::WindowId,
     state::{DocId, DocStoreTypes, State, ViewId, ViewStoreTypes},
     types::{Cursor, Decorator, Motion, Pos},
@@ -103,7 +103,7 @@ impl ActionProtocol {
 
         let _ = state
             .fevent_tx
-            .send(crate::fed::FEvent::View(ViewStoreTypes::Event::CursorMoved { view }));
+            .send(crate::fed::FEvent::View(ViewStoreTypes::Event::CursorsMoved { view }));
     }
 
     pub fn move_cursor_to_pos(state: &mut State, view: ViewId, pos: Pos, move_anchor: bool) {
@@ -128,7 +128,7 @@ impl ActionProtocol {
         cursor.anchor = anchor;
         vse.cursors.list.push(cursor);
 
-        let _ = state.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorMoved { view }));
+        let _ = state.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorsMoved { view }));
     }
 
     pub fn create_cursor_at_pos(state: &mut State, view: ViewId, pos: Pos) {
@@ -177,7 +177,7 @@ impl ActionProtocol {
 
         vse.cursors.normalize();
 
-        let _ = state.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorMoved { view }));
+        let _ = state.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorsMoved { view }));
     }
 
     pub fn remove_cursors(state: &mut State, view: ViewId, offsets: Vec<usize>) {
@@ -680,6 +680,6 @@ impl ActionProtocol {
 
         vse.cursors = cursors.clone();
 
-        let _ = state.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorMoved { view }));
+        let _ = state.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorsMoved { view }));
     }
 }

@@ -2,8 +2,6 @@ use crossterm::event::{KeyEvent, MouseEvent};
 
 use crate::{fed::FCmd, state::State};
 
-/// A trait that should be implemented by protocol input handlers to receive
-/// key input `Event`s.
 pub trait KeyInputHandler {
     /// The _static_ priority of the handler. This determines in which order
     /// handlers are called.
@@ -14,8 +12,6 @@ pub trait KeyInputHandler {
     fn key(&mut self, _: &State, _: &KeyEvent) -> Option<Vec<FCmd>>;
 }
 
-/// A trait that should be implemented by protocol input handlers to receive
-/// mouse input `Event`s.
 pub trait MouseInputHandler {
     /// The _static_ priority of the handler. This determines in which order
     /// handlers are called.
@@ -26,8 +22,6 @@ pub trait MouseInputHandler {
     fn mouse(&mut self, _: &State, _: &MouseEvent) -> Option<Vec<FCmd>>;
 }
 
-/// A trait that should be implemented by protocol input handlers to receive
-/// paste input `Event`s.
 pub trait PasteInputHandler {
     /// The _static_ priority of the handler. This determines in which order
     /// handlers are called.
@@ -38,8 +32,6 @@ pub trait PasteInputHandler {
     fn paste(&mut self, _: &State, _: &String) -> Option<Vec<FCmd>>;
 }
 
-/// A trait that should be implemented by protocol input handlers to receive
-/// resize input `Event`s.
 pub trait ResizeInputHandler {
     /// The _static_ priority of the handler. This determines in which order
     /// handlers are called.

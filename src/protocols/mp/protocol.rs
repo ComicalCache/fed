@@ -7,8 +7,8 @@ use crate::{
     protocols::{
         action::ActionProtocol,
         doc_view::DocViewProtocol,
-        mp::{MpCmd, state::PCallback},
-        state::PState,
+        mp::{MpCmd, pstate::PCallback},
+        pstate::PState,
     },
     render::ZLayer,
     state::{MpId, MpTypes, State, ViewStoreTypes},
@@ -28,6 +28,7 @@ impl MpProtocol {
             }
             MpCmd::Submit => Self::submit(state, pstate),
             MpCmd::Close { id } => Self::close(state, id),
+
             MpCmd::Resize { width, height } => Self::resize(state, pstate, width, height),
         }
     }
@@ -98,7 +99,7 @@ impl MpProtocol {
         pstate.mp.next_id += 1;
 
         let Some(vse) = state.view_store.get_mut(&state.mp.view) else {
-            state.workspace.destroy_window(window);
+            Self::close(state, state.mp.id);
 
             debug_panic!();
 
@@ -132,7 +133,10 @@ impl MpProtocol {
         }
 
         let Some(dse) = state.doc_store.get(&state.mp.doc) else {
+            Self::close(state, state.mp.id);
+
             debug_panic!();
+
             return;
         };
 
@@ -175,10 +179,9 @@ impl MpProtocol {
         vse.decs.decorators.remove(&ViewStoreTypes::DecorationId::Mp);
 
         let len = dse.doc.data.len();
-        let offsets: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();
 
-        ActionProtocol::remove_cursors(state, state.mp.view, offsets);
         ActionProtocol::remove(state, state.mp.view, 0, len);
+        ActionProtocol::remove_cursors(state, state.mp.view, vec![0]);
         ActionProtocol::saved(state, state.mp.doc);
     }
 

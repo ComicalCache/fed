@@ -1,5 +1,5 @@
 mod protocol;
-mod state;
+mod pstate;
 
 pub use protocol::QuitProtocol;
-pub use state::{QuitCallback, QuitState};
+pub use pstate::{QuitCallback, QuitPState};

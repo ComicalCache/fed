@@ -16,7 +16,7 @@ use crate::{
         dir::{DirCmd, DirProtocol},
         manage::ManageCmd,
         mp::MpCmd,
-        state::PState,
+        pstate::PState,
     },
     state::{DirTypes, DocStoreTypes, State, ViewId, ViewStoreTypes},
     types::{KeyChord, Keymap, ParseResult},
@@ -47,10 +47,10 @@ impl DirKeyInput {
             Cmd::YankLine => common::yank_line(state, view),
             Cmd::ScrollView(motion) => common::scroll_view(state, view, motion),
             Cmd::Jump => common::jump(state, view),
-            Cmd::Create => self.create(state),
-            Cmd::Rename => self.rename(state, view),
-            Cmd::Delete => self.delete(state, view, false),
-            Cmd::DeleteRecursive => self.delete(state, view, true),
+            Cmd::Create => Self::create(state),
+            Cmd::Rename => Self::rename(state, view),
+            Cmd::Delete => Self::delete(state, view, false),
+            Cmd::DeleteRecursive => Self::delete(state, view, true),
             Cmd::Select => Some(vec![FCmd::Dir(DirCmd::Select)]),
             Cmd::FocusWindow(motion) => common::focus_window(state, motion),
             Cmd::EnterManageMode => {
@@ -70,7 +70,7 @@ impl DirKeyInput {
         }
     }
 
-    fn create(&self, state: &State) -> Option<Vec<FCmd>> {
+    fn create(state: &State) -> Option<Vec<FCmd>> {
         let mut initial_text = state.dir.pwd.display().to_string();
 
         if !initial_text.ends_with(std::path::MAIN_SEPARATOR) {
@@ -94,8 +94,8 @@ impl DirKeyInput {
         })])
     }
 
-    fn rename(&self, state: &State, view: ViewId) -> Option<Vec<FCmd>> {
-        let Some(entry) = self.curr_entry(state, view) else { return None };
+    fn rename(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
+        let Some(entry) = Self::curr_entry(state, view) else { return None };
         if entry.path.file_name().is_none() {
             return None;
         }
@@ -117,8 +117,8 @@ impl DirKeyInput {
         })])
     }
 
-    fn delete(&self, state: &State, view: ViewId, recursive: bool) -> Option<Vec<FCmd>> {
-        let Some(entry) = self.curr_entry(state, view) else { return None };
+    fn delete(state: &State, view: ViewId, recursive: bool) -> Option<Vec<FCmd>> {
+        let Some(entry) = Self::curr_entry(state, view) else { return None };
         if entry.path.file_name().is_none() {
             return None;
         }
@@ -141,7 +141,7 @@ impl DirKeyInput {
         Some(vec![FCmd::Mp(MpCmd::Prompt { prompt, initial_text: None, pcallback, tx: None })])
     }
 
-    fn curr_entry(&self, state: &State, view: ViewId) -> Option<DirTypes::Entry> {
+    fn curr_entry(state: &State, view: ViewId) -> Option<DirTypes::Entry> {
         let Some((vse, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
         else {

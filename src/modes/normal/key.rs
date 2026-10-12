@@ -21,7 +21,7 @@ use crate::{
         io::{IoFuture, IoProtocol},
         manage::ManageCmd,
         mp::MpCmd,
-        state::PState,
+        pstate::PState,
     },
     state::{DocId, State, ViewId, ViewStoreTypes},
     types::{KeyChord, Keymap, Motion, ParseResult, RectSplit},
@@ -63,7 +63,7 @@ impl NormalKeyInput {
                     return None;
                 }
 
-                self.motion(state, view, doc, cmd)
+                Self::motion(state, view, doc, cmd)
             }
             Cmd::YankLine => common::yank_line(state, view),
             Cmd::DeleteLine | Cmd::ChangeLine => {
@@ -71,7 +71,7 @@ impl NormalKeyInput {
                     return None;
                 }
 
-                self.line_operation(state, view, doc, cmd)
+                Self::line_operation(state, view, doc, cmd)
             }
             Cmd::ScrollView(motion) => common::scroll_view(state, view, motion),
             Cmd::Undo => {
@@ -93,21 +93,21 @@ impl NormalKeyInput {
                     return None;
                 }
 
-                self.insert(view, doc, cmd)
+                Self::insert(view, doc, cmd)
             }
             Cmd::SwapLineDown | Cmd::SwapLineUp => {
                 if dse.read_only {
                     return None;
                 }
 
-                self.swap_operation(state, view, doc, cmd)
+                Self::swap_operation(state, view, doc, cmd)
             }
             Cmd::Indent | Cmd::Dedent => {
                 if dse.read_only {
                     return None;
                 }
 
-                self.line_operation(state, view, doc, cmd)
+                Self::line_operation(state, view, doc, cmd)
             }
             Cmd::Paste => {
                 if !dse.read_only
@@ -148,9 +148,9 @@ impl NormalKeyInput {
                     return None;
                 }
 
-                self.replace_char(state, view, doc, ch)
+                Self::replace_char(state, view, doc, ch)
             }
-            Cmd::SaveFile => self.save_file(state, doc),
+            Cmd::SaveFile => Self::save_file(state, doc),
             Cmd::Jump => common::jump(state, view),
             Cmd::SplitWindow(direction) => Self::split_window(state, doc, direction),
             Cmd::FocusWindow(motion) => common::focus_window(state, motion),
@@ -192,7 +192,7 @@ impl NormalKeyInput {
         }
     }
 
-    fn motion(&self, state: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
+    fn motion(state: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
         let motion = match cmd {
             Cmd::Delete(motion) => motion,
             Cmd::Change(motion) => motion,
@@ -227,9 +227,7 @@ impl NormalKeyInput {
         Some(cmds)
     }
 
-    fn line_operation(
-        &self, state: &State, view: ViewId, doc: DocId, cmd: Cmd,
-    ) -> Option<Vec<FCmd>> {
+    fn line_operation(state: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
         let Some((vse, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
         else {
@@ -326,7 +324,7 @@ impl NormalKeyInput {
         Some(cmds)
     }
 
-    fn insert(&self, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
+    fn insert(view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
         let mut cmds = vec![FCmd::Action(ActionCmd::StartCommit { doc })];
 
         match cmd {
@@ -376,9 +374,7 @@ impl NormalKeyInput {
         Some(cmds)
     }
 
-    fn swap_operation(
-        &self, state: &State, view: ViewId, doc: DocId, cmd: Cmd,
-    ) -> Option<Vec<FCmd>> {
+    fn swap_operation(state: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
         let Some((vse, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
         else {
@@ -392,7 +388,7 @@ impl NormalKeyInput {
         common::swap_lines(state, view, doc, lines, matches!(cmd, Cmd::SwapLineDown))
     }
 
-    fn replace_char(&self, state: &State, view: ViewId, doc: DocId, ch: char) -> Option<Vec<FCmd>> {
+    fn replace_char(state: &State, view: ViewId, doc: DocId, ch: char) -> Option<Vec<FCmd>> {
         let Some((vse, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
         else {
@@ -439,7 +435,7 @@ impl NormalKeyInput {
         Some(cmds)
     }
 
-    fn save_file(&self, state: &State, doc: DocId) -> Option<Vec<FCmd>> {
+    fn save_file(state: &State, doc: DocId) -> Option<Vec<FCmd>> {
         let Some(dse) = state.doc_store.get(&doc) else {
             debug_panic!();
             return None;
@@ -515,7 +511,6 @@ impl NormalKeyInput {
         };
 
         let (tx, rx) = oneshot::channel();
-
         let async_fcmd_tx = state.async_fcmd_tx.clone();
         tokio::spawn(async move {
             let Ok(Some((_, window))) = rx.await else {

@@ -1,8 +1,8 @@
-use crate::{protocols::state::PState, state::State};
+use crate::{protocols::pstate::PState, state::State};
 
 pub type PCallback = Box<dyn FnOnce(&mut State, &mut PState, String) + Send>;
 
-pub struct MpState {
+pub struct MpPState {
     pub next_id: usize,
 
     pub width: usize,
@@ -11,7 +11,7 @@ pub struct MpState {
     pub pcallback: Option<PCallback>,
 }
 
-impl MpState {
+impl MpPState {
     pub fn new(width: usize, height: usize) -> Self {
         Self { next_id: 1, width, height, pcallback: None }
     }

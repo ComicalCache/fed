@@ -50,24 +50,22 @@ impl VisualKeyInput {
                     return None;
                 }
 
-                self.operator(state, view, doc, cmd)
+                Self::operator(state, view, doc, cmd)
             }
-            Cmd::Yank => self.operator(state, view, doc, cmd),
+            Cmd::Yank => Self::operator(state, view, doc, cmd),
             Cmd::SwapLineDown | Cmd::SwapLineUp => {
                 if dse.read_only {
                     return None;
                 }
 
-                self.swap_operation(state, view, doc, cmd)
+                Self::swap_operation(state, view, doc, cmd)
             }
-            Cmd::EnterSearchMode => self.enter_search_mode(state, view, doc),
-            Cmd::Escape => self.escape(view),
+            Cmd::EnterSearchMode => Self::enter_search_mode(state, view, doc),
+            Cmd::Escape => Self::escape(view),
         }
     }
 
-    fn swap_operation(
-        &self, state: &State, view: ViewId, doc: DocId, cmd: Cmd,
-    ) -> Option<Vec<FCmd>> {
+    fn swap_operation(state: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
         let Some((vse, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
         else {
@@ -99,7 +97,7 @@ impl VisualKeyInput {
         common::swap_lines(state, view, doc, lines, matches!(cmd, Cmd::SwapLineDown))
     }
 
-    fn enter_search_mode(&self, state: &State, view: ViewId, doc: DocId) -> Option<Vec<FCmd>> {
+    fn enter_search_mode(state: &State, view: ViewId, doc: DocId) -> Option<Vec<FCmd>> {
         let Some((vse, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
         else {
@@ -137,7 +135,7 @@ impl VisualKeyInput {
         Some(search::util::start_search(view, doc, Some(bounds)))
     }
 
-    fn operator(&self, state: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
+    fn operator(state: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
         let Some((vse, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
         else {
@@ -194,7 +192,7 @@ impl VisualKeyInput {
         Some(cmds)
     }
 
-    fn escape(&self, view: ViewId) -> Option<Vec<FCmd>> {
+    fn escape(view: ViewId) -> Option<Vec<FCmd>> {
         Some(vec![
             FCmd::Action(ActionCmd::ResetCursorAnchors { view }),
             FCmd::Action(ActionCmd::PopViewMode { view }),

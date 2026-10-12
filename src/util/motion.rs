@@ -49,7 +49,7 @@ fn up(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
         return;
     }
 
-    let (vom, _) = util::vom(y - 1, vse, dse);
+    let (vom, _) = util::layout::vom(y - 1, vse, dse);
     let vo = vom
         .iter()
         .rev()
@@ -70,7 +70,7 @@ fn down(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
         return;
     }
 
-    let (vom, _) = util::vom(y + 1, vse, dse);
+    let (vom, _) = util::layout::vom(y + 1, vse, dse);
     let vo = vom
         .iter()
         .rev()
@@ -458,7 +458,7 @@ fn matching_opposite(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEn
 fn update_pref_x(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
     let y = dse.doc.data.get_line_of_byte(cursor.offset);
 
-    let (vom, _) = util::vom(y, vse, dse);
+    let (vom, _) = util::layout::vom(y, vse, dse);
     cursor.pref_x =
         vom.iter().find(|vo| vo.offset == cursor.offset).map(|vo| vo.visual_x).unwrap_or(0);
 }

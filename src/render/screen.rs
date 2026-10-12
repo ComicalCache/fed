@@ -19,7 +19,6 @@ pub struct Screen {
     height: usize,
 
     grid: Vec<Cell>,
-    /// `Cell`s that need to be redrawn.
     dirty: Vec<bool>,
 }
 
@@ -75,12 +74,9 @@ impl Screen {
     pub fn render(&mut self) {
         // Mark the leading cells of wide characters as dirty, if the trailing
         // cell is dirty.
-        for y in 0..self.height {
-            for x in (1..self.width).rev() {
-                let idx = (self.width * y) + x;
-                if self.dirty[idx] && self.grid[idx].width == 0 {
-                    self.dirty[idx - 1] = true;
-                }
+        for idx in 0..self.grid.len() {
+            if self.dirty[idx] && self.grid[idx].width == 0 {
+                self.dirty[idx - 1] = true;
             }
         }
 

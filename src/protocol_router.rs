@@ -3,7 +3,7 @@ use crate::{
     protocols::{
         action::ActionProtocol, dir::DirProtocol, doc_view::DocViewProtocol, io::IoProtocol,
         manage::ManageProtocol, mp::MpProtocol, quit::QuitProtocol, screen::ScreenProtocol,
-        state::PState, view::ViewProtocol,
+        pstate::PState, view::ViewProtocol,
     },
     state::State,
 };

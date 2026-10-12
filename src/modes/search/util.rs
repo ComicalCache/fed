@@ -5,7 +5,7 @@ use crate::{
     debug_panic::debug_panic,
     decorators::SearchDecorator,
     fed::FCmd,
-    protocols::{action::ActionCmd, mp::MpCmd, state::PState},
+    protocols::{action::ActionCmd, mp::MpCmd, pstate::PState},
     state::{DocId, State, ViewId, ViewStoreTypes},
 };
 

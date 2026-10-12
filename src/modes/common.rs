@@ -7,7 +7,7 @@ use crate::{
         action::{ActionCmd, ActionProtocol},
         doc_view::DocViewCmd,
         mp::MpCmd,
-        state::PState,
+        pstate::PState,
         view::ViewCmd,
     },
     state::{DocId, State, ViewId},

@@ -8,7 +8,7 @@ pub struct CurrLineLayer {}
 impl Layer for CurrLineLayer {
     fn apply(
         &self, state: &State, row: &mut [Cell], y: usize, _scroll: ViewStoreTypes::Scroll,
-        _voms: &[VisualOffsetMapping], vse: &ViewStoreEntry, dse: &DocStoreEntry,
+        _: &[VisualOffsetMapping], vse: &ViewStoreEntry, dse: &DocStoreEntry,
     ) {
         let offset = vse.cursors.list.first().map(|c| c.offset).unwrap_or(0);
         let cursor_y = dse.doc.data.get_line_of_byte(offset);

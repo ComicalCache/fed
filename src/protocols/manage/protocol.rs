@@ -7,7 +7,7 @@ use crate::{
         dir::DirProtocol,
         doc_view::DocViewProtocol,
         manage::{ManageCmd, ManageRenderer},
-        state::PState,
+        pstate::PState,
         view::ViewProtocol,
     },
     render::WindowId,
@@ -22,6 +22,7 @@ impl ManageProtocol {
     pub fn exec(state: &mut State, pstate: &mut PState, cmd: ManageCmd) {
         match cmd {
             ManageCmd::ReplaceWindow { window } => Self::replace_window(state, window),
+
             ManageCmd::Select => Self::select(state),
             ManageCmd::Close => Self::close(state, pstate),
         }
@@ -51,8 +52,9 @@ impl ManageProtocol {
             entries.push(ManageTypes::Entry::Doc(id));
 
             if let Some(views) = state.index.doc_to_views(id) {
-                let mut views: Vec<_> = views.iter().copied().collect();
+                let mut views: Vec<_> = views.iter().cloned().collect();
                 views.sort_by_key(|v| v.0);
+
                 for view in views {
                     text.push_str(&format!("└─ View {}\n", view.0));
                     entries.push(ManageTypes::Entry::View(view));

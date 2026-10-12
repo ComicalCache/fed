@@ -22,7 +22,6 @@ impl ManageRenderer {
             inner: ViewRenderer::new(
                 view,
                 vec![
-                    // Box::new(ManageLayer {}),
                     Box::new(CurrLineLayer {}),
                     Box::new(SelectionLayer {}),
                     Box::new(CursorLayer {}),

@@ -181,6 +181,8 @@ impl State {
 
         self.index.link_view_to_doc(view, doc);
 
+        let _ = self.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::Created { id: view }));
+
         view
     }
 
@@ -220,18 +222,15 @@ impl State {
                 }
                 _ => {}
             }
-
-            if matches!(
-                dse.mode,
-                DocStoreTypes::Mode::Mp | DocStoreTypes::Mode::Dir | DocStoreTypes::Mode::Manage
-            ) {
-                return HashSet::new();
-            }
         }
 
         self.view_store.remove(&view);
 
-        self.index.unlink_view(view)
+        let windows = self.index.unlink_view(view);
+
+        let _ = self.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::Destroyed { id: view }));
+
+        windows
     }
 
     pub fn active_view(&self) -> Option<ViewId> {

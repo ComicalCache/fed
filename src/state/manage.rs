@@ -11,5 +11,6 @@ use crate::state::{DocId, ViewId};
 pub struct Manage {
     pub doc: DocId,
     pub view: ViewId,
+
     pub entries: Vec<types::Entry>,
 }

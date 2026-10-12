@@ -14,12 +14,12 @@ use crate::{
         action::ActionCmd,
         dir::DirCmd,
         doc_view::DocViewCmd,
-        io::{IoCmd, IoProtocol, IoState},
+        io::{IoCmd, IoProtocol},
         manage::ManageCmd,
-        mp::{MpCmd, MpState},
-        quit::{QuitProtocol, QuitState},
-        screen::{ScreenCmd, ScreenProtocol, ScreenState},
-        state::PState,
+        mp::MpCmd,
+        pstate::PState,
+        quit::QuitProtocol,
+        screen::{ScreenCmd, ScreenProtocol},
         view::{ViewCmd, ViewProtocol},
     },
     render::{WindowId, Workspace},
@@ -66,30 +66,18 @@ impl Fed {
         let (fevent_tx, fevent_rx) = unbounded_channel();
         let (async_fcmd_tx, async_fcmd_rx) = unbounded_channel();
 
+        let input_router = InputRouter::default();
         let mut state = State::new(
             Workspace::new(Rect::new(Pos::default(), width, height)),
             fevent_tx.clone(),
             async_fcmd_tx.clone(),
         );
-
-        let pstate = PState {
-            io: IoState::default(),
-            mp: MpState::new(width, height),
-            quit: QuitState::default(),
-            screen: ScreenState::new(width, height),
-        };
+        let pstate = PState::new(width, height);
 
         let doc = state.create_doc(path).unwrap();
 
-        let fed = Self {
-            input_router: InputRouter::default(),
-            state,
-            pstate: pstate,
-            input_rx,
-            shutdown_tx,
-            fevent_rx: fevent_rx,
-            async_fcmd_rx: async_fcmd_rx,
-        };
+        let fed =
+            Self { input_router, state, pstate, input_rx, shutdown_tx, fevent_rx, async_fcmd_rx };
 
         (fed, async_fcmd_tx, doc)
     }
@@ -159,9 +147,7 @@ impl Fed {
         } else {
             let _ = tx.send(FCmd::Dir(DirCmd::Init));
 
-            let Some(path) = path.clone() else {
-                return;
-            };
+            let Some(path) = path.clone() else { return };
 
             IoProtocol::read(path, Box::new(move |res| Box::pin(Self::stage2(tx, view, doc, res))));
         }

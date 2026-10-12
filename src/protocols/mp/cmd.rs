@@ -1,6 +1,6 @@
 use tokio::sync::oneshot;
 
-use crate::{protocols::mp::state::PCallback, state::MpId};
+use crate::{protocols::mp::pstate::PCallback, state::MpId};
 
 pub enum MpCmd {
     Message {
@@ -17,6 +17,7 @@ pub enum MpCmd {
     Close {
         id: MpId,
     },
+
     Resize {
         width: usize,
         height: usize,

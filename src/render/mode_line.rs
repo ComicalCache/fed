@@ -42,7 +42,7 @@ impl ModeLineWidget {
                 let offset = vse.cursors.list.first().map(|c| c.offset).unwrap_or(0);
                 let y = dse.doc.data.get_line_of_byte(offset);
 
-                let (vom, _) = util::vom(y, vse, dse);
+                let (vom, _) = util::layout::vom(y, vse, dse);
                 let x =
                     vom.iter().find(|vo| vo.offset >= offset).map(|vo| vo.visual_x).unwrap_or(0);
 

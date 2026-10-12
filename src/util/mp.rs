@@ -1,4 +1,3 @@
-// src/util/mp.rs
 use std::time::Duration;
 
 use tokio::sync::{mpsc::UnboundedSender, oneshot};
@@ -8,7 +7,7 @@ use crate::{
     fed::FCmd,
     protocols::{
         mp::{MpCmd, MpProtocol},
-        state::PState,
+        pstate::PState,
     },
     state::State,
 };
@@ -32,10 +31,7 @@ pub fn async_message(tx: UnboundedSender<FCmd>, message: String, duration: Durat
     let _ = tx.send(FCmd::Mp(MpCmd::Message { message, tx: Some(id_tx) }));
 
     tokio::spawn(async move {
-        let Ok(id) = id_rx.await else {
-            debug_panic!();
-            return;
-        };
+        let Ok(id) = id_rx.await else { return };
 
         tokio::time::sleep(duration).await;
 

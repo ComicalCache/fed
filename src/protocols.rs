@@ -6,5 +6,5 @@ pub mod manage;
 pub mod mp;
 pub mod quit;
 pub mod screen;
-pub mod state;
+pub mod pstate;
 pub mod view;

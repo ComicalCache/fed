@@ -17,7 +17,6 @@ pub struct Rect {
 impl Rect {
     pub fn new(pos: Pos, width: usize, height: usize) -> Self { Self { pos, width, height } }
 
-    /// Splits the `Rect` reserving `ratio` to the first split.
     pub fn split(&self, dir: RectSplit, ratio: f32) -> (Self, Self) {
         match dir {
             RectSplit::Vertical => {

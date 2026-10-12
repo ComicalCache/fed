@@ -16,6 +16,7 @@ impl ViewProtocol {
         match cmd {
             ViewCmd::Update { view } => Self::update(state, view),
             ViewCmd::ScrollTo { view, pos } => Self::scroll_to(state, view, pos),
+
             ViewCmd::Resize => Self::resize(state),
         }
     }
@@ -43,7 +44,12 @@ impl ViewProtocol {
 
     pub fn exec_view_event(state: &mut State, event: ViewStoreTypes::Event) {
         match event {
-            ViewStoreTypes::Event::CursorMoved { view } => Self::cursor_moved(state, view),
+            ViewStoreTypes::Event::Created { id } => Self::update(state, id),
+            ViewStoreTypes::Event::Destroyed { .. } => {
+                // The view cache gets deleted when the vse gets deleted,
+                // nothing needs to be done.
+            }
+            ViewStoreTypes::Event::CursorsMoved { view } => Self::cursor_moved(state, view),
             ViewStoreTypes::Event::CursorsChanged { .. } => {}
             ViewStoreTypes::Event::ModeChanged { .. } => {}
         }

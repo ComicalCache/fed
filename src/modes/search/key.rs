@@ -8,7 +8,7 @@ use crate::{
     fed::FCmd,
     input_handler::{KeyInputHandler, KeyInputPriority},
     modes::search::{cmd::Cmd, keymap},
-    protocols::{action::ActionCmd, mp::MpCmd, state::PState},
+    protocols::{action::ActionCmd, mp::MpCmd, pstate::PState},
     state::{DocId, State, ViewId, ViewStoreTypes},
     types::{KeyChord, Keymap, ParseResult},
 };
@@ -41,23 +41,23 @@ impl SearchKeyInput {
             Cmd::Move(motion) => {
                 Some(vec![FCmd::Action(ActionCmd::MoveCursors { view, motion, move_anchor: true })])
             }
-            Cmd::NextMatch => self.navigate_match(state, view, true),
-            Cmd::PrevMatch => self.navigate_match(state, view, false),
-            Cmd::CursorsBegin => self.cursors(state, view, true),
-            Cmd::CursorsEnd => self.cursors(state, view, false),
+            Cmd::NextMatch => Self::navigate_match(state, view, true),
+            Cmd::PrevMatch => Self::navigate_match(state, view, false),
+            Cmd::CursorsBegin => Self::cursors(state, view, true),
+            Cmd::CursorsEnd => Self::cursors(state, view, false),
             Cmd::Replace => {
                 if dse.read_only {
                     return None;
                 }
 
-                self.replace(state, view, doc)
+                Self::replace(state, view, doc)
             }
             Cmd::Escape => Some(Self::escape(view)),
         }
     }
 
-    fn navigate_match(&self, state: &State, view: ViewId, forward: bool) -> Option<Vec<FCmd>> {
-        let Some((_, matches, offsets)) = self.search_state(state, view) else { return None };
+    fn navigate_match(state: &State, view: ViewId, forward: bool) -> Option<Vec<FCmd>> {
+        let Some((_, matches, offsets)) = Self::search_state(state, view) else { return None };
         let offset = offsets.first().cloned().unwrap_or(0);
 
         let target = if forward {
@@ -72,10 +72,10 @@ impl SearchKeyInput {
         ])
     }
 
-    fn cursors(&self, state: &State, view: ViewId, front: bool) -> Option<Vec<FCmd>> {
+    fn cursors(state: &State, view: ViewId, front: bool) -> Option<Vec<FCmd>> {
         let mut cmds = Vec::new();
 
-        let Some((_, matches, offsets)) = self.search_state(state, view) else { return None };
+        let Some((_, matches, offsets)) = Self::search_state(state, view) else { return None };
         cmds.push(FCmd::Action(ActionCmd::RemoveCursors { view, offsets }));
         let offsets = matches.iter().map(|m| if front { m.0 } else { m.1 }).collect();
         cmds.push(FCmd::Action(ActionCmd::CreateCursorsAtOffset { view, offsets }));
@@ -85,8 +85,8 @@ impl SearchKeyInput {
         Some(cmds)
     }
 
-    fn replace(&self, state: &State, view: ViewId, doc: DocId) -> Option<Vec<FCmd>> {
-        let Some((query, matches, _)) = self.search_state(state, view) else { return None };
+    fn replace(state: &State, view: ViewId, doc: DocId) -> Option<Vec<FCmd>> {
+        let Some((query, matches, _)) = Self::search_state(state, view) else { return None };
 
         let pcallback = Box::new(move |state: &mut State, _: &mut PState, replacement: String| {
             let Some(dse) = state.doc_store.get(&doc) else {
@@ -156,7 +156,7 @@ impl SearchKeyInput {
     }
 
     fn search_state(
-        &self, state: &State, view: ViewId,
+        state: &State, view: ViewId,
     ) -> Option<(String, Vec<(usize, usize)>, Vec<usize>)> {
         let Some(vse) = state.view_store.get(&view) else {
             debug_panic!();

@@ -16,19 +16,13 @@ pub use z_layer::ZLayer;
 
 use crate::state::{DocStoreEntry, State, ViewStoreEntry, ViewStoreTypes};
 
-/// A trait that can be implemented by additional rendering components to render
-/// visual elements post state rendering.
 pub trait Layer: Send + Sync + 'static {
-    /// Modifies a rendered line of cells before drawing to the screen.
     fn apply(
         &self, state: &State, row: &mut [Cell], y: usize, scroll: ViewStoreTypes::Scroll,
         voms: &[VisualOffsetMapping], vse: &ViewStoreEntry, dse: &DocStoreEntry,
     );
 }
 
-/// A trait that should be implemented by protocol renderers to render state to
-/// the `Screen`.
 pub trait Renderer: Send + Sync + 'static {
-    /// Renders the protocol state to the `Screen` via a `Viewport`.
     fn render(&self, state: &State, viewport: &mut Viewport, window: WindowId);
 }

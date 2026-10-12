@@ -1,9 +1,9 @@
 mod cmd;
 mod input;
 mod protocol;
-mod state;
+mod pstate;
 
 pub use cmd::MpCmd;
 pub use input::MpResizeInput;
 pub use protocol::MpProtocol;
-pub use state::MpState;
+pub use pstate::MpPState;

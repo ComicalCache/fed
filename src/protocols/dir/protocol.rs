@@ -10,7 +10,7 @@ use crate::{
         dir::{DirCmd, DirRenderer},
         doc_view::{DocViewCmd, DocViewProtocol},
         io::{IoFuture, IoProtocol},
-        state::PState,
+        pstate::PState,
         view::ViewProtocol,
     },
     render::WindowId,
@@ -32,9 +32,11 @@ impl DirProtocol {
                 Self::init_completion(state, entries, printables)
             }
             DirCmd::ReplaceWindow { window } => Self::replace_window(state, window),
+
             DirCmd::Create { path, dir } => Self::create(state, path, dir),
             DirCmd::Rename { old, new } => Self::rename(state, old, new),
             DirCmd::Delete { path, recursive } => Self::delete(state, path, recursive),
+
             DirCmd::Select => Self::select(state, pstate),
         }
     }

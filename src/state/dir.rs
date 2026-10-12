@@ -16,6 +16,7 @@ use crate::state::{DocId, ViewId};
 pub struct Dir {
     pub doc: DocId,
     pub view: ViewId,
+
     pub pwd: PathBuf,
     pub entries: Vec<types::Entry>,
 }

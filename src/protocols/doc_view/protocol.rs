@@ -42,8 +42,7 @@ impl DocViewProtocol {
         );
 
         let Some(window) = window else {
-            let windows = state.destroy_view(view);
-            debug_assert!(windows.is_empty());
+            Self::destroy_view(state, view);
 
             debug_panic!();
 

@@ -11,7 +11,6 @@ impl ResizeInputHandler for MpResizeInput {
     fn priority(&self) -> ResizeInputPriority { ResizeInputPriority::MpProtocol }
 
     fn resize(&mut self, _: &State, (width, height): (u16, u16)) -> Vec<FCmd> {
-        let (width, height) = (width as usize, height as usize);
-        vec![FCmd::Mp(MpCmd::Resize { width, height })]
+        vec![FCmd::Mp(MpCmd::Resize { width: width as usize, height: height as usize })]
     }
 }
