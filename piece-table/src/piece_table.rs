@@ -248,17 +248,20 @@ impl PieceTable {
     }
 
     /// Returns the byte index where the nth line begins.
+    #[must_use]
     pub fn get_line_start_byte(&self, n: usize) -> usize {
         self.lines.get(n).copied().unwrap_or(self.total_length)
     }
 
     /// Returns the byte index of where the nth line ends and the next line
     /// begins (`get_line_end_byte(n) == get_line_start_byte(n + 1)`).
+    #[must_use]
     pub fn get_line_end_byte(&self, n: usize) -> usize {
         if n + 1 < self.lines.len() { self.lines[n + 1] } else { self.total_length }
     }
 
     /// Returns the line containing the byte index.
+    #[must_use]
     pub fn get_line_of_byte(&self, n: usize) -> usize {
         self.lines.partition_point(|&x| x <= n).saturating_sub(1)
     }
@@ -515,7 +518,7 @@ impl From<String> for PieceTable {
 }
 
 impl Default for PieceTable {
-    fn default() -> Self { PieceTable::from("") }
+    fn default() -> Self { Self::from("") }
 }
 
 impl Display for PieceTable {

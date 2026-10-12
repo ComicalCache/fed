@@ -7,5 +7,6 @@ edition.workspace = true
 all = { level = "deny", priority = -1 }
 pedantic = { level = "deny", priority = -1 }
 nursery = { level = "deny", priority = -1 }
+missing_panics_doc = "allow"
 
 [dependencies]
