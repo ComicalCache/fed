@@ -10,7 +10,7 @@ pub struct Cell {
 }
 
 impl Cell {
-    pub fn new(ch: String, width: usize, face: Face) -> Self { Self { ch, width, face } }
+    pub const fn new(ch: String, width: usize, face: Face) -> Self { Self { ch, width, face } }
 }
 
 impl Default for Cell {

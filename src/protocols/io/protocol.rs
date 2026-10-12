@@ -14,7 +14,7 @@ use crate::{
 pub struct IoProtocol {}
 
 impl IoProtocol {
-    pub fn exec(pstate: &mut PState, cmd: IoCmd) {
+    pub fn exec(pstate: &PState, cmd: IoCmd) {
         match cmd {
             IoCmd::Read { path, rcallback } => Self::read(path, rcallback),
             IoCmd::Write { path, data, wcallback } => Self::write(pstate, path, data, wcallback),
@@ -27,7 +27,7 @@ impl IoProtocol {
         });
     }
 
-    pub fn write(pstate: &mut PState, path: PathBuf, data: String, wcallback: WCallback) {
+    pub fn write(pstate: &PState, path: PathBuf, data: String, wcallback: WCallback) {
         pstate.io.writers.fetch_add(1, Ordering::Relaxed);
 
         let writers = pstate.io.writers.clone();

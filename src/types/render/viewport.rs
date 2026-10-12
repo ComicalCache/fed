@@ -9,11 +9,11 @@ pub struct Viewport<'a> {
 }
 
 impl<'a> Viewport<'a> {
-    pub fn new(data: &'a mut Screen, rect: Rect) -> Self { Self { data, rect } }
+    pub const fn new(data: &'a mut Screen, rect: Rect) -> Self { Self { data, rect } }
 
-    pub fn width(&self) -> usize { self.rect.width }
+    pub const fn width(&self) -> usize { self.rect.width }
 
-    pub fn height(&self) -> usize { self.rect.height }
+    pub const fn height(&self) -> usize { self.rect.height }
 
     pub fn sub_view(&mut self, rect: Rect) -> Viewport<'_> {
         let width = rect.width.min(self.rect.width.saturating_sub(rect.pos.x));
@@ -22,7 +22,7 @@ impl<'a> Viewport<'a> {
         Viewport { data: self.data, rect: Rect::new(self.rect.pos + rect.pos, width, height) }
     }
 
-    pub fn get(&mut self, pos: Pos) -> Option<&Cell> {
+    pub fn get(&self, pos: Pos) -> Option<&Cell> {
         if pos.x >= self.rect.width || pos.y >= self.rect.height {
             return None;
         }

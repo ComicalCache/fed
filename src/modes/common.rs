@@ -19,14 +19,15 @@ pub fn quit(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
     let fallback =
         state.workspace.tiles().into_iter().find(|&w| Some(w) != state.workspace.active_window);
 
-    if let Some(fallback) = fallback {
-        Some(vec![
-            FCmd::DocView(DocViewCmd::DestroyView { view }),
-            FCmd::Action(ActionCmd::SetActiveWindow { window: Some(fallback) }),
-        ])
-    } else {
-        Some(vec![FCmd::Quit])
-    }
+    fallback.map_or_else(
+        || Some(vec![FCmd::Quit]),
+        |fallback| {
+            Some(vec![
+                FCmd::DocView(DocViewCmd::DestroyView { view }),
+                FCmd::Action(ActionCmd::SetActiveWindow { window: Some(fallback) }),
+            ])
+        },
+    )
 }
 
 pub fn scroll_view(state: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>> {
@@ -55,9 +56,7 @@ pub fn jump(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
         debug_panic!();
         return None;
     };
-    let Some(cursor) = vse.cursors.list.first() else {
-        return None;
-    };
+    let cursor = vse.cursors.list.first()?;
 
     let pos = util::offset_to_pos(cursor.offset, vse, dse);
 
@@ -71,15 +70,17 @@ pub fn jump(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
 
         let parts: Vec<&str> = res.split(':').collect();
 
-        if parts.len() > 0 && !parts[0].is_empty() {
-            if let Ok(val) = parts[0].parse::<usize>() {
-                y = val.saturating_sub(1);
-            }
+        if !parts.is_empty()
+            && !parts[0].is_empty()
+            && let Ok(val) = parts[0].parse::<usize>()
+        {
+            y = val.saturating_sub(1);
         }
-        if parts.len() > 1 && !parts[1].is_empty() {
-            if let Ok(val) = parts[1].parse::<usize>() {
-                x = val.saturating_sub(1);
-            }
+        if parts.len() > 1
+            && !parts[1].is_empty()
+            && let Ok(val) = parts[1].parse::<usize>()
+        {
+            x = val.saturating_sub(1);
         }
 
         ActionProtocol::move_cursor_to_pos(state, view, Pos::new(x, y), true);
@@ -94,11 +95,10 @@ pub fn jump(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
 }
 
 pub fn focus_window(state: &State, motion: Motion) -> Option<Vec<FCmd>> {
-    if let Some(window) = state.workspace.navigate(motion) {
-        Some(vec![FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) })])
-    } else {
-        None
-    }
+    state
+        .workspace
+        .navigate(motion)
+        .map(|window| vec![FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) })])
 }
 
 pub fn yank(state: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>> {
@@ -123,10 +123,10 @@ pub fn yank(state: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>> {
     }
     yanked.pop();
 
-    if !yanked.is_empty() {
-        if let Ok(mut clipboard) = arboard::Clipboard::new() {
-            let _ = clipboard.set_text(yanked);
-        }
+    if !yanked.is_empty()
+        && let Ok(mut clipboard) = arboard::Clipboard::new()
+    {
+        let _ = clipboard.set_text(yanked);
     }
 
     Some(Vec::new())
@@ -166,10 +166,10 @@ pub fn yank_line(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
     }
     yanked.pop();
 
-    if !yanked.is_empty() {
-        if let Ok(mut clipboard) = arboard::Clipboard::new() {
-            let _ = clipboard.set_text(yanked);
-        }
+    if !yanked.is_empty()
+        && let Ok(mut clipboard) = arboard::Clipboard::new()
+    {
+        let _ = clipboard.set_text(yanked);
     }
 
     Some(Vec::new())
@@ -322,11 +322,11 @@ pub fn remove_offsets(view: ViewId, offsets: Vec<(usize, usize)>) -> Vec<FCmd> {
 
     let mut merged: Vec<(usize, usize)> = Vec::new();
     for (start, end) in regions {
-        if let Some(last) = merged.last_mut() {
-            if start <= last.1 {
-                last.1 = last.1.max(end);
-                continue;
-            }
+        if let Some(last) = merged.last_mut()
+            && start <= last.1
+        {
+            last.1 = last.1.max(end);
+            continue;
         }
         merged.push((start, end));
     }

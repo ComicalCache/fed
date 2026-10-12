@@ -10,7 +10,7 @@ pub struct SearchDecorator {
 }
 
 impl SearchDecorator {
-    pub fn new(query: String, matches: Vec<(usize, usize)>, face: Face) -> Self {
+    pub const fn new(query: String, matches: Vec<(usize, usize)>, face: Face) -> Self {
         Self { query, matches, face }
     }
 }

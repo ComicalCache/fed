@@ -40,7 +40,7 @@ impl NormalKeyInput {
     }
 
     fn exec(&mut self, state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let Some(view) = state.active_view() else { return None };
+        let view = state.active_view()?;
         let Some(doc) = state.index.view_to_doc(view) else {
             debug_panic!();
             return None;
@@ -63,7 +63,7 @@ impl NormalKeyInput {
                 Self::motion(state, view, doc, cmd)
             }
             Cmd::YankLine => common::yank_line(state, view),
-            Cmd::DeleteLine | Cmd::ChangeLine => {
+            Cmd::DeleteLine | Cmd::ChangeLine | Cmd::Indent | Cmd::Dedent => {
                 if dse.read_only {
                     return None;
                 }
@@ -98,13 +98,6 @@ impl NormalKeyInput {
                 }
 
                 Self::swap_operation(state, view, doc, cmd)
-            }
-            Cmd::Indent | Cmd::Dedent => {
-                if dse.read_only {
-                    return None;
-                }
-
-                Self::line_operation(state, view, doc, cmd)
             }
             Cmd::Paste => {
                 if !dse.read_only
@@ -190,11 +183,7 @@ impl NormalKeyInput {
     }
 
     fn motion(state: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let motion = match cmd {
-            Cmd::Delete(motion) => motion,
-            Cmd::Change(motion) => motion,
-            _ => unreachable!(),
-        };
+        let (Cmd::Delete(motion) | Cmd::Change(motion)) = cmd else { unreachable!() };
 
         let Some((vse, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
@@ -406,7 +395,7 @@ impl NormalKeyInput {
                     continue;
                 }
 
-                let len = text.graphemes(true).next().map(|g| g.len()).unwrap_or(1);
+                let len = text.graphemes(true).next().map_or(1, str::len);
                 edits.push((cursor.offset, len));
             }
         }
@@ -438,13 +427,16 @@ impl NormalKeyInput {
             return None;
         };
 
-        let path = dse.doc.path.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| {
-            format!(
-                "{}{}",
-                std::env::current_dir().unwrap_or_default().display(),
-                std::path::MAIN_SEPARATOR
-            )
-        });
+        let path = dse.doc.path.as_ref().map_or_else(
+            || {
+                format!(
+                    "{}{}",
+                    std::env::current_dir().unwrap_or_default().display(),
+                    std::path::MAIN_SEPARATOR
+                )
+            },
+            |p| p.display().to_string(),
+        );
 
         let pcallback = Box::new(move |state: &mut State, pstate: &mut PState, res: String| {
             if res.is_empty() {
@@ -462,7 +454,9 @@ impl NormalKeyInput {
             let cb_path = path.clone();
             let async_fcmd_tx = state.async_fcmd_tx.clone();
             let wcallback = Box::new(move |res| -> IoFuture {
-                Box::pin(Self::save_file_completion(async_fcmd_tx, res, doc, cb_path))
+                Box::pin(
+                    async move { Self::save_file_completion(async_fcmd_tx, res, doc, cb_path) },
+                )
             });
 
             IoProtocol::write(pstate, path, data, wcallback);
@@ -476,7 +470,7 @@ impl NormalKeyInput {
         })])
     }
 
-    async fn save_file_completion(
+    fn save_file_completion(
         async_fcmd_tx: UnboundedSender<FCmd>, res: Result<(), String>, doc: DocId, path: PathBuf,
     ) {
         match res {
@@ -506,10 +500,7 @@ impl KeyInputHandler for NormalKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::NormalMode }
 
     fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
-        let Some(view) = state.active_view() else {
-            // No active view, just abort.
-            return None;
-        };
+        let view = state.active_view()?;
         let Some(vse) = state.view_store.get(&view) else {
             debug_panic!();
             return None;
@@ -529,7 +520,7 @@ impl KeyInputHandler for NormalKeyInput {
         if self.replace {
             let cmds = if let KeyCode::Char(ch) = event.code {
                 // Always treat entering execute as consuming the key.
-                Some(self.exec(state, Cmd::ReplaceChar(ch)).unwrap_or_else(|| Vec::new()))
+                Some(self.exec(state, Cmd::ReplaceChar(ch)).unwrap_or_default())
             } else {
                 None
             };
@@ -546,7 +537,7 @@ impl KeyInputHandler for NormalKeyInput {
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
                 // Always treat entering execute as consuming the key.
-                let cmds = Some(self.exec(state, cmd).unwrap_or_else(|| Vec::new()));
+                let cmds = Some(self.exec(state, cmd).unwrap_or_default());
                 self.pending_keys.clear();
 
                 cmds

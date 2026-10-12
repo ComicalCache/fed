@@ -10,13 +10,13 @@ impl ScreenProtocol {
         match cmd {
             ScreenCmd::Resize(width, height) => {
                 state.workspace.resize(width, height);
-                pstate.screen.screen.resize(width, height)
+                pstate.screen.screen.resize(width, height);
             }
         }
     }
 
-    pub fn render(state: &mut State, pstate: &mut PState) {
-        state.workspace.render(&state, &mut pstate.screen.screen);
+    pub fn render(state: &State, pstate: &mut PState) {
+        state.workspace.render(state, &mut pstate.screen.screen);
         pstate.screen.screen.render();
     }
 }

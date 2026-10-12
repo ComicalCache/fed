@@ -8,7 +8,7 @@ pub struct MpDecorator {
 }
 
 impl MpDecorator {
-    pub fn new(prompt: String, face: Face) -> Self { Self { prompt, face } }
+    pub const fn new(prompt: String, face: Face) -> Self { Self { prompt, face } }
 }
 
 impl Decorator for MpDecorator {
@@ -25,7 +25,7 @@ impl Decorator for MpDecorator {
             start,
             end: 0,
             data: Decoration::VirtualText { text: self.prompt.clone(), face: self.face },
-        })
+        });
     }
 
     fn any(&self) -> &dyn Any { self }

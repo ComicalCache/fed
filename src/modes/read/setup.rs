@@ -8,11 +8,11 @@ pub fn exec_doc_event(state: &mut State, event: &DocStoreTypes::Event) {
         return;
     };
 
-    let dse = state.doc_store.get_mut(&id).unwrap();
+    let dse = state.doc_store.get_mut(id).unwrap();
     dse.read_only = true;
 
     let views: Vec<_> =
-        state.index.doc_to_views(*id).map(|v| v.iter().copied().collect()).unwrap_or_default();
+        state.index.doc_to_views(*id).map_or_default(|v| v.iter().copied().collect());
     for view in views {
         let Some(vse) = state.view_store.get_mut(&view) else {
             debug_panic!();

@@ -29,13 +29,13 @@ impl ActionProtocol {
                 Self::move_cursor_to_pos(state, view, pos, move_anchor);
             }
             ActionCmd::CreateCursorAtPos { view, pos } => {
-                Self::create_cursor_at_pos(state, view, pos)
+                Self::create_cursor_at_pos(state, view, pos);
             }
             ActionCmd::CreateCursorsAtOffset { view, offsets } => {
-                Self::create_cursors_at_offset(state, view, offsets)
+                Self::create_cursors_at_offset(state, view, offsets);
             }
             ActionCmd::RemoveCursors { view, offsets } => {
-                Self::remove_cursors(state, view, offsets)
+                Self::remove_cursors(state, view, &offsets);
             }
             ActionCmd::ResetCursorAnchors { view } => Self::reset_cursor_anchors(state, view),
 
@@ -49,7 +49,7 @@ impl ActionProtocol {
 
             ActionCmd::Insert { view, text } => Self::insert(state, view, text),
             ActionCmd::InsertAt { view, text, offset } => {
-                Self::insert_at(state, view, text, offset)
+                Self::insert_at(state, view, text, offset);
             }
             ActionCmd::Backspace { view } => Self::backspace(state, view),
             ActionCmd::Delete { view } => Self::delete(state, view),
@@ -62,14 +62,14 @@ impl ActionProtocol {
             ActionCmd::PopViewMode { view } => Self::pop_view_mode(state, view),
 
             ActionCmd::SetDocDecorator { doc, id, dec } => {
-                Self::set_doc_decorator(state, doc, id, dec)
+                Self::set_doc_decorator(state, doc, id, dec);
             }
             ActionCmd::SetViewDecorator { view, id, dec } => {
-                Self::set_view_decorator(state, view, id, dec)
+                Self::set_view_decorator(state, view, id, dec);
             }
             ActionCmd::RemoveDocDecorator { doc, id } => Self::remove_doc_decorator(state, doc, id),
             ActionCmd::RemoveViewDecorator { view, id } => {
-                Self::remove_view_decorator(state, view, id)
+                Self::remove_view_decorator(state, view, id);
             }
 
             ActionCmd::SetActiveWindow { window } => Self::set_active_window(state, window),
@@ -86,7 +86,7 @@ impl ActionProtocol {
 
         let mut cursors = vse.cursors.clone();
         for cursor in &mut cursors.list {
-            util::motion::apply(cursor, motion, &vse, &dse);
+            util::motion::apply(cursor, motion, vse, dse);
 
             if move_anchor {
                 cursor.anchor = cursor.offset;
@@ -117,7 +117,7 @@ impl ActionProtocol {
         let anchor = if move_anchor {
             offset
         } else {
-            vse.cursors.list.first().map(|c| c.anchor).unwrap_or(offset)
+            vse.cursors.list.first().map_or(offset, |c| c.anchor)
         };
 
         vse.cursors.list.clear();
@@ -178,7 +178,7 @@ impl ActionProtocol {
         let _ = state.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorsMoved { view }));
     }
 
-    pub fn remove_cursors(state: &mut State, view: ViewId, offsets: Vec<usize>) {
+    pub fn remove_cursors(state: &mut State, view: ViewId, offsets: &[usize]) {
         let Some(vse) = state.view_store.get_mut(&view) else {
             debug_panic!();
             return;
@@ -403,7 +403,7 @@ impl ActionProtocol {
             return;
         };
 
-        dse.doc.path = path.clone();
+        dse.doc.path.clone_from(&path);
 
         let _ =
             state.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::PathChanged { id: doc, path }));
@@ -493,7 +493,7 @@ impl ActionProtocol {
         vse.decs.decorators.remove(&id);
     }
 
-    pub fn set_active_window(state: &mut State, window: Option<WindowId>) {
+    pub const fn set_active_window(state: &mut State, window: Option<WindowId>) {
         state.workspace.active_window = window;
     }
 
@@ -507,8 +507,7 @@ impl ActionProtocol {
                 .doc
                 .path
                 .as_ref()
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|| "SCRATCHPAD".to_string());
+                .map_or_else(|| "SCRATCHPAD".to_string(), |p| p.display().to_string());
 
             return Err(format!("'{name}' has unsaved changes"));
         }
@@ -540,7 +539,7 @@ impl ActionProtocol {
                         1
                     } else {
                         let text = doc_data.slice(start..cursor.offset);
-                        text.graphemes(true).last().map(|g| g.len()).unwrap_or(1)
+                        text.graphemes(true).next_back().map_or(1, str::len)
                     };
 
                     edits.push(Edit {
@@ -567,7 +566,7 @@ impl ActionProtocol {
                         1
                     } else {
                         let text = doc_data.slice(cursor.offset..end);
-                        text.graphemes(true).next().map(|g| g.len()).unwrap_or(1)
+                        text.graphemes(true).next().map_or(1, str::len)
                     };
 
                     edits.push(Edit { offset: cursor.offset, remove, insert: String::new() });

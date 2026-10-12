@@ -8,9 +8,9 @@ pub struct Rgb {
 }
 
 impl Rgb {
-    pub fn new(r: u8, g: u8, b: u8) -> Self { Self { r, g, b } }
+    pub const fn new(r: u8, g: u8, b: u8) -> Self { Self { r, g, b } }
 }
 
-impl Into<Color> for Rgb {
-    fn into(self) -> Color { Color::Rgb { r: self.r, g: self.g, b: self.b } }
+impl From<Rgb> for Color {
+    fn from(val: Rgb) -> Self { Self::Rgb { r: val.r, g: val.g, b: val.b } }
 }

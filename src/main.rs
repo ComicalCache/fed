@@ -46,7 +46,7 @@ fn setup(
     mut cli: Cli, input_rx: UnboundedReceiver<Event>, shutdown_tx: UnboundedSender<()>,
     width: usize, height: usize,
 ) -> Fed {
-    cli.path = cli.path.map(|p| util::path::normalize(p));
+    cli.path = cli.path.map(util::path::normalize);
 
     let (fed, async_fcmd_tx, doc) =
         Fed::new(width, height, cli.path.clone(), input_rx, shutdown_tx);
@@ -114,7 +114,7 @@ async fn main() -> std::io::Result<()> {
     // Main loop.
     tokio::select! {
         _ = input(input_tx) => {}
-        _ = fed.run() => {}
+        () = fed.run() => {}
         _ = shutdown_rx.recv() => {}
     }
 

@@ -11,7 +11,7 @@ pub struct Doc {
 }
 
 impl Doc {
-    pub fn new(path: Option<PathBuf>, data: PieceTable) -> Self {
+    pub const fn new(path: Option<PathBuf>, data: PieceTable) -> Self {
         Self { path, data, modified: false }
     }
 }

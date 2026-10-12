@@ -12,10 +12,10 @@ pub struct Cli {
 
 impl Cli {
     pub fn parse() -> Self {
-        let mut cli = Cli::default();
-        let mut args = std::env::args().skip(1);
+        let mut cli = Self::default();
+        let args = std::env::args().skip(1);
 
-        while let Some(arg) = args.next() {
+        for arg in args {
             if arg.starts_with("--") {
                 if arg == "--help" {
                     Self::print_help();
@@ -26,12 +26,13 @@ impl Cli {
                     std::process::exit(0);
                 }
 
-                let (key, value) = if let Some(sep) = arg.find('=') {
-                    (&arg[2..sep], arg[sep + 1..].to_string())
-                } else {
-                    Self::print_help();
-                    std::process::exit(1);
-                };
+                let (key, value) = arg.find('=').map_or_else(
+                    || {
+                        Self::print_help();
+                        std::process::exit(1);
+                    },
+                    |sep| (&arg[2..sep], arg[sep + 1..].to_string()),
+                );
 
                 match key {
                     "dmode" => {

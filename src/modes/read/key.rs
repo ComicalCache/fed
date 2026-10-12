@@ -25,8 +25,8 @@ impl ReadKeyInput {
         Self { keymap: keymap::keymap(), pending_keys: Vec::new(), last_view: None }
     }
 
-    fn exec(&mut self, state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let Some(view) = state.active_view() else { return None };
+    fn exec(state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
+        let view = state.active_view()?;
         let Some(doc) = state.index.view_to_doc(view) else {
             debug_panic!();
             return None;
@@ -73,10 +73,7 @@ impl KeyInputHandler for ReadKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::ReadMode }
 
     fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
-        let Some(view) = state.active_view() else {
-            // No active view, just abort.
-            return None;
-        };
+        let view = state.active_view()?;
         let Some((_, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
         else {
@@ -100,7 +97,7 @@ impl KeyInputHandler for ReadKeyInput {
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
                 // Always treat entering execute as consuming the key.
-                let cmds = Some(self.exec(state, cmd).unwrap_or_else(|| Vec::new()));
+                let cmds = Some(Self::exec(state, cmd).unwrap_or_default());
                 self.pending_keys.clear();
 
                 cmds

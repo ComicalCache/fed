@@ -10,35 +10,35 @@ use crate::{
 newtype!(WindowId, u64);
 
 enum Tile {
-    Split { direction: RectSplit, ratio: f32, first: Box<Tile>, second: Box<Tile> },
+    Split { direction: RectSplit, ratio: f32, first: Box<Self>, second: Box<Self> },
     Window { id: WindowId, content: Box<dyn Renderer> },
     Dummy,
 }
 
 impl Tile {
-    fn find(&mut self, target: WindowId) -> Option<&mut Tile> {
+    fn find(&mut self, target: WindowId) -> Option<&mut Self> {
         match self {
-            Tile::Split { first, second, .. } => {
+            Self::Split { first, second, .. } => {
                 if let Some(tile) = first.find(target) {
                     return Some(tile);
                 }
 
                 second.find(target)
             }
-            Tile::Window { id, .. } if *id == target => Some(self),
-            Tile::Window { .. } => None,
-            Tile::Dummy => unreachable!(),
+            Self::Window { id, .. } if *id == target => Some(self),
+            Self::Window { .. } => None,
+            Self::Dummy => unreachable!(),
         }
     }
 
-    fn find_parent(&mut self, target: WindowId) -> Option<&mut Tile> {
+    fn find_parent(&mut self, target: WindowId) -> Option<&mut Self> {
         let parent = match &*self {
-            Tile::Split { first, second, .. } => {
-                matches!(**first, Tile::Window { id, .. } if id == target)
-                    || matches!(**second, Tile::Window { id, .. } if id == target)
+            Self::Split { first, second, .. } => {
+                matches!(**first, Self::Window { id, .. } if id == target)
+                    || matches!(**second, Self::Window { id, .. } if id == target)
             }
-            Tile::Window { .. } => false,
-            Tile::Dummy => unreachable!(),
+            Self::Window { .. } => false,
+            Self::Dummy => unreachable!(),
         };
 
         if parent {
@@ -46,22 +46,20 @@ impl Tile {
         }
 
         match self {
-            Tile::Split { first, second, .. } => {
+            Self::Split { first, second, .. } => {
                 if let Some(parent) = first.find_parent(target) {
                     return Some(parent);
                 }
 
                 second.find_parent(target)
             }
-            Tile::Window { .. } => None,
-            Tile::Dummy => unreachable!(),
+            Self::Window { .. } => None,
+            Self::Dummy => unreachable!(),
         }
     }
 
     /// Traverses the tiling tree and collects all window IDs.
     fn windows(&self) -> Vec<WindowId> {
-        let mut ids = Vec::new();
-
         fn recursive(tile: &Tile, ids: &mut Vec<WindowId>) {
             match tile {
                 Tile::Split { first, second, .. } => {
@@ -73,6 +71,7 @@ impl Tile {
             }
         }
 
+        let mut ids = Vec::new();
         recursive(self, &mut ids);
 
         ids
@@ -81,29 +80,29 @@ impl Tile {
     /// Calculates the layout with physical sizes.
     fn layout(&self, rect: Rect, res: &mut Vec<(WindowId, Rect)>) {
         match self {
-            Tile::Split { direction, ratio, first, second } => {
+            Self::Split { direction, ratio, first, second } => {
                 let (first_rect, second_rect) = rect.split(*direction, *ratio);
 
                 first.layout(first_rect, res);
                 second.layout(second_rect, res);
             }
-            Tile::Window { id, .. } => res.push((*id, rect)),
-            Tile::Dummy => unreachable!(),
+            Self::Window { id, .. } => res.push((*id, rect)),
+            Self::Dummy => unreachable!(),
         }
     }
 
     pub fn render(&self, state: &State, screen: &mut Screen, rect: Rect) {
         match self {
-            Tile::Split { direction, ratio, first, second } => {
+            Self::Split { direction, ratio, first, second } => {
                 let (first_rect, second_rect) = rect.split(*direction, *ratio);
 
                 first.render(state, screen, first_rect);
                 second.render(state, screen, second_rect);
             }
-            Tile::Window { content, id } => {
+            Self::Window { content, id } => {
                 content.render(state, &mut Viewport::new(screen, rect), *id);
             }
-            Tile::Dummy => unreachable!(),
+            Self::Dummy => unreachable!(),
         }
     }
 }
@@ -128,7 +127,7 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub fn new(rect: Rect) -> Self {
+    pub const fn new(rect: Rect) -> Self {
         Self { rect, active_window: None, root: None, floating: Vec::new(), next_window_id: 0 }
     }
 
@@ -137,9 +136,7 @@ impl Workspace {
     }
 
     /// Collects all tiled window IDs.
-    pub fn tiles(&self) -> Vec<WindowId> {
-        self.root.as_ref().map(|t| t.windows()).unwrap_or_default()
-    }
+    pub fn tiles(&self) -> Vec<WindowId> { self.root.as_ref().map_or_default(Tile::windows) }
 
     /// Collects all floating window IDs.
     pub fn floatings(&self) -> Vec<WindowId> { self.floating.iter().map(|f| f.id).collect() }
@@ -156,7 +153,7 @@ impl Workspace {
             return Some(id);
         };
 
-        let Some(target) = root.find(split_id) else { return None };
+        let target = root.find(split_id)?;
 
         let tile = std::mem::replace(target, Tile::Dummy);
 
@@ -300,14 +297,12 @@ impl Workspace {
     }
 
     pub fn navigate(&self, motion: Motion) -> Option<WindowId> {
-        let Some(active) = self.active_window else { return None };
+        let active = self.active_window?;
         let Some(root) = &self.root else { return None };
 
         let mut layout = Vec::new();
         root.layout(self.rect, &mut layout);
-        let Some(&(_, active_rect)) = layout.iter().find(|(id, _)| *id == active) else {
-            return None;
-        };
+        let &(_, active_rect) = layout.iter().find(|(id, _)| *id == active)?;
 
         let mut res = None;
         let mut min = usize::MAX;

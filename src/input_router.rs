@@ -44,7 +44,7 @@ impl InputRouter {
                 }
 
                 for handler in &mut self.mouse_handlers {
-                    if let Some(cmds) = handler.mouse(state, &mouse) {
+                    if let Some(cmds) = handler.mouse(state, mouse) {
                         return cmds;
                     }
                 }
@@ -103,10 +103,10 @@ impl Default for InputRouter {
             Box::new(ViewResizeInput {}),
         ];
 
-        key_handlers.sort_by(|a, b| a.priority().cmp(&b.priority()));
-        mouse_handlers.sort_by(|a, b| a.priority().cmp(&b.priority()));
-        paste_handlers.sort_by(|a, b| a.priority().cmp(&b.priority()));
-        resize_handlers.sort_by(|a, b| a.priority().cmp(&b.priority()));
+        key_handlers.sort_by_key(|a| a.priority());
+        mouse_handlers.sort_by_key(|a| a.priority());
+        paste_handlers.sort_by_key(|a| a.priority());
+        resize_handlers.sort_by_key(|a| a.priority());
 
         Self { key_handlers, mouse_handlers, paste_handlers, resize_handlers }
     }

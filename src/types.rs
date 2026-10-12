@@ -16,7 +16,7 @@ pub use decoration::{Decoration, Decorator};
 pub use face::Face;
 pub use input::{
     KeyInputHandler, KeyInputPriority, MouseInputHandler, MouseInputPriority, PasteInputHandler,
-    PasteInputPriority, ResizeInputHandler, ResizeInputPriority,
+    ResizeInputHandler, ResizeInputPriority,
 };
 pub use keymap::{KeyChord, Keymap, ParseResult};
 pub use motion::Motion;

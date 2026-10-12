@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use crate::state::{DocId, DocStoreTypes};
 
 #[derive(Clone)]
+#[allow(unused)]
 pub enum Event {
     Created { id: DocId },
     Destroyed { id: DocId },

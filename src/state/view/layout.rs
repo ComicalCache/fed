@@ -45,7 +45,7 @@ pub struct Replacements {
 }
 
 impl Replacements {
-    pub fn none() -> Self { Self { space: None, tab: None, newline: None } }
+    pub const fn none() -> Self { Self { space: None, tab: None, newline: None } }
 }
 
 impl Default for Replacements {

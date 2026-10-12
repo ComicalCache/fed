@@ -159,7 +159,7 @@ impl MpProtocol {
         if let Some(window) = state.mp.window.take() {
             state.index.unlink_window(window);
             state.workspace.destroy_window(window);
-        };
+        }
 
         state.workspace.active_window = state.mp.prev_window;
 
@@ -180,7 +180,7 @@ impl MpProtocol {
         let len = dse.doc.data.len();
 
         ActionProtocol::remove(state, state.mp.view, 0, len);
-        ActionProtocol::remove_cursors(state, state.mp.view, vec![0]);
+        ActionProtocol::remove_cursors(state, state.mp.view, &[0]);
         ActionProtocol::saved(state, state.mp.doc);
     }
 

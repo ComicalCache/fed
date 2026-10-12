@@ -28,8 +28,9 @@ pub fn layout_cells(
 
         for span in decs {
             let zero_width = span.start == span.end;
-            if (zero_width && (span.start < offset || span.start >= offset + ch_len))
-                || (!zero_width && (span.start >= offset + ch_len || span.end <= offset))
+            if span.start >= offset + ch_len
+                || zero_width && span.start < offset
+                || !zero_width && span.end <= offset
             {
                 continue;
             }
@@ -212,8 +213,9 @@ pub fn layout_vom(
 
         for span in decs {
             let zero_width = span.start == span.end;
-            if (zero_width && (span.start < offset || span.start >= offset + ch_len))
-                || (!zero_width && (span.start >= offset + ch_len || span.end <= offset))
+            if span.start >= offset + ch_len
+                || zero_width && span.start < offset
+                || !zero_width && span.end <= offset
             {
                 continue;
             }
@@ -246,7 +248,7 @@ pub fn layout_vom(
 
         if replace {
             if let Some(text) = replacement_text {
-                ch_width = text.graphemes(true).map(|ch| ch.width()).sum();
+                ch_width = text.graphemes(true).map(UnicodeWidthStr::width).sum();
                 map_width = ch_width;
             }
         } else if ch == "\t" {

@@ -5,6 +5,7 @@ use crate::{
     types::render::WindowId,
 };
 
+#[allow(unused)]
 pub enum DirCmd {
     Init,
     InitCompletion { entries: Vec<Entry>, printables: Vec<PrintableEntry> },

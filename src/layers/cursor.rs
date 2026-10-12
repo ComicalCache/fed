@@ -15,7 +15,7 @@ impl Layer for CursorLayer {
         let active = state
             .active_view()
             .and_then(|id| state.view_store.get(&id))
-            .map_or(false, |active| std::ptr::eq(vse, active));
+            .is_some_and(|active| std::ptr::eq(vse, active));
 
         let face = if active { state.theme.active_cursor } else { state.theme.cursor };
 

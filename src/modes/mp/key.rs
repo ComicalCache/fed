@@ -22,14 +22,12 @@ impl MpKeyInput {
         Self { keymap, pending_keys: Vec::new(), last_view: None }
     }
 
-    fn exec(&mut self, state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
+    fn exec(state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
         let id = state.mp.id;
         let view = state.mp.view;
 
         match cmd {
-            Cmd::Input(text) => {
-                Some(vec![FCmd::Action(ActionCmd::Insert { view, text: text.clone() })])
-            }
+            Cmd::Input(text) => Some(vec![FCmd::Action(ActionCmd::Insert { view, text })]),
             Cmd::Move(motion) => {
                 Some(vec![FCmd::Action(ActionCmd::MoveCursors { view, motion, move_anchor: true })])
             }
@@ -76,7 +74,7 @@ impl KeyInputHandler for MpKeyInput {
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
                 // Always treat entering execute as consuming the key.
-                let cmds = Some(self.exec(state, cmd).unwrap_or_else(|| Vec::new()));
+                let cmds = Some(Self::exec(state, cmd).unwrap_or_default());
                 self.pending_keys.clear();
 
                 cmds
@@ -102,16 +100,14 @@ impl KeyInputHandler for MpKeyInput {
                     .collect::<Vec<_>>()
                     .join("-");
 
-                if !modifiers.is_empty() {
+                if modifiers.is_empty() {
                     // Always treat entering execute as consuming the key.
-                    let cmds = self
-                        .exec(state, Cmd::Input(format!("<{modifiers}-{ch}>")))
-                        .unwrap_or_else(|| Vec::new());
+                    let cmds = Self::exec(state, Cmd::Input(ch.to_string())).unwrap_or_default();
                     Some(cmds)
                 } else {
                     // Always treat entering execute as consuming the key.
-                    let cmds =
-                        self.exec(state, Cmd::Input(ch.to_string())).unwrap_or_else(|| Vec::new());
+                    let cmds = Self::exec(state, Cmd::Input(format!("<{modifiers}-{ch}>")))
+                        .unwrap_or_default();
                     Some(cmds)
                 }
             }

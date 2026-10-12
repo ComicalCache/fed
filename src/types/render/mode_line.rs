@@ -19,37 +19,30 @@ impl ModeLineWidget {
         &self, state: &State, vse: &ViewStoreEntry, dse: &DocStoreEntry,
     ) -> (String, Face) {
         match self {
-            ModeLineWidget::DocMode { face } => {
-                (format!("[{}]", dse.mode.to_string().to_uppercase()), *face)
-            }
-            ModeLineWidget::ViewMode { face } => {
+            Self::DocMode { face } => (format!("[{}]", dse.mode.to_string().to_uppercase()), *face),
+            Self::ViewMode { face } => {
                 (format!("[{}]", vse.mode().to_string().to_uppercase()), *face)
             }
-            ModeLineWidget::ReadWrite { face } => {
+            Self::ReadWrite { face } => {
                 (if dse.read_only { "[R]".to_string() } else { "[RW]".to_string() }, *face)
             }
-            ModeLineWidget::FilePath { face } => {
-                match dse.doc.path.as_ref().map(|p| p.display().to_string()) {
-                    Some(path) => {
-                        (format!("[{path}{}]", if dse.doc.modified { "*" } else { "" }), *face)
-                    }
-                    None => {
-                        (format!("[SCRATCHPAD{}]", if dse.doc.modified { "*" } else { "" }), *face)
-                    }
-                }
+            Self::FilePath { face } => {
+                dse.doc.path.as_ref().map(|p| p.display().to_string()).map_or_else(
+                    || (format!("[SCRATCHPAD{}]", if dse.doc.modified { "*" } else { "" }), *face),
+                    |path| (format!("[{path}{}]", if dse.doc.modified { "*" } else { "" }), *face),
+                )
             }
-            ModeLineWidget::CursorPos { face } => {
-                let offset = vse.cursors.list.first().map(|c| c.offset).unwrap_or(0);
+            Self::CursorPos { face } => {
+                let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
                 let y = dse.doc.data.get_line_of_byte(offset);
 
                 let (vom, _) = util::layout::vom(y, vse, dse);
-                let x =
-                    vom.iter().find(|vo| vo.offset >= offset).map(|vo| vo.visual_x).unwrap_or(0);
+                let x = vom.iter().find(|vo| vo.offset >= offset).map_or(0, |vo| vo.visual_x);
 
                 (format!("[{}:{} {}]", y + 1, x + 1, vse.cursors.list.len()), *face)
             }
-            ModeLineWidget::Text { text, face } => (text.clone(), *face),
-            ModeLineWidget::Custom(f) => f(state, vse, dse),
+            Self::Text { text, face } => (text.clone(), *face),
+            Self::Custom(f) => f(state, vse, dse),
         }
     }
 }

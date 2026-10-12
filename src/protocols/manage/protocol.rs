@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{fmt::Write, time::Duration};
 
 use crate::{
     protocols::{
@@ -35,8 +35,8 @@ impl ManageProtocol {
 
         for (id, dse) in docs {
             let modified = if dse.doc.modified { "[*]" } else { "" };
-            let path =
-                dse.doc.path.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| {
+            let path = dse.doc.path.as_ref().map_or_else(
+                || {
                     match dse.mode {
                         DocStoreTypes::Mode::Text => "SCRATCHPAD",
                         DocStoreTypes::Mode::Mp => "MP",
@@ -45,17 +45,19 @@ impl ManageProtocol {
                         DocStoreTypes::Mode::Read => "READ",
                     }
                     .to_string()
-                });
+                },
+                |p| p.display().to_string(),
+            );
 
-            text.push_str(&format!("{modified} {path}\n"));
+            let _ = writeln!(text, "{modified} {path}");
             entries.push(ManageTypes::Entry::Doc(id));
 
             if let Some(views) = state.index.doc_to_views(id) {
-                let mut views: Vec<_> = views.iter().cloned().collect();
+                let mut views: Vec<_> = views.iter().copied().collect();
                 views.sort_by_key(|v| v.0);
 
                 for view in views {
-                    text.push_str(&format!("└─ View {}\n", view.0));
+                    let _ = writeln!(text, "└─ View {}", view.0);
                     entries.push(ManageTypes::Entry::View(view));
                 }
             }
@@ -82,7 +84,7 @@ impl ManageProtocol {
         let pos = if move_cursor {
             Pos::new(0, 0)
         } else {
-            util::offset_to_pos(vse.cursors.list.first().map(|c| c.offset).unwrap_or(0), vse, dse)
+            util::offset_to_pos(vse.cursors.list.first().map_or(0, |c| c.offset), vse, dse)
         };
 
         ActionProtocol::remove(state, state.manage.view, 0, len);
@@ -95,8 +97,7 @@ impl ManageProtocol {
             dse.read_only = true;
         } else {
             debug_panic!();
-            return;
-        };
+        }
     }
 
     fn replace_window(state: &mut State, window: WindowId) {
@@ -119,7 +120,7 @@ impl ManageProtocol {
             return;
         };
 
-        let offset = vse.cursors.list.first().map(|c| c.offset).unwrap_or(0);
+        let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
         let y = dse.doc.data.get_line_of_byte(offset);
 
         if y >= state.manage.entries.len() {
@@ -131,7 +132,7 @@ impl ManageProtocol {
 
         let view = match entry {
             ManageTypes::Entry::Doc(id) => {
-                state.index.doc_to_views(id).and_then(|vs| vs.iter().next()).cloned()
+                state.index.doc_to_views(id).and_then(|vs| vs.iter().next()).copied()
             }
             ManageTypes::Entry::View(id) => Some(id),
         };
@@ -171,9 +172,8 @@ impl ManageProtocol {
             DocStoreTypes::Mode::Text | DocStoreTypes::Mode::Read => {
                 DocViewProtocol::replace_window(state, doc, view, window, false, None);
             }
-            DocStoreTypes::Mode::Mp => {}
+            DocStoreTypes::Mode::Mp | DocStoreTypes::Mode::Manage => {}
             DocStoreTypes::Mode::Dir => DirProtocol::replace_window(state, window),
-            DocStoreTypes::Mode::Manage => {}
         }
     }
 
@@ -188,7 +188,7 @@ impl ManageProtocol {
             return;
         };
 
-        let offset = vse.cursors.list.first().map(|c| c.offset).unwrap_or(0);
+        let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
         let y = dse.doc.data.get_line_of_byte(offset);
 
         if y >= state.manage.entries.len() {

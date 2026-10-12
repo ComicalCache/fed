@@ -25,7 +25,7 @@ impl ManageKeyInput {
         Self { keymap: keymap::keymap(), pending_keys: Vec::new(), last_view: None }
     }
 
-    fn exec(&self, state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
+    fn exec(state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
         let view = state.manage.view;
         let doc = state.manage.doc;
 
@@ -62,13 +62,11 @@ impl KeyInputHandler for ManageKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::ManageMode }
 
     fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
-        let Some(view) = state.active_view() else {
-            // No active view, just abort.
-            return None;
-        };
+        let view = state.active_view()?;
         let Some((_, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
         else {
+            debug_panic!();
             return None;
         };
 
@@ -88,7 +86,7 @@ impl KeyInputHandler for ManageKeyInput {
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
                 // Always treat entering execute as consuming the key.
-                let cmds = Some(self.exec(state, cmd).unwrap_or_default());
+                let cmds = Some(Self::exec(state, cmd).unwrap_or_default());
                 self.pending_keys.clear();
 
                 cmds

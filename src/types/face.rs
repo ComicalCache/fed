@@ -16,7 +16,7 @@ pub struct Face {
 }
 
 impl Face {
-    pub fn merge(&mut self, other: Self) {
+    pub const fn merge(&mut self, other: Self) {
         if let Some(fg) = other.fg {
             self.fg = Some(fg);
         }

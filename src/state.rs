@@ -82,7 +82,7 @@ impl State {
         let doc = DocId(self.next_doc_id);
         self.next_doc_id += 1;
 
-        let path = path.map(|p| util::path::normalize(p));
+        let path = path.map(util::path::normalize);
 
         if let Some(path) = &path
             && let Some((&doc, _)) =

@@ -7,7 +7,7 @@ pub struct SpanDecorator {
 }
 
 impl SpanDecorator {
-    pub fn new(spans: Vec<Span<Decoration>>) -> Self { Self { spans } }
+    pub const fn new(spans: Vec<Span<Decoration>>) -> Self { Self { spans } }
 }
 
 impl Decorator for SpanDecorator {

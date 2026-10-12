@@ -8,6 +8,7 @@ use crate::{
     },
 };
 
+#[allow(unused)]
 pub enum DocViewCmd {
     CreateTile {
         doc: DocId,

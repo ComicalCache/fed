@@ -7,13 +7,13 @@ pub struct Pos {
 }
 
 impl Pos {
-    pub fn new(x: usize, y: usize) -> Self { Self { x, y } }
+    pub const fn new(x: usize, y: usize) -> Self { Self { x, y } }
 }
 
 impl Add for Pos {
-    type Output = Pos;
+    type Output = Self;
 
-    fn add(self, rhs: Self) -> Self::Output { Pos::new(self.x + rhs.x, self.y + rhs.y) }
+    fn add(self, rhs: Self) -> Self::Output { Self::new(self.x + rhs.x, self.y + rhs.y) }
 }
 
 impl AddAssign for Pos {
@@ -24,9 +24,9 @@ impl AddAssign for Pos {
 }
 
 impl Sub for Pos {
-    type Output = Pos;
+    type Output = Self;
 
-    fn sub(self, rhs: Self) -> Self::Output { Pos::new(self.x - rhs.x, self.y - rhs.y) }
+    fn sub(self, rhs: Self) -> Self::Output { Self::new(self.x - rhs.x, self.y - rhs.y) }
 }
 
 impl SubAssign for Pos {
@@ -37,11 +37,11 @@ impl SubAssign for Pos {
 }
 
 impl Pos {
-    pub fn saturating_sub(self, rhs: Self) -> Self {
-        Pos::new(self.x.saturating_sub(rhs.x), self.y.saturating_sub(rhs.y))
+    pub const fn saturating_sub(self, rhs: Self) -> Self {
+        Self::new(self.x.saturating_sub(rhs.x), self.y.saturating_sub(rhs.y))
     }
 }
 
 impl<T: Into<usize>> From<(T, T)> for Pos {
-    fn from((x, y): (T, T)) -> Self { Pos::new(x.into(), y.into()) }
+    fn from((x, y): (T, T)) -> Self { Self::new(x.into(), y.into()) }
 }

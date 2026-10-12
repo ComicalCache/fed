@@ -6,5 +6,7 @@ pub struct Cursor {
 }
 
 impl Cursor {
-    pub fn new(offset: usize, pref_x: usize) -> Self { Self { offset, anchor: offset, pref_x } }
+    pub const fn new(offset: usize, pref_x: usize) -> Self {
+        Self { offset, anchor: offset, pref_x }
+    }
 }

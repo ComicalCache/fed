@@ -21,20 +21,17 @@ impl ViewProtocol {
 
     pub fn exec_doc_event(state: &mut State, event: &DocStoreTypes::Event) {
         let doc = match event {
-            DocStoreTypes::Event::Created { .. } => return,
-            DocStoreTypes::Event::Destroyed { .. } => return,
-            DocStoreTypes::Event::Inserted { id, .. } => id,
-            DocStoreTypes::Event::Removed { id, .. } => id,
-            DocStoreTypes::Event::Written { .. } => return,
-            DocStoreTypes::Event::ModeChanged { .. } => return,
-            DocStoreTypes::Event::PathChanged { id, .. } => id,
+            DocStoreTypes::Event::Created { .. }
+            | DocStoreTypes::Event::Destroyed { .. }
+            | DocStoreTypes::Event::Written { .. }
+            | DocStoreTypes::Event::ModeChanged { .. } => return,
+            DocStoreTypes::Event::Inserted { id, .. }
+            | DocStoreTypes::Event::Removed { id, .. }
+            | DocStoreTypes::Event::PathChanged { id, .. } => id,
         };
 
-        let views: Vec<_> = state
-            .index
-            .doc_to_views(*doc)
-            .map(|views| views.iter().copied().collect())
-            .unwrap_or_default();
+        let views: Vec<_> =
+            state.index.doc_to_views(*doc).map_or_default(|views| views.iter().copied().collect());
         for view in views {
             Self::update(state, view);
         }
@@ -43,13 +40,13 @@ impl ViewProtocol {
     pub fn exec_view_event(state: &mut State, event: &ViewStoreTypes::Event) {
         match event {
             ViewStoreTypes::Event::Created { id } => Self::update(state, *id),
-            ViewStoreTypes::Event::Destroyed { .. } => {
+            ViewStoreTypes::Event::CursorsMoved { view } => Self::cursor_moved(state, *view),
+            ViewStoreTypes::Event::CursorsChanged { .. }
+            | ViewStoreTypes::Event::ModeChanged { .. }
+            | ViewStoreTypes::Event::Destroyed { .. } => {
                 // The view cache gets deleted when the vse gets deleted,
                 // nothing needs to be done.
             }
-            ViewStoreTypes::Event::CursorsMoved { view } => Self::cursor_moved(state, *view),
-            ViewStoreTypes::Event::CursorsChanged { .. } => {}
-            ViewStoreTypes::Event::ModeChanged { .. } => {}
         }
     }
 

@@ -19,7 +19,7 @@ pub trait MouseInputHandler {
 
     /// Processes, or ignores, an input `Event::Mouse`. If the handler consumes
     /// the event, `Some` is to be returned, `None` otherwise.
-    fn mouse(&mut self, _: &State, _: &MouseEvent) -> Option<Vec<FCmd>>;
+    fn mouse(&mut self, _: &State, _: MouseEvent) -> Option<Vec<FCmd>>;
 }
 
 pub trait PasteInputHandler {
@@ -29,7 +29,7 @@ pub trait PasteInputHandler {
 
     /// Processes, or ignores, an input `Event::Paste`. If the handler consumes
     /// the event, `Some` is to be returned, `None` otherwise.
-    fn paste(&mut self, _: &State, _: &String) -> Option<Vec<FCmd>>;
+    fn paste(&mut self, _: &State, _: &str) -> Option<Vec<FCmd>>;
 }
 
 pub trait ResizeInputHandler {
@@ -45,6 +45,7 @@ pub trait ResizeInputHandler {
 // to intercept input events. The input handler order is enforced at startup.
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[allow(clippy::empty_enums)]
 pub enum KeyInputPriority {
     // Needs the highest priority for intercepting with active mini buffer.
     MpMode = 0,
@@ -58,6 +59,7 @@ pub enum KeyInputPriority {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[allow(clippy::empty_enums)]
 pub enum MouseInputPriority {
     // Needs the highest priority for intercepting with active mini buffer.
     MpMode = 0,
@@ -71,9 +73,11 @@ pub enum MouseInputPriority {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[allow(clippy::empty_enums)]
 pub enum PasteInputPriority {}
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[allow(clippy::empty_enums)]
 pub enum ResizeInputPriority {
     // Needs the highest priority for resizing the screen buffer.
     ScreenProtocol = 0,

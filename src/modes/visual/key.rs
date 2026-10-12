@@ -27,8 +27,8 @@ impl VisualKeyInput {
         Self { keymap, pending_keys: Vec::new(), last_view: None }
     }
 
-    fn exec(&mut self, state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let Some(view) = state.active_view() else { return None };
+    fn exec(state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
+        let view = state.active_view()?;
         let Some(doc) = state.index.view_to_doc(view) else {
             debug_panic!();
             return None;
@@ -121,11 +121,11 @@ impl VisualKeyInput {
 
         let mut bounds: Vec<(usize, usize)> = Vec::new();
         for (start, end) in offsets {
-            if let Some(last) = bounds.last_mut() {
-                if start <= last.1 {
-                    last.1 = last.1.max(end);
-                    continue;
-                }
+            if let Some(last) = bounds.last_mut()
+                && start <= last.1
+            {
+                last.1 = last.1.max(end);
+                continue;
             }
 
             bounds.push((start, end));
@@ -203,10 +203,7 @@ impl KeyInputHandler for VisualKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::VisualMode }
 
     fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
-        let Some(view) = state.active_view() else {
-            // No active view, just abort.
-            return None;
-        };
+        let view = state.active_view()?;
         let Some(vse) = state.view_store.get(&view) else {
             debug_panic!();
             return None;
@@ -228,7 +225,7 @@ impl KeyInputHandler for VisualKeyInput {
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
                 // Always treat entering execute as consuming the key.
-                let cmds = Some(self.exec(state, cmd).unwrap_or_else(|| Vec::new()));
+                let cmds = Some(Self::exec(state, cmd).unwrap_or_default());
                 self.pending_keys.clear();
 
                 cmds

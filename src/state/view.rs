@@ -22,7 +22,7 @@ pub mod types {
 
 use std::collections::HashMap;
 
-use crate::{types::render::ModeLineConfig, util::newtype};
+use crate::{state::ViewStoreTypes, types::render::ModeLineConfig, util::newtype};
 
 newtype!(ViewId, usize);
 
@@ -49,13 +49,13 @@ impl ViewStoreEntry {
 impl Default for ViewStoreEntry {
     fn default() -> Self {
         Self {
-            modes: vec![types::Mode::Normal],
-            view_cache: Default::default(),
-            layout: Default::default(),
-            mode_line_config: Default::default(),
-            scroll: Default::default(),
-            cursors: Default::default(),
-            decs: Default::default(),
+            modes: vec![ViewStoreTypes::Mode::Normal],
+            view_cache: ViewStoreTypes::ViewCache::default(),
+            layout: ViewStoreTypes::Layout::default(),
+            mode_line_config: ModeLineConfig::default(),
+            scroll: ViewStoreTypes::Scroll::default(),
+            cursors: ViewStoreTypes::Cursors::default(),
+            decs: ViewStoreTypes::Decorations::default(),
         }
     }
 }

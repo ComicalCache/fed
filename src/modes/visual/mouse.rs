@@ -13,7 +13,7 @@ pub struct VisualMouseInput {}
 impl MouseInputHandler for VisualMouseInput {
     fn priority(&self) -> MouseInputPriority { MouseInputPriority::VisualMode }
 
-    fn mouse(&mut self, state: &State, event: &MouseEvent) -> Option<Vec<FCmd>> {
+    fn mouse(&mut self, state: &State, event: MouseEvent) -> Option<Vec<FCmd>> {
         let mut pos = (event.column, event.row).into();
 
         let Some(window) = state.workspace.get_window(pos) else {

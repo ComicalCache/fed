@@ -39,18 +39,16 @@ pub fn start_search(view: ViewId, doc: DocId, bounds: Option<Vec<(usize, usize)>
             };
 
             let mut matches: Vec<(usize, usize)> = Vec::new();
-            for m in regex.find_iter(&text) {
-                if let Ok(m) = m {
-                    let (start, end) = (m.start(), m.end());
+            for m in regex.find_iter(&text).flatten() {
+                let (start, end) = (m.start(), m.end());
 
-                    if let Some(ref b) = bounds
-                        && !b.iter().any(|&(s, e)| start >= s && end <= e)
-                    {
-                        continue;
-                    }
-
-                    matches.push((start, end));
+                if let Some(ref b) = bounds
+                    && !b.iter().any(|&(s, e)| start >= s && end <= e)
+                {
+                    continue;
                 }
+
+                matches.push((start, end));
             }
 
             if matches.is_empty() {

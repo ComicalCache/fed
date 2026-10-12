@@ -27,7 +27,7 @@ impl From<&KeyEvent> for KeyChord {
 #[derive(Clone)]
 enum KeyNode<Command: Clone> {
     Leaf(Command),
-    Prefix(HashMap<KeyChord, KeyNode<Command>>),
+    Prefix(HashMap<KeyChord, Self>),
 }
 
 pub struct Keymap<Command: Clone> {

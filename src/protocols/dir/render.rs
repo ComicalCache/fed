@@ -159,7 +159,7 @@ impl DirRenderer {
         let right_width = right
             .iter()
             .flat_map(|(text, _)| text.graphemes(true))
-            .map(|g| g.width())
+            .map(UnicodeWidthStr::width)
             .sum::<usize>();
         let right_start = viewport.width().saturating_sub(right_width);
 

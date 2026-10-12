@@ -33,7 +33,7 @@ impl DirKeyInput {
         Self { keymap: keymap::keymap(), pending_keys: Vec::new(), last_view: None }
     }
 
-    fn exec(&mut self, state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
+    fn exec(state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
         let view = state.dir.view;
         let doc = state.dir.doc;
 
@@ -93,10 +93,8 @@ impl DirKeyInput {
     }
 
     fn rename(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
-        let Some(entry) = Self::curr_entry(state, view) else { return None };
-        if entry.path.file_name().is_none() {
-            return None;
-        }
+        let entry = Self::curr_entry(state, view)?;
+        entry.path.file_name()?;
 
         let old = entry.path.clone();
         let pcallback = Box::new(move |state: &mut State, _: &mut PState, new: String| {
@@ -116,18 +114,16 @@ impl DirKeyInput {
     }
 
     fn delete(state: &State, view: ViewId, recursive: bool) -> Option<Vec<FCmd>> {
-        let Some(entry) = Self::curr_entry(state, view) else { return None };
-        if entry.path.file_name().is_none() {
-            return None;
-        }
+        let entry = Self::curr_entry(state, view)?;
+        entry.path.file_name()?;
 
-        let path = entry.path.clone();
+        let path = entry.path;
         let name = path.display().to_string();
 
         let prompt = if recursive {
-            format!("Delete recursively '{}'? (y/N): ", name)
+            format!("Delete recursively '{name}'? (y/N): ")
         } else {
-            format!("Delete '{}'? (y/N): ", name)
+            format!("Delete '{name}'? (y/N): ")
         };
 
         let pcallback = Box::new(move |state: &mut State, _: &mut PState, res: String| {
@@ -147,7 +143,7 @@ impl DirKeyInput {
             return None;
         };
 
-        let offset = vse.cursors.list.first().map(|c| c.offset).unwrap_or(0);
+        let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
         let y = dse.doc.data.get_line_of_byte(offset);
 
         // Ignore the header and ".." entry.
@@ -163,10 +159,7 @@ impl KeyInputHandler for DirKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::DirMode }
 
     fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
-        let Some(view) = state.active_view() else {
-            // No active view, just abort.
-            return None;
-        };
+        let view = state.active_view()?;
         let Some((_, dse)) =
             State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
         else {
@@ -190,7 +183,7 @@ impl KeyInputHandler for DirKeyInput {
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
                 // Always treat entering execute as consuming the key.
-                let cmds = Some(self.exec(state, cmd).unwrap_or_else(|| Vec::new()));
+                let cmds = Some(Self::exec(state, cmd).unwrap_or_default());
                 self.pending_keys.clear();
 
                 cmds

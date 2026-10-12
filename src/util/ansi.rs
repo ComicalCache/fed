@@ -22,7 +22,7 @@ impl DecoratioParser {
             self.spans.push(Span {
                 start: self.face_offset,
                 end: pos,
-                data: Decoration::Style { face: self.face.clone() },
+                data: Decoration::Style { face: self.face },
             });
         }
 
@@ -51,7 +51,7 @@ impl Perform for DecoratioParser {
 
             let mut iter = params.iter();
             while let Some(param) = iter.next() {
-                let code = param.first().cloned().unwrap_or(0);
+                let code = param.first().copied().unwrap_or(0);
 
                 match code {
                     0 => self.face = Face::default(),
@@ -81,16 +81,13 @@ impl Perform for DecoratioParser {
                     90..=97 => self.face.fg = Some(ansi_to_rgb(code - 90 + 8)),
 
                     38 => {
-                        if let Some(mode) = iter.next().and_then(|p| p.first().cloned()) {
-                            if mode == 2 {
-                                let r =
-                                    iter.next().and_then(|p| p.first().cloned()).unwrap_or(0) as u8;
-                                let g =
-                                    iter.next().and_then(|p| p.first().cloned()).unwrap_or(0) as u8;
-                                let b =
-                                    iter.next().and_then(|p| p.first().cloned()).unwrap_or(0) as u8;
-                                self.face.fg = Some(Rgb { r, g, b });
-                            }
+                        if let Some(mode) = iter.next().and_then(|p| p.first().copied())
+                            && mode == 2
+                        {
+                            let r = iter.next().and_then(|p| p.first().copied()).unwrap_or(0) as u8;
+                            let g = iter.next().and_then(|p| p.first().copied()).unwrap_or(0) as u8;
+                            let b = iter.next().and_then(|p| p.first().copied()).unwrap_or(0) as u8;
+                            self.face.fg = Some(Rgb { r, g, b });
                         }
                     }
                     39 => self.face.fg = None,
@@ -99,31 +96,25 @@ impl Perform for DecoratioParser {
                     100..=107 => self.face.bg = Some(ansi_to_rgb(code - 100 + 8)),
 
                     48 => {
-                        if let Some(mode) = iter.next().and_then(|p| p.first().cloned()) {
-                            if mode == 2 {
-                                let r =
-                                    iter.next().and_then(|p| p.first().cloned()).unwrap_or(0) as u8;
-                                let g =
-                                    iter.next().and_then(|p| p.first().cloned()).unwrap_or(0) as u8;
-                                let b =
-                                    iter.next().and_then(|p| p.first().cloned()).unwrap_or(0) as u8;
-                                self.face.bg = Some(Rgb { r, g, b });
-                            }
+                        if let Some(mode) = iter.next().and_then(|p| p.first().copied())
+                            && mode == 2
+                        {
+                            let r = iter.next().and_then(|p| p.first().copied()).unwrap_or(0) as u8;
+                            let g = iter.next().and_then(|p| p.first().copied()).unwrap_or(0) as u8;
+                            let b = iter.next().and_then(|p| p.first().copied()).unwrap_or(0) as u8;
+                            self.face.bg = Some(Rgb { r, g, b });
                         }
                     }
                     49 => self.face.bg = None,
 
                     58 => {
-                        if let Some(mode) = iter.next().and_then(|p| p.first().cloned()) {
-                            if mode == 2 {
-                                let r =
-                                    iter.next().and_then(|p| p.first().cloned()).unwrap_or(0) as u8;
-                                let g =
-                                    iter.next().and_then(|p| p.first().cloned()).unwrap_or(0) as u8;
-                                let b =
-                                    iter.next().and_then(|p| p.first().cloned()).unwrap_or(0) as u8;
-                                self.face.uc = Some(Rgb { r, g, b });
-                            }
+                        if let Some(mode) = iter.next().and_then(|p| p.first().copied())
+                            && mode == 2
+                        {
+                            let r = iter.next().and_then(|p| p.first().copied()).unwrap_or(0) as u8;
+                            let g = iter.next().and_then(|p| p.first().copied()).unwrap_or(0) as u8;
+                            let b = iter.next().and_then(|p| p.first().copied()).unwrap_or(0) as u8;
+                            self.face.uc = Some(Rgb { r, g, b });
                         }
                     }
                     59 => self.face.uc = None,
@@ -135,7 +126,7 @@ impl Perform for DecoratioParser {
     }
 }
 
-fn ansi_to_rgb(index: u16) -> Rgb {
+const fn ansi_to_rgb(index: u16) -> Rgb {
     match index {
         // Standard.
         0 => Rgb { r: 41, g: 44, b: 51 },    // Black.

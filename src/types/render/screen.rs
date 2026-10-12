@@ -43,7 +43,7 @@ impl Screen {
         self.dirty.fill(true);
     }
 
-    pub fn get(&mut self, pos: Pos) -> Option<&Cell> {
+    pub fn get(&self, pos: Pos) -> Option<&Cell> {
         let idx = (self.width * pos.y) + pos.x;
 
         if idx >= self.grid.len() {

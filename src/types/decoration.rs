@@ -3,6 +3,7 @@ use std::any::Any;
 use crate::types::{Face, Span};
 
 #[derive(Clone, PartialEq, Eq)]
+#[allow(unused)]
 pub enum Decoration {
     /// Modifies the face of the rendered text.
     Style { face: Face },

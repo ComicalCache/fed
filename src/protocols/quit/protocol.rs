@@ -10,7 +10,7 @@ impl QuitProtocol {
 
         for callback in pstate.quit.callbacks {
             match callback(state, pstate) {
-                Ok(()) => continue,
+                Ok(()) => {}
                 Err(message) => {
                     pstate.quit.quit = false;
 
@@ -22,5 +22,5 @@ impl QuitProtocol {
         }
     }
 
-    pub fn can_quit(pstate: &PState) -> bool { pstate.quit.quit }
+    pub const fn can_quit(pstate: &PState) -> bool { pstate.quit.quit }
 }

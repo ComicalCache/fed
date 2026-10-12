@@ -30,7 +30,7 @@ impl Renderer for ViewRenderer {
         };
 
         let start = vse.view_cache.offset;
-        let end = start + vse.view_cache.lines.iter().take(height).map(|l| l.len()).sum::<usize>();
+        let end = start + vse.view_cache.lines.iter().take(height).map(String::len).sum::<usize>();
 
         let mut decs = Vec::new();
         dse.decs.range(start, end, &mut decs);

@@ -50,8 +50,8 @@ pub fn size(size: u64) -> String {
     } else if size < 1024 * 1024 {
         format!("{:.1}K", size as f64 / 1024.0).replace(".0", "")
     } else if size < 1024 * 1024 * 1024 {
-        format!("{:.1}M", size as f64 / 1048576.0).replace(".0", "")
+        format!("{:.1}M", size as f64 / (1024.0 * 1024.0)).replace(".0", "")
     } else {
-        format!("{:.1}G", size as f64 / 1073741824.0).replace(".0", "")
+        format!("{:.1}G", size as f64 / (1024.0 * 1024.0 * 1024.0)).replace(".0", "")
     }
 }

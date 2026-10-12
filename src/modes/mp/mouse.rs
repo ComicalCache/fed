@@ -13,7 +13,7 @@ pub struct MpMouseInput {}
 impl MouseInputHandler for MpMouseInput {
     fn priority(&self) -> MouseInputPriority { MouseInputPriority::MpMode }
 
-    fn mouse(&mut self, state: &State, event: &MouseEvent) -> Option<Vec<FCmd>> {
+    fn mouse(&mut self, state: &State, event: MouseEvent) -> Option<Vec<FCmd>> {
         let mut pos = (event.column, event.row).into();
 
         if state.mp.window.is_none() || state.mp.window != state.workspace.get_window(pos) {

@@ -10,7 +10,7 @@ impl Layer for CurrLineLayer {
         &self, state: &State, row: &mut [Cell], y: usize, _scroll: ViewStoreTypes::Scroll,
         _: &[VisualOffsetMapping], vse: &ViewStoreEntry, dse: &DocStoreEntry,
     ) {
-        let offset = vse.cursors.list.first().map(|c| c.offset).unwrap_or(0);
+        let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
         let cursor_y = dse.doc.data.get_line_of_byte(offset);
 
         if cursor_y != y {

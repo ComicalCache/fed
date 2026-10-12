@@ -45,6 +45,7 @@ pub enum FCmd {
     Manage(ManageCmd),
 }
 
+#[allow(unused)]
 pub enum FEvent {
     Doc(DocStoreTypes::Event),
     View(ViewStoreTypes::Event),
@@ -74,7 +75,7 @@ impl Fed {
         let input_router = InputRouter::default();
         let mut state = State::new(
             Workspace::new(Rect::new(Pos::default(), width, height)),
-            fevent_tx.clone(),
+            fevent_tx,
             async_fcmd_tx.clone(),
         );
         let pstate = PState::new(width, height);
@@ -129,12 +130,12 @@ impl Fed {
                 break;
             }
 
-            ScreenProtocol::render(&mut self.state, &mut self.pstate);
+            ScreenProtocol::render(&self.state, &mut self.pstate);
         }
     }
 
     pub async fn stage1(tx: UnboundedSender<FCmd>, doc: DocId, cli: Cli) {
-        let dir = cli.path.clone().map(|p| p.is_dir()).unwrap_or_default();
+        let dir = cli.path.clone().is_some_and(|p| p.is_dir());
 
         let (vw_tx, vw_rx) = oneshot::channel();
         let _ = tx.send(FCmd::DocView(DocViewCmd::CreateTile {
@@ -185,22 +186,24 @@ impl Fed {
                 move_anchor: true,
             }));
 
-            Self::apply_modes(tx.clone(), doc, view, cli);
+            Self::apply_modes(tx, doc, view, cli);
         } else {
             let _ = tx.send(FCmd::Dir(DirCmd::Init));
 
             if let Some(path) = cli.path.clone() {
                 IoProtocol::read(
                     path,
-                    Box::new(move |res| Box::pin(Self::stage2(tx, view, doc, cli, res))),
+                    Box::new(move |res| {
+                        Box::pin(async move { Self::stage2(tx, view, doc, cli, res) })
+                    }),
                 );
             } else {
-                Self::apply_modes(tx.clone(), doc, view, cli);
+                Self::apply_modes(tx, doc, view, cli);
             }
         }
     }
 
-    async fn stage2(
+    fn stage2(
         tx: UnboundedSender<FCmd>, view: ViewId, doc: DocId, cli: Cli, res: Result<String, String>,
     ) {
         let text = match res {

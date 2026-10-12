@@ -5,6 +5,7 @@ use crate::{
     types::{Decorator, Motion, Pos, render::WindowId},
 };
 
+#[allow(unused)]
 pub enum ActionCmd {
     MoveCursors { view: ViewId, motion: Motion, move_anchor: bool },
     MoveCursorToPos { view: ViewId, pos: Pos, move_anchor: bool },

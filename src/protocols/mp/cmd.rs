@@ -2,6 +2,7 @@ use tokio::sync::oneshot;
 
 use crate::{protocols::mp::pstate::PCallback, state::MpId};
 
+#[allow(unused)]
 pub enum MpCmd {
     Message {
         message: String,

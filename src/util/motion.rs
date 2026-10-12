@@ -228,15 +228,15 @@ fn prev_word(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
                 break;
             }
         }
-        if let Some(ch) = reader.char_at(offset) {
-            if ch.is_alphanumeric() {
-                while reader.step_backward(&mut offset) {
-                    if let Some(ch) = reader.char_at(offset)
-                        && !ch.is_alphanumeric()
-                    {
-                        reader.step_forward(&mut offset);
-                        break;
-                    }
+        if let Some(ch) = reader.char_at(offset)
+            && ch.is_alphanumeric()
+        {
+            while reader.step_backward(&mut offset) {
+                if let Some(ch) = reader.char_at(offset)
+                    && !ch.is_alphanumeric()
+                {
+                    reader.step_forward(&mut offset);
+                    break;
                 }
             }
         }
@@ -459,8 +459,7 @@ fn update_pref_x(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry)
     let y = dse.doc.data.get_line_of_byte(cursor.offset);
 
     let (vom, _) = util::layout::vom(y, vse, dse);
-    cursor.pref_x =
-        vom.iter().find(|vo| vo.offset == cursor.offset).map(|vo| vo.visual_x).unwrap_or(0);
+    cursor.pref_x = vom.iter().find(|vo| vo.offset == cursor.offset).map_or(0, |vo| vo.visual_x);
 }
 
 struct TextReader<'a> {
@@ -474,7 +473,7 @@ struct TextReader<'a> {
 }
 
 impl<'a> TextReader<'a> {
-    fn new(dse: &'a DocStoreEntry) -> Self {
+    const fn new(dse: &'a DocStoreEntry) -> Self {
         Self { dse, y: usize::MAX, start: 0, end: 0, text: String::new() }
     }
 
@@ -511,13 +510,11 @@ impl<'a> TextReader<'a> {
 
         self.fetch(*offset);
 
-        if let Some(grapheme) = self.text[*offset - self.start..].graphemes(true).next() {
+        self.text[*offset - self.start..].graphemes(true).next().is_some_and(|grapheme| {
             *offset += grapheme.len();
 
             true
-        } else {
-            false
-        }
+        })
     }
 
     fn step_backward(&mut self, offset: &mut usize) -> bool {
@@ -527,12 +524,10 @@ impl<'a> TextReader<'a> {
 
         self.fetch(*offset - 1);
 
-        if let Some(grapheme) = self.text[..*offset - self.start].graphemes(true).next_back() {
+        self.text[..*offset - self.start].graphemes(true).next_back().is_some_and(|grapheme| {
             *offset -= grapheme.len();
 
             true
-        } else {
-            false
-        }
+        })
     }
 }

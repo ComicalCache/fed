@@ -27,7 +27,7 @@ impl DirProtocol {
         match cmd {
             DirCmd::Init => Self::init(state),
             DirCmd::InitCompletion { entries, printables } => {
-                Self::init_completion(state, entries, printables)
+                Self::init_completion(state, entries, printables);
             }
             DirCmd::ReplaceWindow { window } => Self::replace_window(state, window),
 
@@ -41,8 +41,7 @@ impl DirProtocol {
 
     pub fn init(state: &mut State) {
         state.dir.pwd = std::env::current_dir()
-            .map(|p| p.canonicalize())
-            .flatten()
+            .and_then(|p| p.canonicalize())
             .unwrap_or_else(|_| state.dir.pwd.clone());
 
         tokio::spawn(Self::fetch_entries(state.dir.pwd.clone(), state.async_fcmd_tx.clone()));
@@ -97,8 +96,7 @@ impl DirProtocol {
             dse.read_only = true;
         } else {
             debug_panic!();
-            return;
-        };
+        }
     }
 
     pub fn replace_window(state: &mut State, window: WindowId) {
@@ -110,7 +108,7 @@ impl DirProtocol {
         ViewProtocol::update(state, state.dir.view);
     }
 
-    pub fn create(state: &mut State, path: PathBuf, dir: bool) {
+    pub fn create(state: &State, path: PathBuf, dir: bool) {
         let path = util::path::normalize(path);
 
         let async_fcmd_tx = state.async_fcmd_tx.clone();
@@ -142,7 +140,7 @@ impl DirProtocol {
         });
     }
 
-    pub fn rename(state: &mut State, old: PathBuf, new: PathBuf) {
+    pub fn rename(state: &State, old: PathBuf, new: PathBuf) {
         let async_fcmd_tx = state.async_fcmd_tx.clone();
         tokio::spawn(async move {
             if let Err(err) = tokio::fs::rename(&old, &new).await {
@@ -157,21 +155,19 @@ impl DirProtocol {
         });
     }
 
-    pub fn delete(state: &mut State, path: PathBuf, recursive: bool) {
+    pub fn delete(state: &State, path: PathBuf, recursive: bool) {
         let async_fcmd_tx = state.async_fcmd_tx.clone();
         tokio::spawn(async move {
             let res = if recursive {
                 tokio::fs::remove_dir_all(&path).await
-            } else {
-                if let Ok(meta) = tokio::fs::symlink_metadata(&path).await {
-                    if meta.is_dir() {
-                        tokio::fs::remove_dir(&path).await
-                    } else {
-                        tokio::fs::remove_file(&path).await
-                    }
+            } else if let Ok(meta) = tokio::fs::symlink_metadata(&path).await {
+                if meta.is_dir() {
+                    tokio::fs::remove_dir(&path).await
                 } else {
-                    Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Path not found"))
+                    tokio::fs::remove_file(&path).await
                 }
+            } else {
+                Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Path not found"))
             };
 
             if let Err(err) = res {
@@ -194,7 +190,7 @@ impl DirProtocol {
             return;
         };
 
-        let offset = vse.cursors.list.first().map(|c| c.offset).unwrap_or(0);
+        let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
         let y = dse.doc.data.get_line_of_byte(offset);
 
         if y >= state.dir.entries.len() {
@@ -213,12 +209,8 @@ impl DirProtocol {
                 let doc = match state.create_doc(Some(entry.path.clone())) {
                     Ok(doc) => doc,
                     Err(doc) => {
-                        let view = state
-                            .index
-                            .doc_to_views(doc)
-                            .map(|vs| vs.iter().next())
-                            .flatten()
-                            .cloned();
+                        let view =
+                            state.index.doc_to_views(doc).and_then(|vs| vs.iter().next()).copied();
 
                         if let Some(view) = view
                             && let Some(windows) = state.index.view_to_windows(view)
@@ -234,8 +226,7 @@ impl DirProtocol {
                     }
                 };
 
-                let view =
-                    state.index.doc_to_views(doc).map(|vs| vs.iter().next()).flatten().cloned();
+                let view = state.index.doc_to_views(doc).and_then(|vs| vs.iter().next()).copied();
 
                 let async_fcmd_tx = state.async_fcmd_tx.clone();
                 IoProtocol::read(
@@ -283,40 +274,41 @@ impl DirProtocol {
             path_offset: 0,
         });
 
-        if let Some(parent) = pwd.parent() {
-            if let Ok(metadata) = tokio::fs::metadata(parent).await {
-                let (perms, links, owner, group) = {
-                    // This breaks Windows compatability (lol).
-                    use std::os::unix::fs::MetadataExt;
+        if let Some(parent) = pwd.parent()
+            && let Ok(metadata) = tokio::fs::metadata(parent).await
+        {
+            let (perms, links, owner, group) = {
+                // This breaks Windows compatability (lol).
+                use std::os::unix::fs::MetadataExt;
 
-                    (
-                        format::permissions(metadata.mode()),
-                        metadata.nlink().to_string(),
-                        format::user_name(metadata.uid()),
-                        format::group_name(metadata.gid()),
-                    )
-                };
+                (
+                    format::permissions(metadata.mode()),
+                    metadata.nlink().to_string(),
+                    format::user_name(metadata.uid()),
+                    format::group_name(metadata.gid()),
+                )
+            };
 
-                printables.push(PrintableEntry {
-                    perms: format!("d{}", perms),
-                    links,
-                    owner,
-                    group,
-                    size: format::size(metadata.len()),
-                    modified: if let Ok(time) = metadata.modified() {
+            printables.push(PrintableEntry {
+                perms: format!("d{perms}"),
+                links,
+                owner,
+                group,
+                size: format::size(metadata.len()),
+                modified: metadata.modified().map_or_else(
+                    |_| "n/a".to_string(),
+                    |time| {
                         let datetime: chrono::DateTime<chrono::Local> = time.into();
                         datetime.format("%b %e %H:%M").to_string()
-                    } else {
-                        "n/a".to_string()
                     },
-                    name: "../".to_string(),
-                });
-                entries.push(DirTypes::Entry {
-                    path: parent.to_path_buf(),
-                    kind: DirTypes::EntryKind::Dir,
-                    path_offset: 0,
-                });
-            }
+                ),
+                name: "../".to_string(),
+            });
+            entries.push(DirTypes::Entry {
+                path: parent.to_path_buf(),
+                kind: DirTypes::EntryKind::Dir,
+                path_offset: 0,
+            });
         }
 
         let mut dir_entries = Vec::new();
@@ -364,28 +356,29 @@ impl DirProtocol {
             };
 
             let perms = match kind {
-                DirTypes::EntryKind::File => format!("-{}", perms),
-                DirTypes::EntryKind::Dir => format!("d{}", perms),
-                DirTypes::EntryKind::Symlink => format!("l{}", perms),
+                DirTypes::EntryKind::File => format!("-{perms}"),
+                DirTypes::EntryKind::Dir => format!("d{perms}"),
+                DirTypes::EntryKind::Symlink => format!("l{perms}"),
                 DirTypes::EntryKind::Header => unreachable!(),
             };
             let size = format::size(metadata.len());
 
-            let modified = if let Ok(time) = metadata.modified() {
-                let datetime: chrono::DateTime<chrono::Local> = time.into();
-                datetime.format("%b %e %H:%M").to_string()
-            } else {
-                "n/a".to_string()
-            };
+            let modified = metadata.modified().map_or_else(
+                |_| "n/a".to_string(),
+                |time| {
+                    let datetime: chrono::DateTime<chrono::Local> = time.into();
+                    datetime.format("%b %e %H:%M").to_string()
+                },
+            );
 
             let mut name = entry.file_name().display().to_string();
             if matches!(kind, DirTypes::EntryKind::Dir) {
                 name.push(std::path::MAIN_SEPARATOR);
-            } else if matches!(kind, DirTypes::EntryKind::Symlink) {
-                if let Ok(target) = tokio::fs::read_link(entry.path()).await {
-                    name.push_str(" > ");
-                    name.push_str(&target.display().to_string());
-                }
+            } else if matches!(kind, DirTypes::EntryKind::Symlink)
+                && let Ok(target) = tokio::fs::read_link(entry.path()).await
+            {
+                name.push_str(" > ");
+                name.push_str(&target.display().to_string());
             }
 
             printables.push(PrintableEntry { perms, links, owner, group, size, modified, name });

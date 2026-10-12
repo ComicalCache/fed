@@ -15,13 +15,10 @@ impl DirModeLine {
                 }),
             ],
             right: vec![ModeLineWidget::Custom(|state, vse, dse| {
-                let offset = vse.cursors.list.first().map(|c| c.offset).unwrap_or(0);
+                let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
                 let y = dse.doc.data.get_line_of_byte(offset);
 
-                (
-                    state.dir.entries.get(y).map(|e| e.kind.to_string()).unwrap_or_default(),
-                    Face::default(),
-                )
+                (state.dir.entries.get(y).map_or_default(|e| e.kind.to_string()), Face::default())
             })],
         }
     }

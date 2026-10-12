@@ -15,7 +15,7 @@ pub struct Rect {
 }
 
 impl Rect {
-    pub fn new(pos: Pos, width: usize, height: usize) -> Self { Self { pos, width, height } }
+    pub const fn new(pos: Pos, width: usize, height: usize) -> Self { Self { pos, width, height } }
 
     pub fn split(&self, dir: RectSplit, ratio: f32) -> (Self, Self) {
         match dir {
@@ -24,8 +24,8 @@ impl Rect {
                 let w2 = self.width.saturating_sub(w1);
 
                 (
-                    Rect::new(self.pos, w1, self.height),
-                    Rect::new(self.pos + Pos::new(w1, 0), w2, self.height),
+                    Self::new(self.pos, w1, self.height),
+                    Self::new(self.pos + Pos::new(w1, 0), w2, self.height),
                 )
             }
             RectSplit::Horizontal => {
@@ -33,14 +33,14 @@ impl Rect {
                 let h2 = self.height.saturating_sub(h1);
 
                 (
-                    Rect::new(self.pos, self.width, h1),
-                    Rect::new(self.pos + Pos::new(0, h1), self.width, h2),
+                    Self::new(self.pos, self.width, h1),
+                    Self::new(self.pos + Pos::new(0, h1), self.width, h2),
                 )
             }
         }
     }
 
-    pub fn contains(&self, pos: Pos) -> bool {
+    pub const fn contains(&self, pos: Pos) -> bool {
         pos.x >= self.pos.x
             && pos.x < self.pos.x + self.width
             && pos.y >= self.pos.y
@@ -48,14 +48,14 @@ impl Rect {
     }
 
     /// Checks if other intersects the rect in x and y.
-    pub fn intersects(&self, other: Rect) -> (bool, bool) {
+    pub const fn intersects(&self, other: Self) -> (bool, bool) {
         (
             self.pos.x < other.pos.x + other.width && self.pos.x + self.width > other.pos.x,
             self.pos.y < other.pos.y + other.height && self.pos.y + self.height > other.pos.y,
         )
     }
 
-    pub fn manhattan_distance(&self, other: Rect) -> usize {
+    pub const fn manhattan_distance(&self, other: Self) -> usize {
         (self.pos.x + self.width / 2).abs_diff(other.pos.x + other.width / 2)
             + (self.pos.y + self.height / 2).abs_diff(other.pos.y + other.height / 2)
     }

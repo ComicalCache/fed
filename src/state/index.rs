@@ -23,25 +23,25 @@ impl Index {
     }
 
     pub fn unlink_window(&mut self, window: WindowId) {
-        if let Some(view) = self.window_to_view.remove(&window) {
-            if let Some(windows) = self.view_to_windows.get_mut(&view) {
-                windows.remove(&window);
+        if let Some(view) = self.window_to_view.remove(&window)
+            && let Some(windows) = self.view_to_windows.get_mut(&view)
+        {
+            windows.remove(&window);
 
-                if windows.is_empty() {
-                    self.view_to_windows.remove(&view);
-                }
+            if windows.is_empty() {
+                self.view_to_windows.remove(&view);
             }
         }
     }
 
     pub fn link_view_to_doc(&mut self, view: ViewId, doc: DocId) {
-        if let Some(doc) = self.view_to_doc.remove(&view) {
-            if let Some(views) = self.doc_to_views.get_mut(&doc) {
-                views.remove(&view);
+        if let Some(doc) = self.view_to_doc.remove(&view)
+            && let Some(views) = self.doc_to_views.get_mut(&doc)
+        {
+            views.remove(&view);
 
-                if views.is_empty() {
-                    self.doc_to_views.remove(&doc);
-                }
+            if views.is_empty() {
+                self.doc_to_views.remove(&doc);
             }
         }
 
@@ -51,13 +51,13 @@ impl Index {
 
     /// Returns all windows which contained the view.
     pub fn unlink_view(&mut self, view: ViewId) -> HashSet<WindowId> {
-        if let Some(doc) = self.view_to_doc.remove(&view) {
-            if let Some(views) = self.doc_to_views.get_mut(&doc) {
-                views.remove(&view);
+        if let Some(doc) = self.view_to_doc.remove(&view)
+            && let Some(views) = self.doc_to_views.get_mut(&doc)
+        {
+            views.remove(&view);
 
-                if views.is_empty() {
-                    self.doc_to_views.remove(&doc);
-                }
+            if views.is_empty() {
+                self.doc_to_views.remove(&doc);
             }
         }
 
@@ -80,11 +80,13 @@ impl Index {
     }
 
     pub fn window_to_view(&self, window: WindowId) -> Option<ViewId> {
-        let view = self.window_to_view.get(&window).cloned();
+        let view = self.window_to_view.get(&window).copied();
 
-        if cfg!(debug_assertions) && view.is_some() {
-            let windows = self.view_to_windows.get(&view.unwrap());
-            debug_assert!(windows.map(|w| w.contains(&window)) == Some(true));
+        if cfg!(debug_assertions)
+            && let Some(view) = view
+        {
+            let windows = self.view_to_windows.get(&view);
+            debug_assert!(windows.is_some_and(|w| w.contains(&window)));
         }
 
         view
@@ -93,8 +95,10 @@ impl Index {
     pub fn view_to_windows(&self, view: ViewId) -> Option<&HashSet<WindowId>> {
         let windows = self.view_to_windows.get(&view);
 
-        if cfg!(debug_assertions) && windows.is_some() {
-            for window in windows.unwrap() {
+        if cfg!(debug_assertions)
+            && let Some(windows) = windows
+        {
+            for window in windows {
                 debug_assert!(self.window_to_view.get(window) == Some(&view));
             }
         }
@@ -103,11 +107,13 @@ impl Index {
     }
 
     pub fn view_to_doc(&self, view: ViewId) -> Option<DocId> {
-        let doc = self.view_to_doc.get(&view).cloned();
+        let doc = self.view_to_doc.get(&view).copied();
 
-        if cfg!(debug_assertions) && doc.is_some() {
-            let windows = self.doc_to_views.get(&doc.unwrap());
-            debug_assert!(windows.map(|w| w.contains(&view)) == Some(true));
+        if cfg!(debug_assertions)
+            && let Some(doc) = doc
+        {
+            let windows = self.doc_to_views.get(&doc);
+            debug_assert!(windows.is_some_and(|w| w.contains(&view)));
         }
 
         doc
@@ -116,9 +122,11 @@ impl Index {
     pub fn doc_to_views(&self, doc: DocId) -> Option<&HashSet<ViewId>> {
         let views = self.doc_to_views.get(&doc);
 
-        if cfg!(debug_assertions) && views.is_some() {
-            for view in views.unwrap() {
-                debug_assert!(self.view_to_doc.get(view) == Some(&doc));
+        if cfg!(debug_assertions)
+            && let Some(views) = views
+        {
+            for view in views {
+                debug_assert_eq!(self.view_to_doc.get(view), Some(&doc));
             }
         }
 

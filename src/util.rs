@@ -20,7 +20,7 @@ pub fn pos_to_offset(pos: Pos, vse: &ViewStoreEntry, dse: &DocStoreEntry) -> usi
 
     let (vom, _) = util::layout::vom(y, vse, dse);
 
-    vom.iter().rev().find(|vo| vo.visual_x <= pos.x).map(|vo| vo.offset).unwrap_or(start)
+    vom.iter().rev().find(|vo| vo.visual_x <= pos.x).map_or(start, |vo| vo.offset)
 }
 
 pub fn offset_to_pos(offset: usize, vse: &ViewStoreEntry, dse: &DocStoreEntry) -> Pos {
@@ -30,8 +30,7 @@ pub fn offset_to_pos(offset: usize, vse: &ViewStoreEntry, dse: &DocStoreEntry) -
     let x = vom
         .iter()
         .find(|vo| vo.offset >= offset)
-        .map(|vo| vo.visual_x)
-        .unwrap_or_else(|| vom.last().map(|vo| vo.visual_x).unwrap_or(0));
+        .map_or_else(|| vom.last().map_or(0, |vo| vo.visual_x), |vo| vo.visual_x);
 
     Pos::new(x, y)
 }
