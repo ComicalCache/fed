@@ -15,6 +15,8 @@ The project can simply be built using `cargo build` or `cargo build -r`.
 The release build will be a stripped binary with LTO and compiled with `march=native` flag. This
 behaviour can be changed in `Cargo.toml` and `.cargo/config.toml`, if desired.
 
+> Disabling LTO will drastically reduce compile times.
+
 ## piece-table
 
 `piece-table` is a fully featured implementation of a

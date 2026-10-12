@@ -1,3 +1,4 @@
+pub mod ansi;
 pub mod format;
 pub mod layout;
 pub mod motion;

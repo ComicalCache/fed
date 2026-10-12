@@ -21,7 +21,7 @@ impl ViewProtocol {
         }
     }
 
-    pub fn exec_doc_event(state: &mut State, event: DocStoreTypes::Event) {
+    pub fn exec_doc_event(state: &mut State, event: &DocStoreTypes::Event) {
         let doc = match event {
             DocStoreTypes::Event::Created { .. } => return,
             DocStoreTypes::Event::Destroyed { .. } => return,
@@ -34,7 +34,7 @@ impl ViewProtocol {
 
         let views: Vec<_> = state
             .index
-            .doc_to_views(doc)
+            .doc_to_views(*doc)
             .map(|views| views.iter().copied().collect())
             .unwrap_or_default();
         for view in views {
@@ -42,14 +42,14 @@ impl ViewProtocol {
         }
     }
 
-    pub fn exec_view_event(state: &mut State, event: ViewStoreTypes::Event) {
+    pub fn exec_view_event(state: &mut State, event: &ViewStoreTypes::Event) {
         match event {
-            ViewStoreTypes::Event::Created { id } => Self::update(state, id),
+            ViewStoreTypes::Event::Created { id } => Self::update(state, *id),
             ViewStoreTypes::Event::Destroyed { .. } => {
                 // The view cache gets deleted when the vse gets deleted,
                 // nothing needs to be done.
             }
-            ViewStoreTypes::Event::CursorsMoved { view } => Self::cursor_moved(state, view),
+            ViewStoreTypes::Event::CursorsMoved { view } => Self::cursor_moved(state, *view),
             ViewStoreTypes::Event::CursorsChanged { .. } => {}
             ViewStoreTypes::Event::ModeChanged { .. } => {}
         }

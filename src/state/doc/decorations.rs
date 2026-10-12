@@ -3,7 +3,9 @@ use std::collections::BTreeMap;
 use crate::types::{Decoration, Decorator, Span};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
-pub enum DecorationId {}
+pub enum DecorationId {
+    Span,
+}
 
 #[derive(Default)]
 pub struct Decorations {

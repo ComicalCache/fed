@@ -1,4 +1,5 @@
 use piece_table::Slice;
+use tokio::sync::oneshot;
 
 use crate::{
     debug_panic::debug_panic,
@@ -11,7 +12,7 @@ use crate::{
         view::ViewCmd,
     },
     state::{DocId, State, ViewId},
-    types::{Motion, Pos},
+    types::{Motion, Pos, RectSplit},
     util,
 };
 
@@ -340,4 +341,32 @@ pub fn remove_offsets(view: ViewId, offsets: Vec<(usize, usize)>) -> Vec<FCmd> {
     }
 
     cmds
+}
+
+pub fn split_window(state: &State, doc: DocId, direction: RectSplit) -> Option<Vec<FCmd>> {
+    let Some(window) = state.workspace.active_window else {
+        debug_panic!();
+        return None;
+    };
+
+    let (tx, rx) = oneshot::channel();
+    let async_fcmd_tx = state.async_fcmd_tx.clone();
+    tokio::spawn(async move {
+        let Ok(Some((_, window))) = rx.await else {
+            debug_panic!();
+            return;
+        };
+
+        let _ =
+            async_fcmd_tx.send(FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) }));
+    });
+
+    Some(vec![FCmd::DocView(DocViewCmd::CreateTile {
+        doc,
+        view: None,
+        split_window: window,
+        direction,
+        raw: false,
+        tx: Some(tx),
+    })])
 }

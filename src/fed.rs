@@ -1,5 +1,6 @@
 use std::{path::PathBuf, time::Duration};
 
+use anstyle_parse::{DefaultCharAccumulator, Parser};
 use crossterm::event::Event;
 use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
@@ -7,8 +8,10 @@ use tokio::sync::{
 };
 
 use crate::{
+    cli::Cli,
     debug_panic::debug_panic,
     input_router::InputRouter,
+    modes,
     protocol_router::ProtocolRouter,
     protocols::{
         action::ActionCmd,
@@ -103,10 +106,18 @@ impl Fed {
             while let Ok(event) = self.fevent_rx.try_recv() {
                 match event {
                     FEvent::Doc(event) => {
-                        ViewProtocol::exec_doc_event(&mut self.state, event);
+                        modes::mp::setup::exec_doc_event(&mut self.state, &event);
+                        modes::dir::setup::exec_doc_event(&mut self.state, &event);
+                        modes::manage::setup::exec_doc_event(&mut self.state, &event);
+                        modes::read::setup::exec_doc_event(&mut self.state, &event);
+                        ViewProtocol::exec_doc_event(&mut self.state, &event);
                     }
                     FEvent::View(event) => {
-                        ViewProtocol::exec_view_event(&mut self.state, event);
+                        modes::mp::setup::exec_view_event(&mut self.state, &event);
+                        modes::dir::setup::exec_view_event(&mut self.state, &event);
+                        modes::manage::setup::exec_view_event(&mut self.state, &event);
+                        modes::read::setup::exec_view_event(&mut self.state, &event);
+                        ViewProtocol::exec_view_event(&mut self.state, &event);
                     }
                 }
             }
@@ -120,7 +131,9 @@ impl Fed {
         }
     }
 
-    pub async fn stage1(tx: UnboundedSender<FCmd>, doc: DocId, path: Option<PathBuf>, dir: bool) {
+    pub async fn stage1(tx: UnboundedSender<FCmd>, doc: DocId, cli: Cli) {
+        let dir = cli.path.clone().map(|p| p.is_dir()).unwrap_or_default();
+
         let (vw_tx, vw_rx) = oneshot::channel();
         let _ = tx.send(FCmd::DocView(DocViewCmd::CreateTile {
             doc,
@@ -140,21 +153,53 @@ impl Fed {
         let _ = tx.send(FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) }));
 
         if dir {
-            let _ = std::env::set_current_dir(path.unwrap());
+            let _ = std::env::set_current_dir(cli.path.clone().unwrap());
 
             let _ = tx.send(FCmd::Dir(DirCmd::Init));
             let _ = tx.send(FCmd::Dir(DirCmd::ReplaceWindow { window }));
+        }
+        if let Some(text) = cli.piped.clone() {
+            let mut decoration_parser = util::ansi::DecoratioParser::default();
+            let mut parser = Parser::<DefaultCharAccumulator>::new();
+
+            for byte in text.as_bytes() {
+                parser.advance(&mut decoration_parser, *byte);
+            }
+            decoration_parser.commit();
+
+            let text = decoration_parser.parsed.clone();
+            let dec = Box::new(decoration_parser.decorator());
+
+            let _ = tx.send(FCmd::Action(ActionCmd::SetDocDecorator {
+                doc,
+                id: DocStoreTypes::DecorationId::Span,
+                dec,
+            }));
+            let _ = tx.send(FCmd::Action(ActionCmd::Insert { view, text }));
+            let _ = tx.send(FCmd::Action(ActionCmd::Saved { doc }));
+            let _ = tx.send(FCmd::Action(ActionCmd::MoveCursorToPos {
+                view,
+                pos: Pos::new(0, 0),
+                move_anchor: true,
+            }));
+
+            Self::apply_modes(tx.clone(), doc, view, cli);
         } else {
             let _ = tx.send(FCmd::Dir(DirCmd::Init));
 
-            let Some(path) = path.clone() else { return };
-
-            IoProtocol::read(path, Box::new(move |res| Box::pin(Self::stage2(tx, view, doc, res))));
+            if let Some(path) = cli.path.clone() {
+                IoProtocol::read(
+                    path,
+                    Box::new(move |res| Box::pin(Self::stage2(tx, view, doc, cli, res))),
+                );
+            } else {
+                Self::apply_modes(tx.clone(), doc, view, cli);
+            }
         }
     }
 
     async fn stage2(
-        tx: UnboundedSender<FCmd>, view: ViewId, doc: DocId, res: Result<String, String>,
+        tx: UnboundedSender<FCmd>, view: ViewId, doc: DocId, cli: Cli, res: Result<String, String>,
     ) {
         let text = match res {
             Ok(text) => text,
@@ -170,11 +215,38 @@ impl Fed {
         };
 
         let _ = tx.send(FCmd::Action(ActionCmd::Insert { view, text }));
+        let _ = tx.send(FCmd::Action(ActionCmd::Saved { doc }));
         let _ = tx.send(FCmd::Action(ActionCmd::MoveCursorToPos {
             view,
             pos: Pos::new(0, 0),
             move_anchor: true,
         }));
-        let _ = tx.send(FCmd::Action(ActionCmd::Saved { doc }));
+
+        Self::apply_modes(tx, doc, view, cli);
+    }
+
+    fn apply_modes(tx: UnboundedSender<FCmd>, doc: DocId, view: ViewId, cli: Cli) {
+        if let Some(mode) = &cli.doc_mode {
+            let mode = match mode.to_lowercase().as_str() {
+                "read" => DocStoreTypes::Mode::Read,
+                "mp" => DocStoreTypes::Mode::Mp,
+                "dir" => DocStoreTypes::Mode::Dir,
+                "manage" => DocStoreTypes::Mode::Manage,
+                _ => DocStoreTypes::Mode::Text,
+            };
+
+            let _ = tx.send(FCmd::Action(ActionCmd::SetDocMode { doc, mode }));
+        }
+
+        if let Some(mode) = &cli.view_mode {
+            let mode = match mode.to_lowercase().as_str() {
+                "insert" => ViewStoreTypes::Mode::Insert,
+                "visual" => ViewStoreTypes::Mode::Visual,
+                "search" => ViewStoreTypes::Mode::Search,
+                _ => ViewStoreTypes::Mode::Normal,
+            };
+
+            let _ = tx.send(FCmd::Action(ActionCmd::PushViewMode { view, mode }));
+        }
     }
 }

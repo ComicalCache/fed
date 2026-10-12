@@ -1,8 +1,9 @@
-mod dir;
+pub mod dir;
 mod doc;
 mod index;
-mod manage;
-mod mp;
+pub mod manage;
+pub mod mp;
+mod read;
 mod view;
 
 use std::{collections::HashSet, path::PathBuf};
@@ -12,14 +13,16 @@ pub use doc::{DocId, DocStore, DocStoreEntry, types as DocStoreTypes};
 pub use manage::{Manage, types as ManageTypes};
 pub use mp::{Mp, MpId, types as MpTypes};
 use piece_table::PieceTable;
+pub use read::types as ReadTypes;
 use tokio::sync::mpsc::UnboundedSender;
 pub use view::{ViewId, ViewStore, ViewStoreEntry, types as ViewStoreTypes};
 
 use crate::{
     debug_panic::debug_panic,
     fed::{FCmd, FEvent},
+    modes,
     render::{WindowId, Workspace},
-    state::{ViewStoreTypes::TabWidth, index::Index},
+    state::index::Index,
     types::Theme,
     util,
 };
@@ -64,60 +67,9 @@ impl State {
             async_fcmd_tx,
         };
 
-        // Mp.
-        state.mp.doc = state.create_doc(None).unwrap();
-        state.mp.view = state.create_view(state.mp.doc);
-
-        let mp_dse = state.doc_store.get_mut(&state.mp.doc).unwrap();
-        mp_dse.mode = DocStoreTypes::Mode::Mp;
-
-        let mp_vse = state.view_store.get_mut(&state.mp.view).unwrap();
-        mp_vse.layout = ViewStoreTypes::Layout {
-            tab_width: TabWidth::default(),
-            gutter: false,
-            mode_line: 0,
-            replacements: ViewStoreTypes::Replacements::none(),
-            rulers: Vec::new(),
-        };
-        mp_vse.cursors.list.clear();
-
-        // Dir.
-        state.dir.doc = state.create_doc(None).unwrap();
-        state.dir.view = state.create_view(state.dir.doc);
-
-        let dir_dse = state.doc_store.get_mut(&state.dir.doc).unwrap();
-        dir_dse.mode = DocStoreTypes::Mode::Dir;
-        dir_dse.read_only = true;
-        dir_dse.max_cursors = Some(1);
-
-        let dir_vse = state.view_store.get_mut(&state.dir.view).unwrap();
-        dir_vse.layout = ViewStoreTypes::Layout {
-            tab_width: TabWidth::default(),
-            gutter: true,
-            mode_line: 1,
-            replacements: ViewStoreTypes::Replacements::none(),
-            rulers: Vec::new(),
-        };
-        dir_vse.mode_line_config = DirTypes::DirModeLine::mode_line();
-
-        // Manage.
-        state.manage.doc = state.create_doc(None).unwrap();
-        state.manage.view = state.create_view(state.manage.doc);
-
-        let manage_dse = state.doc_store.get_mut(&state.manage.doc).unwrap();
-        manage_dse.mode = DocStoreTypes::Mode::Manage;
-        manage_dse.read_only = true;
-        manage_dse.max_cursors = Some(1);
-
-        let manage_vse = state.view_store.get_mut(&state.manage.view).unwrap();
-        manage_vse.layout = ViewStoreTypes::Layout {
-            tab_width: TabWidth::default(),
-            gutter: true,
-            mode_line: 1,
-            replacements: ViewStoreTypes::Replacements::none(),
-            rulers: Vec::new(),
-        };
-        manage_vse.mode_line_config = ManageTypes::ManageModeLine::mode_line();
+        modes::mp::setup::setup(&mut state);
+        modes::dir::setup::setup(&mut state);
+        modes::manage::setup::setup(&mut state);
 
         state
     }

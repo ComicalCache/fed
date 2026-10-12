@@ -44,6 +44,7 @@ impl ManageProtocol {
                         DocStoreTypes::Mode::Mp => "MP",
                         DocStoreTypes::Mode::Dir => "DIR",
                         DocStoreTypes::Mode::Manage => "MANAGE",
+                        DocStoreTypes::Mode::Read => "READ",
                     }
                     .to_string()
                 });
@@ -169,7 +170,7 @@ impl ManageProtocol {
 
         let window = state.workspace.active_window.unwrap();
         match dse.mode {
-            DocStoreTypes::Mode::Text => {
+            DocStoreTypes::Mode::Text | DocStoreTypes::Mode::Read => {
                 DocViewProtocol::replace_window(state, doc, view, window, false, None);
             }
             DocStoreTypes::Mode::Mp => {}

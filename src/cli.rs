@@ -6,6 +6,8 @@ pub struct Cli {
 
     pub doc_mode: Option<String>,
     pub view_mode: Option<String>,
+
+    pub piped: Option<String>,
 }
 
 impl Cli {

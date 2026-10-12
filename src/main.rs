@@ -19,7 +19,8 @@ mod util;
 use std::{
     backtrace::{Backtrace, BacktraceStatus},
     fs::OpenOptions,
-    io::{Write, stdout},
+    io::{IsTerminal, Read, Write, stdout},
+    os::fd::AsRawFd,
 };
 
 use crossterm::{
@@ -46,15 +47,15 @@ async fn input(tx: UnboundedSender<Event>) -> std::io::Result<()> {
 }
 
 fn setup(
-    cli: Cli, input_rx: UnboundedReceiver<Event>, shutdown_tx: UnboundedSender<()>, width: usize,
-    height: usize,
+    mut cli: Cli, input_rx: UnboundedReceiver<Event>, shutdown_tx: UnboundedSender<()>,
+    width: usize, height: usize,
 ) -> Fed {
-    let path = cli.path.map(|p| util::path::normalize(p));
+    cli.path = cli.path.map(|p| util::path::normalize(p));
 
-    let (fed, async_fcmd_tx, doc) = Fed::new(width, height, path.clone(), input_rx, shutdown_tx);
+    let (fed, async_fcmd_tx, doc) =
+        Fed::new(width, height, cli.path.clone(), input_rx, shutdown_tx);
 
-    let dir = path.clone().map(|p| p.is_dir()).unwrap_or_default();
-    tokio::spawn(async move { Fed::stage1(async_fcmd_tx, doc, path, dir).await });
+    tokio::spawn(async move { Fed::stage1(async_fcmd_tx, doc, cli).await });
 
     fed
 }
@@ -81,7 +82,25 @@ async fn main() -> std::io::Result<()> {
         }
     }));
 
-    let cli = Cli::parse();
+    let mut cli = Cli::parse();
+
+    let mut piped = None;
+    if !std::io::stdin().is_terminal() {
+        let mut buf = String::new();
+        let _ = std::io::stdin().read_to_string(&mut buf);
+        piped = Some(buf);
+
+        // Reconnect the terminal to stdin.
+        if let Ok(tty) = std::fs::File::open("/dev/tty") {
+            unsafe {
+                libc::dup2(tty.as_raw_fd(), libc::STDIN_FILENO);
+            }
+        } else {
+            eprintln!("Failed to reconnect the terminal to stdin");
+            std::process::exit(1);
+        }
+    }
+    cli.piped = piped;
 
     enable_raw_mode()?;
 

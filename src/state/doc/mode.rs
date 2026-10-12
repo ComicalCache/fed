@@ -7,6 +7,7 @@ pub enum Mode {
     Mp,
     Dir,
     Manage,
+    Read,
 }
 
 impl Display for Mode {

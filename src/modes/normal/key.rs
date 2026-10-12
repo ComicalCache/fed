@@ -2,7 +2,7 @@ use std::{path::PathBuf, time::Duration};
 
 use crossterm::event::{KeyCode, KeyEvent};
 use piece_table::Slice;
-use tokio::sync::{mpsc::UnboundedSender, oneshot};
+use tokio::sync::mpsc::UnboundedSender;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
@@ -17,14 +17,13 @@ use crate::{
     protocols::{
         action::ActionCmd,
         dir::DirCmd,
-        doc_view::DocViewCmd,
         io::{IoFuture, IoProtocol},
         manage::ManageCmd,
         mp::MpCmd,
         pstate::PState,
     },
     state::{DocId, State, ViewId, ViewStoreTypes},
-    types::{KeyChord, Keymap, Motion, ParseResult, RectSplit},
+    types::{KeyChord, Keymap, Motion, ParseResult},
     util,
 };
 
@@ -152,7 +151,7 @@ impl NormalKeyInput {
             }
             Cmd::SaveFile => Self::save_file(state, doc),
             Cmd::Jump => common::jump(state, view),
-            Cmd::SplitWindow(direction) => Self::split_window(state, doc, direction),
+            Cmd::SplitWindow(direction) => common::split_window(state, doc, direction),
             Cmd::FocusWindow(motion) => common::focus_window(state, motion),
             Cmd::EnterDirMode => {
                 let Some(window) = state.workspace.active_window else {
@@ -502,34 +501,6 @@ impl NormalKeyInput {
                 );
             }
         }
-    }
-
-    fn split_window(state: &State, doc: DocId, direction: RectSplit) -> Option<Vec<FCmd>> {
-        let Some(window) = state.workspace.active_window else {
-            debug_panic!();
-            return None;
-        };
-
-        let (tx, rx) = oneshot::channel();
-        let async_fcmd_tx = state.async_fcmd_tx.clone();
-        tokio::spawn(async move {
-            let Ok(Some((_, window))) = rx.await else {
-                debug_panic!();
-                return;
-            };
-
-            let _ = async_fcmd_tx
-                .send(FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) }));
-        });
-
-        Some(vec![FCmd::DocView(DocViewCmd::CreateTile {
-            doc,
-            view: None,
-            split_window: window,
-            direction,
-            raw: false,
-            tx: Some(tx),
-        })])
     }
 }
 
