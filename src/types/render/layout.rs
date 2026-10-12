@@ -2,9 +2,8 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
-    render::Cell,
     state::ViewStoreTypes,
-    types::{Decoration, Face, Span},
+    types::{Decoration, Face, Span, render::Cell},
 };
 
 pub struct VisualOffsetMapping {

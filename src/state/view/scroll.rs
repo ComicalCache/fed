@@ -1,3 +1,3 @@
-use crate::{newtype::newtype, types::Pos};
+use crate::{types::Pos, util::newtype};
 
 newtype!(Scroll, Pos);

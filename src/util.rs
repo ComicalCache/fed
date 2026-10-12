@@ -1,9 +1,12 @@
 pub mod ansi;
 pub mod format;
 pub mod layout;
+mod macros;
 pub mod motion;
 pub mod mp;
 pub mod path;
+
+pub(crate) use macros::{debug_panic, newtype};
 
 use crate::{
     state::{DocStoreEntry, ViewStoreEntry},

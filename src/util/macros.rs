@@ -1,3 +1,8 @@
+macro_rules! debug_panic {
+    ($($arg:tt)*) => { if cfg!(debug_assertions) { panic!($($arg)*) } };
+}
+pub(crate) use debug_panic;
+
 macro_rules! newtype {
     ($name:ident, $t:ty) => { newtype!($name, $t, Default, Clone, Copy, PartialEq, Eq, Hash); };
 

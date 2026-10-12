@@ -1,7 +1,9 @@
 use crate::{
-    render::{Cell, Layer, VisualOffsetMapping},
     state::{DirTypes, DocStoreEntry, State, ViewStoreEntry, ViewStoreTypes},
-    types::Face,
+    types::{
+        Face,
+        render::{Cell, Layer, VisualOffsetMapping},
+    },
 };
 
 pub struct DirLayer {}

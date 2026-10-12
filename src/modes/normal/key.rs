@@ -6,9 +6,7 @@ use tokio::sync::mpsc::UnboundedSender;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
-    debug_panic::debug_panic,
     fed::FCmd,
-    input_handler::{KeyInputHandler, KeyInputPriority},
     modes::{
         common,
         normal::{cmd::Cmd, keymap},
@@ -23,8 +21,8 @@ use crate::{
         pstate::PState,
     },
     state::{DocId, State, ViewId, ViewStoreTypes},
-    types::{KeyChord, Keymap, Motion, ParseResult},
-    util,
+    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, Motion, ParseResult},
+    util::{self, debug_panic},
 };
 
 pub struct NormalKeyInput {

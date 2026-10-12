@@ -1,13 +1,12 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::{
-    debug_panic::debug_panic,
     fed::FCmd,
-    input_handler::{KeyInputHandler, KeyInputPriority},
     modes::insert::{cmd::Cmd, keymap},
     protocols::action::ActionCmd,
     state::{State, ViewId, ViewStoreTypes},
-    types::{KeyChord, Keymap, ParseResult},
+    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
+    util::debug_panic,
 };
 
 pub struct InsertKeyInput {

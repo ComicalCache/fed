@@ -22,7 +22,7 @@ pub mod types {
 
 use std::collections::HashMap;
 
-use crate::{newtype::newtype, render::ModeLineConfig};
+use crate::{types::render::ModeLineConfig, util::newtype};
 
 newtype!(ViewId, usize);
 

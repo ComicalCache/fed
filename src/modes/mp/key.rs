@@ -1,13 +1,12 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::{
-    debug_panic::debug_panic,
     fed::FCmd,
-    input_handler::{KeyInputHandler, KeyInputPriority},
     modes::mp::{cmd::Cmd, keymap},
     protocols::{action::ActionCmd, mp::MpCmd},
     state::{MpTypes, State, ViewId},
-    types::{KeyChord, Keymap, ParseResult},
+    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
+    util::debug_panic,
 };
 
 pub struct MpKeyInput {

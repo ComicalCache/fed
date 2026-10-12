@@ -18,13 +18,14 @@ use tokio::sync::mpsc::UnboundedSender;
 pub use view::{ViewId, ViewStore, ViewStoreEntry, types as ViewStoreTypes};
 
 use crate::{
-    debug_panic::debug_panic,
     fed::{FCmd, FEvent},
     modes,
-    render::{WindowId, Workspace},
     state::index::Index,
-    types::Theme,
-    util,
+    types::{
+        Theme,
+        render::{WindowId, Workspace},
+    },
+    util::{self, debug_panic},
 };
 
 pub struct State {

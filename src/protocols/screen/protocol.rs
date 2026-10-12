@@ -1,5 +1,5 @@
 use crate::{
-    protocols::{screen::ScreenCmd, pstate::PState},
+    protocols::{pstate::PState, screen::ScreenCmd},
     state::State,
 };
 

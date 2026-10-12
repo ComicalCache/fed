@@ -1,14 +1,16 @@
 use tokio::sync::oneshot;
 
 use crate::{
-    debug_panic::debug_panic,
     protocols::{
         doc_view::{DocViewCmd, DocViewRenderer},
         view::ViewProtocol,
     },
-    render::{WindowId, ZLayer},
     state::{DocId, State, ViewId},
-    types::{Rect, RectSplit},
+    types::{
+        Rect, RectSplit,
+        render::{WindowId, ZLayer},
+    },
+    util::debug_panic,
 };
 
 pub struct DocViewProtocol {}

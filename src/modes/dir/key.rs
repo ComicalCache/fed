@@ -3,9 +3,7 @@ use std::path::PathBuf;
 use crossterm::event::KeyEvent;
 
 use crate::{
-    debug_panic::debug_panic,
     fed::FCmd,
-    input_handler::{KeyInputHandler, KeyInputPriority},
     modes::{
         common,
         dir::{cmd::Cmd, keymap},
@@ -19,8 +17,8 @@ use crate::{
         pstate::PState,
     },
     state::{DirTypes, DocStoreTypes, State, ViewId, ViewStoreTypes},
-    types::{KeyChord, Keymap, ParseResult},
-    util,
+    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
+    util::{self, debug_panic},
 };
 
 pub struct DirKeyInput {

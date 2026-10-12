@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use crate::{
-    debug_panic::debug_panic,
     protocols::{
         action::ActionProtocol,
         dir::DirProtocol,
@@ -10,10 +9,9 @@ use crate::{
         pstate::PState,
         view::ViewProtocol,
     },
-    render::WindowId,
     state::{DocStoreTypes, ManageTypes, State},
-    types::Pos,
-    util,
+    types::{Pos, render::WindowId},
+    util::{self, debug_panic},
 };
 
 pub struct ManageProtocol {}

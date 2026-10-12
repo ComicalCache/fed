@@ -1,12 +1,10 @@
 use piece_table::Slice;
 
 use crate::{
-    debug_panic::debug_panic,
     protocols::view::ViewCmd,
-    render::WindowId,
     state::{DocId, DocStoreTypes, State, ViewId, ViewStoreTypes},
-    types::Pos,
-    util,
+    types::{Pos, render::WindowId},
+    util::{self, debug_panic},
 };
 
 pub struct ViewProtocol {}

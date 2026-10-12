@@ -1,9 +1,8 @@
 use std::path::PathBuf;
 
 use crate::{
-    render::WindowId,
     state::{DocId, DocStoreTypes, ViewId, ViewStoreTypes},
-    types::{Decorator, Motion, Pos},
+    types::{Decorator, Motion, Pos, render::WindowId},
 };
 
 pub enum ActionCmd {

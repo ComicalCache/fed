@@ -1,6 +1,6 @@
 use crate::{
-    debug_panic::debug_panic,
     state::{DocStoreTypes, ReadTypes, State, ViewStoreTypes},
+    util::debug_panic,
 };
 
 pub fn exec_doc_event(state: &mut State, event: &DocStoreTypes::Event) {

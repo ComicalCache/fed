@@ -3,14 +3,13 @@ use fancy_regex::Regex;
 use piece_table::Slice;
 
 use crate::{
-    debug_panic::debug_panic,
     decorators::SearchDecorator,
     fed::FCmd,
-    input_handler::{KeyInputHandler, KeyInputPriority},
     modes::search::{cmd::Cmd, keymap},
     protocols::{action::ActionCmd, mp::MpCmd, pstate::PState},
     state::{DocId, State, ViewId, ViewStoreTypes},
-    types::{KeyChord, Keymap, ParseResult},
+    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
+    util::debug_panic,
 };
 
 pub struct SearchKeyInput {

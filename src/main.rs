@@ -1,17 +1,13 @@
 #![feature(path_absolute_method)]
 
 mod cli;
-mod debug_panic;
 mod decorators;
 mod fed;
-mod input_handler;
 mod input_router;
 mod layers;
 mod modes;
-mod newtype;
 mod protocol_router;
 mod protocols;
-mod render;
 mod state;
 mod types;
 mod util;

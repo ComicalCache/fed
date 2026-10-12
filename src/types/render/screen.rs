@@ -9,10 +9,7 @@ use crossterm::{
     },
 };
 
-use crate::{
-    render::Cell,
-    types::{Face, Pos},
-};
+use crate::types::{Face, Pos, render::Cell};
 
 pub struct Screen {
     width: usize,

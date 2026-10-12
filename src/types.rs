@@ -1,10 +1,12 @@
 mod cursor;
 mod decoration;
 mod face;
+mod input;
 mod keymap;
 mod motion;
 mod pos;
 mod rect;
+pub mod render;
 mod rgb;
 mod span;
 mod theme;
@@ -12,6 +14,10 @@ mod theme;
 pub use cursor::Cursor;
 pub use decoration::{Decoration, Decorator};
 pub use face::Face;
+pub use input::{
+    KeyInputHandler, KeyInputPriority, MouseInputHandler, MouseInputPriority, PasteInputHandler,
+    PasteInputPriority, ResizeInputHandler, ResizeInputPriority,
+};
 pub use keymap::{KeyChord, Keymap, ParseResult};
 pub use motion::Motion;
 pub use pos::Pos;

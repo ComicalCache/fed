@@ -3,13 +3,13 @@ use std::time::Duration;
 use tokio::sync::{mpsc::UnboundedSender, oneshot};
 
 use crate::{
-    debug_panic::debug_panic,
     fed::FCmd,
     protocols::{
         mp::{MpCmd, MpProtocol},
         pstate::PState,
     },
     state::State,
+    util::debug_panic,
 };
 
 pub fn message(state: &mut State, pstate: &mut PState, message: String, duration: Duration) {

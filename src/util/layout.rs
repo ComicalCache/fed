@@ -1,8 +1,8 @@
 use piece_table::Slice;
 
 use crate::{
-    render::{self, VisualOffsetMapping},
     state::{DocStoreEntry, ViewStoreEntry},
+    types::render::{self, VisualOffsetMapping},
 };
 
 pub fn vom(

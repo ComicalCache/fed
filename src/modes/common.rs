@@ -2,7 +2,6 @@ use piece_table::Slice;
 use tokio::sync::oneshot;
 
 use crate::{
-    debug_panic::debug_panic,
     fed::FCmd,
     protocols::{
         action::{ActionCmd, ActionProtocol},
@@ -13,7 +12,7 @@ use crate::{
     },
     state::{DocId, State, ViewId},
     types::{Motion, Pos, RectSplit},
-    util,
+    util::{self, debug_panic},
 };
 
 pub fn quit(state: &State, view: ViewId) -> Option<Vec<FCmd>> {

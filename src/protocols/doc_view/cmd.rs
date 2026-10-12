@@ -1,9 +1,11 @@
 use tokio::sync::oneshot;
 
 use crate::{
-    render::{WindowId, ZLayer},
     state::{DocId, ViewId},
-    types::{Rect, RectSplit},
+    types::{
+        Rect, RectSplit,
+        render::{WindowId, ZLayer},
+    },
 };
 
 pub enum DocViewCmd {

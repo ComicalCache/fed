@@ -14,7 +14,7 @@ pub mod types {
 
 use std::collections::HashMap;
 
-use crate::newtype::newtype;
+use crate::util::newtype;
 
 newtype!(DocId, usize, Debug, Default, Clone, Copy, PartialEq, Eq, Hash);
 

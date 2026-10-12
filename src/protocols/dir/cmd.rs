@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use crate::{
-    render::WindowId,
     state::DirTypes::{Entry, PrintableEntry},
+    types::render::WindowId,
 };
 
 pub enum DirCmd {

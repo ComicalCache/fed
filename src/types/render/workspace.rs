@@ -1,8 +1,10 @@
 use crate::{
-    newtype::newtype,
-    render::{Renderer, Screen, Viewport, ZLayer, workspace::Tile::Dummy},
     state::State,
-    types::{Motion, Pos, Rect, RectSplit},
+    types::{
+        Motion, Pos, Rect, RectSplit,
+        render::{Renderer, Screen, Viewport, ZLayer, workspace::Tile::Dummy},
+    },
+    util::newtype,
 };
 
 newtype!(WindowId, u64);

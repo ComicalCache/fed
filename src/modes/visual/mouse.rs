@@ -1,12 +1,11 @@
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 
 use crate::{
-    debug_panic::debug_panic,
     fed::FCmd,
-    input_handler::{MouseInputHandler, MouseInputPriority},
     protocols::action::ActionCmd,
     state::{State, ViewStoreTypes},
-    types::Pos,
+    types::{MouseInputHandler, MouseInputPriority, Pos},
+    util::debug_panic,
 };
 
 pub struct VisualMouseInput {}

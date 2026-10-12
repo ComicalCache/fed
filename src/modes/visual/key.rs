@@ -3,16 +3,15 @@ use piece_table::Slice;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
-    debug_panic::debug_panic,
     fed::FCmd,
-    input_handler::{KeyInputHandler, KeyInputPriority},
     modes::{
         common, search,
         visual::{cmd::Cmd, keymap},
     },
     protocols::action::ActionCmd,
     state::{DocId, State, ViewId, ViewStoreTypes},
-    types::{KeyChord, Keymap, ParseResult},
+    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
+    util::debug_panic,
 };
 
 pub struct VisualKeyInput {

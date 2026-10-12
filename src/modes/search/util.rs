@@ -2,11 +2,11 @@ use fancy_regex::Regex;
 use piece_table::Slice;
 
 use crate::{
-    debug_panic::debug_panic,
     decorators::SearchDecorator,
     fed::FCmd,
     protocols::{action::ActionCmd, mp::MpCmd, pstate::PState},
     state::{DocId, State, ViewId, ViewStoreTypes},
+    util::debug_panic,
 };
 
 pub fn start_search(view: ViewId, doc: DocId, bounds: Option<Vec<(usize, usize)>>) -> Vec<FCmd> {

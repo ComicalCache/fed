@@ -9,7 +9,6 @@ use tokio::sync::{
 
 use crate::{
     cli::Cli,
-    debug_panic::debug_panic,
     input_router::InputRouter,
     modes,
     protocol_router::ProtocolRouter,
@@ -25,12 +24,15 @@ use crate::{
         screen::{ScreenCmd, ScreenProtocol},
         view::{ViewCmd, ViewProtocol},
     },
-    render::{WindowId, Workspace},
     state::{DocId, DocStoreTypes, State, ViewId, ViewStoreTypes},
-    types::{Pos, Rect, RectSplit},
-    util,
+    types::{
+        Pos, Rect, RectSplit,
+        render::{WindowId, Workspace},
+    },
+    util::{self, debug_panic},
 };
 
+#[allow(unused)]
 pub enum FCmd {
     Action(ActionCmd),
     Io(IoCmd),

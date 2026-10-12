@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::{
-    render::WindowId,
     state::{DocId, ViewId},
+    types::render::WindowId,
 };
 
 #[derive(Default)]

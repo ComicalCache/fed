@@ -1,6 +1,6 @@
 use crate::{
-    render::{Cell, Layer, VisualOffsetMapping},
     state::{DocStoreEntry, State, ViewStoreEntry, ViewStoreTypes},
+    types::render::{Cell, Layer, VisualOffsetMapping},
 };
 
 pub struct CurrLineLayer {}

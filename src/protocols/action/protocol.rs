@@ -4,13 +4,11 @@ use piece_table::{Kind, PieceTable, Slice};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
-    debug_panic::debug_panic,
     fed::FEvent,
     protocols::{action::ActionCmd, pstate::PState},
-    render::WindowId,
     state::{DocId, DocStoreTypes, State, ViewId, ViewStoreTypes},
-    types::{Cursor, Decorator, Motion, Pos},
-    util,
+    types::{Cursor, Decorator, Motion, Pos, render::WindowId},
+    util::{self, debug_panic},
 };
 
 struct Edit {

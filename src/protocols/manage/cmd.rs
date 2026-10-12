@@ -1,4 +1,4 @@
-use crate::render::WindowId;
+use crate::types::render::WindowId;
 
 pub enum ManageCmd {
     ReplaceWindow { window: WindowId },

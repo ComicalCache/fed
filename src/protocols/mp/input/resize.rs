@@ -1,8 +1,8 @@
 use crate::{
     fed::FCmd,
-    input_handler::{ResizeInputHandler, ResizeInputPriority},
     protocols::mp::MpCmd,
     state::State,
+    types::{ResizeInputHandler, ResizeInputPriority},
 };
 
 pub struct MpResizeInput {}

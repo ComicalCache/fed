@@ -1,8 +1,10 @@
 use crate::{
-    debug_panic::debug_panic,
-    render::{self, Cell, Layer, Renderer, Viewport, WindowId},
     state::{State, ViewId},
-    types::Pos,
+    types::{
+        Pos,
+        render::{self, Cell, Layer, Renderer, Viewport, WindowId},
+    },
+    util::debug_panic,
 };
 
 pub struct ViewRenderer {

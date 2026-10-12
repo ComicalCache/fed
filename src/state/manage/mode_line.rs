@@ -1,6 +1,6 @@
-use crate::{
+use crate::types::{
+    Face,
     render::{ModeLineConfig, ModeLineWidget},
-    types::Face,
 };
 
 pub struct ManageModeLine {}

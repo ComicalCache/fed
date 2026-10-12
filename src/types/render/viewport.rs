@@ -1,6 +1,6 @@
-use crate::{
+use crate::types::{
+    Pos, Rect,
     render::{Cell, Screen},
-    types::{Pos, Rect},
 };
 
 pub struct Viewport<'a> {

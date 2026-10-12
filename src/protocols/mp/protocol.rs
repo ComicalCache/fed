@@ -2,7 +2,6 @@ use piece_table::Slice;
 use tokio::sync::oneshot;
 
 use crate::{
-    debug_panic::debug_panic,
     decorators::MpDecorator,
     protocols::{
         action::ActionProtocol,
@@ -10,9 +9,9 @@ use crate::{
         mp::{MpCmd, pstate::PCallback},
         pstate::PState,
     },
-    render::ZLayer,
     state::{MpId, MpTypes, State, ViewStoreTypes},
-    types::{Pos, Rect},
+    types::{Pos, Rect, render::ZLayer},
+    util::debug_panic,
 };
 
 pub struct MpProtocol {}

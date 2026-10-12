@@ -2,12 +2,14 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::{
-    debug_panic::debug_panic,
     layers::{CurrLineLayer, CursorLayer, DirLayer, SelectionLayer},
     protocols::view::ViewRenderer,
-    render::{Cell, Renderer, Viewport, WindowId},
     state::{State, ViewId},
-    types::{Pos, Rect},
+    types::{
+        Pos, Rect,
+        render::{Cell, Renderer, Viewport, WindowId},
+    },
+    util::debug_panic,
 };
 
 pub struct DirRenderer {

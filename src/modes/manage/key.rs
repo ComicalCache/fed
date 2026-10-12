@@ -1,9 +1,7 @@
 use crossterm::event::KeyEvent;
 
 use crate::{
-    debug_panic::debug_panic,
     fed::FCmd,
-    input_handler::{KeyInputHandler, KeyInputPriority},
     modes::{
         common,
         manage::{cmd::Cmd, keymap},
@@ -11,7 +9,8 @@ use crate::{
     },
     protocols::{action::ActionCmd, dir::DirCmd, manage::ManageCmd},
     state::{DocStoreTypes, State, ViewId, ViewStoreTypes},
-    types::{KeyChord, Keymap, ParseResult},
+    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
+    util::debug_panic,
 };
 
 pub struct ManageKeyInput {

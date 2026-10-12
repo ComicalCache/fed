@@ -5,9 +5,9 @@ pub mod types {
 }
 
 use crate::{
-    newtype::newtype,
-    render::WindowId,
     state::{DocId, ViewId},
+    types::render::WindowId,
+    util::newtype,
 };
 
 newtype!(MpId, usize);

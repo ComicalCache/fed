@@ -3,7 +3,6 @@ use std::{path::PathBuf, time::Duration};
 use tokio::sync::{mpsc::UnboundedSender, oneshot};
 
 use crate::{
-    debug_panic::debug_panic,
     fed::FCmd,
     protocols::{
         action::{ActionCmd, ActionProtocol},
@@ -13,13 +12,12 @@ use crate::{
         pstate::PState,
         view::ViewProtocol,
     },
-    render::WindowId,
     state::{
         DirTypes::{self, Entry, PrintableEntry},
         DocId, State, ViewId,
     },
-    types::Pos,
-    util::{self, format},
+    types::{Pos, render::WindowId},
+    util::{self, debug_panic, format},
 };
 
 pub struct DirProtocol {}

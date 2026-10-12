@@ -1,4 +1,4 @@
-use crate::render::Screen;
+use crate::types::render::Screen;
 
 pub struct ScreenPState {
     pub screen: Screen,

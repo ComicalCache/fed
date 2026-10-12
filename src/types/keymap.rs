@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::debug_panic::debug_panic;
+use crate::util::debug_panic;
 
 pub enum ParseResult<Command: Clone> {
     Exact(Command),

@@ -2,7 +2,6 @@ use crossterm::event::{Event, MouseButton, MouseEventKind};
 
 use crate::{
     fed::FCmd,
-    input_handler::{KeyInputHandler, MouseInputHandler, PasteInputHandler, ResizeInputHandler},
     modes::{
         dir::{DirKeyInput, DirMouseInput},
         insert::{InsertKeyInput, InsertMouseInput},
@@ -15,6 +14,7 @@ use crate::{
     },
     protocols::{mp::MpResizeInput, screen::ScreenResizeInput, view::ViewResizeInput},
     state::State,
+    types::{KeyInputHandler, MouseInputHandler, PasteInputHandler, ResizeInputHandler},
 };
 
 pub struct InputRouter {

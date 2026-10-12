@@ -1,12 +1,11 @@
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
 use crate::{
-    debug_panic::debug_panic,
     fed::FCmd,
-    input_handler::{MouseInputHandler, MouseInputPriority},
     protocols::action::ActionCmd,
     state::{DocStoreTypes, State},
-    types::Pos,
+    types::{MouseInputHandler, MouseInputPriority, Pos},
+    util::debug_panic,
 };
 
 pub struct DirMouseInput {}
