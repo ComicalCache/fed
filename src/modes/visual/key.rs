@@ -60,7 +60,7 @@ impl VisualKeyInput {
                 Self::swap_operation(state, view, doc, cmd)
             }
             Cmd::EnterSearchMode => Self::enter_search_mode(state, view, doc),
-            Cmd::Escape => Self::escape(view),
+            Cmd::Escape => Some(Self::escape(view)),
         }
     }
 
@@ -171,31 +171,31 @@ impl VisualKeyInput {
                 let _ = clipboard.set_text(yanked);
             }
 
-            return Some(vec![FCmd::Action(ActionCmd::PopViewMode { view })]);
+            return Some(Self::escape(view));
         }
 
         let mut cmds = vec![FCmd::Action(ActionCmd::StartCommit { doc })];
         cmds.extend(common::remove_offsets(view, offsets));
 
         if matches!(cmd, Cmd::Change) {
-            cmds.push(FCmd::Action(ActionCmd::PopViewMode { view }));
+            cmds.extend(Self::escape(view));
             cmds.push(FCmd::Action(ActionCmd::PushViewMode {
                 view,
                 mode: ViewStoreTypes::Mode::Insert,
             }));
         } else if matches!(cmd, Cmd::Delete) {
             cmds.push(FCmd::Action(ActionCmd::EndCommit { doc }));
-            cmds.push(FCmd::Action(ActionCmd::PopViewMode { view }));
+            cmds.extend(Self::escape(view));
         }
 
         Some(cmds)
     }
 
-    fn escape(view: ViewId) -> Option<Vec<FCmd>> {
-        Some(vec![
+    fn escape(view: ViewId) -> Vec<FCmd> {
+        vec![
             FCmd::Action(ActionCmd::ResetCursorAnchors { view }),
             FCmd::Action(ActionCmd::PopViewMode { view }),
-        ])
+        ]
     }
 }
 

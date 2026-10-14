@@ -80,7 +80,7 @@ impl Fed {
         );
         let pstate = PState::new(width, height);
 
-        let doc = state.create_doc(path).unwrap();
+        let doc = state.create_doc(path.filter(|p| !p.is_dir())).unwrap();
 
         let fed =
             Self { input_router, state, pstate, input_rx, shutdown_tx, fevent_rx, async_fcmd_rx };
