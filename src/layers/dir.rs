@@ -1,5 +1,6 @@
 use crate::{
-    state::{DirTypes, DocStoreEntry, State, ViewStoreEntry, ViewStoreTypes},
+    protocols::dir::DirEntryKind,
+    state::{DocStoreEntry, State, ViewStoreEntry, ViewStoreTypes},
     types::{
         Face,
         render::{Cell, Layer, VisualOffsetMapping},
@@ -10,27 +11,23 @@ pub struct DirLayer {}
 
 impl Layer for DirLayer {
     fn apply(
-        &self, state: &State, row: &mut [Cell], y: usize, scroll: ViewStoreTypes::Scroll,
+        &self, s: &State, row: &mut [Cell], y: usize, scroll: ViewStoreTypes::Scroll,
         voms: &[VisualOffsetMapping], _: &ViewStoreEntry, dse: &DocStoreEntry,
     ) {
-        if let Some(entry) = state.dir.entries.get(y) {
+        if let Some(entry) = s.p.dir.entries.get(y) {
             let path = match entry.kind {
-                DirTypes::EntryKind::File => Face::default(),
-                DirTypes::EntryKind::Dir => {
-                    Face { fg: state.theme.selection.bg, ..Face::default() }
-                }
-                DirTypes::EntryKind::Symlink => {
-                    Face { fg: state.theme.gutter.fg, ..Face::default() }
-                }
-                DirTypes::EntryKind::Header => {
+                DirEntryKind::File => Face::default(),
+                DirEntryKind::Dir => Face { fg: s.theme.selection.bg, ..Face::default() },
+                DirEntryKind::Symlink => Face { fg: s.theme.gutter.fg, ..Face::default() },
+                DirEntryKind::Header => {
                     for cell in row.iter_mut() {
-                        cell.face.merge(state.theme.dir_header);
+                        cell.face.merge(s.theme.dir_header);
                     }
 
                     return;
                 }
             };
-            let metadata = Face { fg: state.theme.gutter.fg, ..Face::default() };
+            let metadata = Face { fg: s.theme.gutter.fg, ..Face::default() };
 
             let line_start = dse.doc.data.get_line_start_byte(y);
             let offset = line_start + entry.path_offset;

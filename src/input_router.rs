@@ -25,11 +25,11 @@ pub struct InputRouter {
 }
 
 impl InputRouter {
-    pub fn exec(&mut self, state: &mut State, event: Event) -> Vec<FCmd> {
+    pub fn exec(&mut self, s: &mut State, event: Event) -> Vec<FCmd> {
         match event {
             Event::Key(key) => {
                 for handler in &mut self.key_handlers {
-                    if let Some(cmds) = handler.key(state, &key) {
+                    if let Some(cmds) = handler.key(s, &key) {
                         return cmds;
                     }
                 }
@@ -38,13 +38,13 @@ impl InputRouter {
             }
             Event::Mouse(mouse) => {
                 if mouse.kind == MouseEventKind::Down(MouseButton::Left)
-                    && let Some(w) = state.workspace.get_window((mouse.column, mouse.row).into())
+                    && let Some(w) = s.workspace.get_window((mouse.column, mouse.row).into())
                 {
-                    state.workspace.active_window = Some(w);
+                    s.workspace.active_window = Some(w);
                 }
 
                 for handler in &mut self.mouse_handlers {
-                    if let Some(cmds) = handler.mouse(state, mouse) {
+                    if let Some(cmds) = handler.mouse(s, mouse) {
                         return cmds;
                     }
                 }
@@ -53,7 +53,7 @@ impl InputRouter {
             }
             Event::Paste(str) => {
                 for handler in &mut self.paste_handlers {
-                    if let Some(cmds) = handler.paste(state, &str) {
+                    if let Some(cmds) = handler.paste(s, &str) {
                         return cmds;
                     }
                 }
@@ -63,7 +63,7 @@ impl InputRouter {
             Event::Resize(width, height) => {
                 let mut cmds = Vec::new();
                 for handler in &mut self.resize_handlers {
-                    cmds.extend(handler.resize(state, (width, height)));
+                    cmds.extend(handler.resize(s, (width, height)));
                 }
 
                 cmds

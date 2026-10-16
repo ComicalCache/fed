@@ -15,9 +15,7 @@ pub enum ModeLineWidget {
 }
 
 impl ModeLineWidget {
-    pub fn render(
-        &self, state: &State, vse: &ViewStoreEntry, dse: &DocStoreEntry,
-    ) -> (String, Face) {
+    pub fn render(&self, s: &State, vse: &ViewStoreEntry, dse: &DocStoreEntry) -> (String, Face) {
         match self {
             Self::DocMode { face } => (format!("[{}]", dse.mode.to_string().to_uppercase()), *face),
             Self::ViewMode { face } => {
@@ -42,7 +40,7 @@ impl ModeLineWidget {
                 (format!("[{}:{} {}]", y + 1, x + 1, vse.cursors.list.len()), *face)
             }
             Self::Text { text, face } => (text.clone(), *face),
-            Self::Custom(f) => f(state, vse, dse),
+            Self::Custom(f) => f(s, vse, dse),
         }
     }
 }

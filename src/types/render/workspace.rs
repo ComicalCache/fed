@@ -91,16 +91,16 @@ impl Tile {
         }
     }
 
-    pub fn render(&self, state: &State, screen: &mut Screen, rect: Rect) {
+    pub fn render(&self, s: &State, screen: &mut Screen, rect: Rect) {
         match self {
             Self::Split { direction, ratio, first, second } => {
                 let (first_rect, second_rect) = rect.split(*direction, *ratio);
 
-                first.render(state, screen, first_rect);
-                second.render(state, screen, second_rect);
+                first.render(s, screen, first_rect);
+                second.render(s, screen, second_rect);
             }
             Self::Window { content, id } => {
-                content.render(state, &mut Viewport::new(screen, rect), *id);
+                content.render(s, &mut Viewport::new(screen, rect), *id);
             }
             Self::Dummy => unreachable!(),
         }
@@ -332,13 +332,13 @@ impl Workspace {
         res
     }
 
-    pub fn render(&self, state: &State, screen: &mut Screen) {
+    pub fn render(&self, s: &State, screen: &mut Screen) {
         if let Some(root) = &self.root {
-            root.render(state, screen, self.rect);
+            root.render(s, screen, self.rect);
         }
 
         for floating in &self.floating {
-            floating.content.render(state, &mut Viewport::new(screen, floating.rect), floating.id);
+            floating.content.render(s, &mut Viewport::new(screen, floating.rect), floating.id);
         }
     }
 }

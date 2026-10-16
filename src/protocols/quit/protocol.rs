@@ -1,20 +1,20 @@
 use std::time::Duration;
 
-use crate::{protocols::pstate::PState, state::State, util};
+use crate::{state::State, util};
 
 pub struct QuitProtocol {}
 
 impl QuitProtocol {
-    pub fn exec(state: &mut State, pstate: &mut PState) {
-        pstate.quit.quit = true;
+    pub fn exec(s: &mut State) {
+        s.p.quit.quit = true;
 
-        for callback in pstate.quit.callbacks {
-            match callback(state, pstate) {
+        for callback in s.p.quit.callbacks {
+            match callback(s) {
                 Ok(()) => {}
                 Err(message) => {
-                    pstate.quit.quit = false;
+                    s.p.quit.quit = false;
 
-                    util::mp::message(state, pstate, message, Duration::from_secs(3));
+                    util::mp::message(s, message, Duration::from_secs(3));
 
                     break;
                 }
@@ -22,5 +22,5 @@ impl QuitProtocol {
         }
     }
 
-    pub const fn can_quit(pstate: &PState) -> bool { pstate.quit.quit }
+    pub const fn can_quit(s: &State) -> bool { s.p.quit.quit }
 }

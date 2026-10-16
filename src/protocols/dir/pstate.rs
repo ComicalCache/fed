@@ -3,8 +3,10 @@ use std::{
     path::PathBuf,
 };
 
+use crate::state::{DocId, ViewId};
+
 #[derive(Debug, Default, Clone)]
-pub enum EntryKind {
+pub enum DirEntryKind {
     #[default]
     File,
     Dir,
@@ -12,19 +14,28 @@ pub enum EntryKind {
     Header,
 }
 
-impl Display for EntryKind {
+impl Display for DirEntryKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result { write!(f, "{self:?}") }
 }
 
 #[derive(Default, Clone)]
-pub struct Entry {
+pub struct DirEntry {
     pub path: PathBuf,
-    pub kind: EntryKind,
+    pub kind: DirEntryKind,
 
     pub path_offset: usize,
 }
 
-pub struct PrintableEntry {
+#[derive(Default)]
+pub struct DirPState {
+    pub doc: DocId,
+    pub view: ViewId,
+
+    pub pwd: PathBuf,
+    pub entries: Vec<DirEntry>,
+}
+
+pub struct PrintableDirEntry {
     pub perms: String,
     pub links: String,
     pub owner: String,

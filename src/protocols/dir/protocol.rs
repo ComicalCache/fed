@@ -6,16 +6,12 @@ use crate::{
     fed::FCmd,
     protocols::{
         action::{ActionCmd, ActionProtocol},
-        dir::{DirCmd, DirRenderer},
+        dir::{DirCmd, DirEntry, DirEntryKind, DirRenderer, PrintableDirEntry},
         doc_view::{DocViewCmd, DocViewProtocol},
         io::{IoFuture, IoProtocol},
-        pstate::PState,
         view::ViewProtocol,
     },
-    state::{
-        DirTypes::{self, Entry, PrintableEntry},
-        DocId, State, ViewId,
-    },
+    state::{DocId, State, ViewId},
     types::{Pos, render::WindowId},
     util::{self, debug_panic, format},
 };
@@ -23,32 +19,32 @@ use crate::{
 pub struct DirProtocol {}
 
 impl DirProtocol {
-    pub fn exec(state: &mut State, pstate: &mut PState, cmd: DirCmd) {
+    pub fn exec(s: &mut State, cmd: DirCmd) {
         match cmd {
-            DirCmd::Init => Self::init(state),
+            DirCmd::Init => Self::init(s),
             DirCmd::InitCompletion { entries, printables } => {
-                Self::init_completion(state, entries, printables);
+                Self::init_completion(s, entries, printables);
             }
-            DirCmd::ReplaceWindow { window } => Self::replace_window(state, window),
+            DirCmd::ReplaceWindow { window } => Self::replace_window(s, window),
 
-            DirCmd::Create { path, dir } => Self::create(state, path, dir),
-            DirCmd::Rename { old, new } => Self::rename(state, old, new),
-            DirCmd::Delete { path, recursive } => Self::delete(state, path, recursive),
+            DirCmd::Create { path, dir } => Self::create(s, path, dir),
+            DirCmd::Rename { old, new } => Self::rename(s, old, new),
+            DirCmd::Delete { path, recursive } => Self::delete(s, path, recursive),
 
-            DirCmd::Select => Self::select(state, pstate),
+            DirCmd::Select => Self::select(s),
         }
     }
 
-    pub fn init(state: &mut State) {
-        state.dir.pwd = std::env::current_dir()
+    pub fn init(s: &mut State) {
+        s.p.dir.pwd = std::env::current_dir()
             .and_then(|p| p.canonicalize())
-            .unwrap_or_else(|_| state.dir.pwd.clone());
+            .unwrap_or_else(|_| s.p.dir.pwd.clone());
 
-        tokio::spawn(Self::fetch_entries(state.dir.pwd.clone(), state.async_fcmd_tx.clone()));
+        tokio::spawn(Self::fetch_entries(s.p.dir.pwd.clone(), s.async_fcmd_tx.clone()));
     }
 
     pub fn init_completion(
-        state: &mut State, mut entries: Vec<Entry>, printables: Vec<PrintableEntry>,
+        s: &mut State, mut entries: Vec<DirEntry>, printables: Vec<PrintableDirEntry>,
     ) {
         let perms = printables.iter().map(|c| c.perms.len()).max().unwrap_or(0);
         let links = printables.iter().map(|c| c.links.len()).max().unwrap_or(0);
@@ -74,9 +70,9 @@ impl DirProtocol {
             text.push_str(&entry.name);
         }
 
-        state.dir.entries = entries;
+        s.p.dir.entries = entries;
 
-        let len = if let Some(dse) = state.doc_store.get_mut(&state.dir.doc) {
+        let len = if let Some(dse) = s.doc_store.get_mut(&s.p.dir.doc) {
             // Temporarily set the mode to not read only for the modifications.
             dse.read_only = false;
 
@@ -86,12 +82,12 @@ impl DirProtocol {
             return;
         };
 
-        ActionProtocol::remove(state, state.dir.view, 0, len);
-        ActionProtocol::insert(state, state.dir.view, text);
-        ActionProtocol::saved(state, state.dir.doc);
-        ActionProtocol::move_cursor_to_pos(state, state.dir.view, Pos::new(0, 1), true);
+        ActionProtocol::remove(s, s.p.dir.view, 0, len);
+        ActionProtocol::insert(s, s.p.dir.view, text);
+        ActionProtocol::saved(s, s.p.dir.doc);
+        ActionProtocol::move_cursor_to_pos(s, s.p.dir.view, Pos::new(0, 1), true);
 
-        if let Some(dse) = state.doc_store.get_mut(&state.dir.doc) {
+        if let Some(dse) = s.doc_store.get_mut(&s.p.dir.doc) {
             // Reset the read only flag after the modifications.
             dse.read_only = true;
         } else {
@@ -99,19 +95,19 @@ impl DirProtocol {
         }
     }
 
-    pub fn replace_window(state: &mut State, window: WindowId) {
-        Self::init(state);
+    pub fn replace_window(s: &mut State, window: WindowId) {
+        Self::init(s);
 
-        state.workspace.replace_renderer(window, Box::new(DirRenderer::new(state.dir.view)));
-        state.index.link_window_to_view(window, state.dir.view);
+        s.workspace.replace_renderer(window, Box::new(DirRenderer::new()));
+        s.index.link_window_to_view(window, s.p.dir.view);
 
-        ViewProtocol::update(state, state.dir.view);
+        ViewProtocol::update(s, s.p.dir.view);
     }
 
-    pub fn create(state: &State, path: PathBuf, dir: bool) {
+    pub fn create(s: &State, path: PathBuf, dir: bool) {
         let path = util::path::normalize(path);
 
-        let async_fcmd_tx = state.async_fcmd_tx.clone();
+        let async_fcmd_tx = s.async_fcmd_tx.clone();
         tokio::spawn(async move {
             let res = if dir {
                 tokio::fs::create_dir_all(&path).await
@@ -140,8 +136,8 @@ impl DirProtocol {
         });
     }
 
-    pub fn rename(state: &State, old: PathBuf, new: PathBuf) {
-        let async_fcmd_tx = state.async_fcmd_tx.clone();
+    pub fn rename(s: &State, old: PathBuf, new: PathBuf) {
+        let async_fcmd_tx = s.async_fcmd_tx.clone();
         tokio::spawn(async move {
             if let Err(err) = tokio::fs::rename(&old, &new).await {
                 util::mp::async_message(
@@ -155,8 +151,8 @@ impl DirProtocol {
         });
     }
 
-    pub fn delete(state: &State, path: PathBuf, recursive: bool) {
-        let async_fcmd_tx = state.async_fcmd_tx.clone();
+    pub fn delete(s: &State, path: PathBuf, recursive: bool) {
+        let async_fcmd_tx = s.async_fcmd_tx.clone();
         tokio::spawn(async move {
             let res = if recursive {
                 tokio::fs::remove_dir_all(&path).await
@@ -182,9 +178,9 @@ impl DirProtocol {
         });
     }
 
-    pub fn select(state: &mut State, pstate: &mut PState) {
+    pub fn select(s: &mut State) {
         let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, state.dir.view)
+            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.dir.view)
         else {
             debug_panic!();
             return;
@@ -193,42 +189,42 @@ impl DirProtocol {
         let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
         let y = dse.doc.data.get_line_of_byte(offset);
 
-        if y >= state.dir.entries.len() {
+        if y >= s.p.dir.entries.len() {
             debug_panic!();
             return;
         }
 
-        let entry = state.dir.entries[y].clone();
+        let entry = s.p.dir.entries[y].clone();
         match entry.kind {
-            DirTypes::EntryKind::File => {
-                let Some(window) = state.workspace.active_window else {
+            DirEntryKind::File => {
+                let Some(window) = s.workspace.active_window else {
                     debug_panic!();
                     return;
                 };
 
-                let doc = match state.create_doc(Some(entry.path.clone())) {
+                let doc = match s.create_doc(Some(entry.path.clone())) {
                     Ok(doc) => doc,
                     Err(doc) => {
                         let view =
-                            state.index.doc_to_views(doc).and_then(|vs| vs.iter().next()).copied();
+                            s.index.doc_to_views(doc).and_then(|vs| vs.iter().next()).copied();
 
                         if let Some(view) = view
-                            && let Some(windows) = state.index.view_to_windows(view)
+                            && let Some(windows) = s.index.view_to_windows(view)
                             && let Some(&window) = windows.iter().next()
                         {
-                            state.workspace.active_window = Some(window);
+                            s.workspace.active_window = Some(window);
                             return;
                         }
 
-                        DocViewProtocol::replace_window(state, doc, view, window, false, None);
+                        DocViewProtocol::replace_window(s, doc, view, window, false, None);
 
                         return;
                     }
                 };
 
-                let view = state.index.doc_to_views(doc).and_then(|vs| vs.iter().next()).copied();
+                let view = s.index.doc_to_views(doc).and_then(|vs| vs.iter().next()).copied();
 
-                let async_fcmd_tx = state.async_fcmd_tx.clone();
+                let async_fcmd_tx = s.async_fcmd_tx.clone();
                 IoProtocol::read(
                     entry.path,
                     Box::new(move |res| -> IoFuture {
@@ -236,30 +232,29 @@ impl DirProtocol {
                     }),
                 );
             }
-            DirTypes::EntryKind::Dir => {
-                state.dir.pwd = state.dir.entries[y].path.clone();
+            DirEntryKind::Dir => {
+                s.p.dir.pwd = s.p.dir.entries[y].path.clone();
 
-                let _ = std::env::set_current_dir(state.dir.entries[y].path.clone());
+                let _ = std::env::set_current_dir(s.p.dir.entries[y].path.clone());
 
-                Self::init(state);
+                Self::init(s);
             }
-            DirTypes::EntryKind::Symlink => {
+            DirEntryKind::Symlink => {
                 util::mp::message(
-                    state,
-                    pstate,
+                    s,
                     "Symlinks are not (yet) supported".to_string(),
                     Duration::from_secs(3),
                 );
             }
-            DirTypes::EntryKind::Header => {}
+            DirEntryKind::Header => {}
         }
     }
 
     async fn fetch_entries(pwd: PathBuf, async_fcmd_tx: UnboundedSender<FCmd>) {
         let mut entries = Vec::new();
-        let mut printables: Vec<PrintableEntry> = Vec::new();
+        let mut printables: Vec<PrintableDirEntry> = Vec::new();
 
-        printables.push(PrintableEntry {
+        printables.push(PrintableDirEntry {
             perms: "PERMISSIONS".to_string(),
             links: "LINKS".to_string(),
             owner: "OWNER".to_string(),
@@ -268,11 +263,7 @@ impl DirProtocol {
             modified: "MODIFIED".to_string(),
             name: "NAME".to_string(),
         });
-        entries.push(DirTypes::Entry {
-            path: pwd.clone(),
-            kind: DirTypes::EntryKind::Header,
-            path_offset: 0,
-        });
+        entries.push(DirEntry { path: pwd.clone(), kind: DirEntryKind::Header, path_offset: 0 });
 
         if let Some(parent) = pwd.parent()
             && let Ok(metadata) = tokio::fs::metadata(parent).await
@@ -289,7 +280,7 @@ impl DirProtocol {
                 )
             };
 
-            printables.push(PrintableEntry {
+            printables.push(PrintableDirEntry {
                 perms: format!("d{perms}"),
                 links,
                 owner,
@@ -304,9 +295,9 @@ impl DirProtocol {
                 ),
                 name: "../".to_string(),
             });
-            entries.push(DirTypes::Entry {
+            entries.push(DirEntry {
                 path: parent.to_path_buf(),
-                kind: DirTypes::EntryKind::Dir,
+                kind: DirEntryKind::Dir,
                 path_offset: 0,
             });
         }
@@ -336,11 +327,11 @@ impl DirProtocol {
             };
 
             let kind = if metadata.is_dir() {
-                DirTypes::EntryKind::Dir
+                DirEntryKind::Dir
             } else if metadata.is_symlink() {
-                DirTypes::EntryKind::Symlink
+                DirEntryKind::Symlink
             } else {
-                DirTypes::EntryKind::File
+                DirEntryKind::File
             };
 
             let (perms, links, owner, group) = {
@@ -356,10 +347,10 @@ impl DirProtocol {
             };
 
             let perms = match kind {
-                DirTypes::EntryKind::File => format!("-{perms}"),
-                DirTypes::EntryKind::Dir => format!("d{perms}"),
-                DirTypes::EntryKind::Symlink => format!("l{perms}"),
-                DirTypes::EntryKind::Header => unreachable!(),
+                DirEntryKind::File => format!("-{perms}"),
+                DirEntryKind::Dir => format!("d{perms}"),
+                DirEntryKind::Symlink => format!("l{perms}"),
+                DirEntryKind::Header => unreachable!(),
             };
             let size = format::size(metadata.len());
 
@@ -372,17 +363,17 @@ impl DirProtocol {
             );
 
             let mut name = entry.file_name().display().to_string();
-            if matches!(kind, DirTypes::EntryKind::Dir) {
+            if matches!(kind, DirEntryKind::Dir) {
                 name.push(std::path::MAIN_SEPARATOR);
-            } else if matches!(kind, DirTypes::EntryKind::Symlink)
+            } else if matches!(kind, DirEntryKind::Symlink)
                 && let Ok(target) = tokio::fs::read_link(entry.path()).await
             {
                 name.push_str(" > ");
                 name.push_str(&target.display().to_string());
             }
 
-            printables.push(PrintableEntry { perms, links, owner, group, size, modified, name });
-            entries.push(DirTypes::Entry { path: entry.path(), kind, path_offset: 0 });
+            printables.push(PrintableDirEntry { perms, links, owner, group, size, modified, name });
+            entries.push(DirEntry { path: entry.path(), kind, path_offset: 0 });
         }
 
         let _ = async_fcmd_tx.send(FCmd::Dir(DirCmd::InitCompletion { entries, printables }));

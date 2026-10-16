@@ -5,11 +5,10 @@ use crate::{
         action::ActionProtocol,
         dir::DirProtocol,
         doc_view::DocViewProtocol,
-        manage::{ManageCmd, ManageRenderer},
-        pstate::PState,
+        manage::{ManageCmd, ManageEntry, ManageRenderer},
         view::ViewProtocol,
     },
-    state::{DocStoreTypes, ManageTypes, State},
+    state::{DocStoreTypes, State},
     types::{Pos, render::WindowId},
     util::{self, debug_panic},
 };
@@ -17,20 +16,20 @@ use crate::{
 pub struct ManageProtocol {}
 
 impl ManageProtocol {
-    pub fn exec(state: &mut State, pstate: &mut PState, cmd: ManageCmd) {
+    pub fn exec(s: &mut State, cmd: ManageCmd) {
         match cmd {
-            ManageCmd::ReplaceWindow { window } => Self::replace_window(state, window),
+            ManageCmd::ReplaceWindow { window } => Self::replace_window(s, window),
 
-            ManageCmd::Select => Self::select(state),
-            ManageCmd::Close => Self::close(state, pstate),
+            ManageCmd::Select => Self::select(s),
+            ManageCmd::Close => Self::close(s),
         }
     }
 
-    fn init(state: &mut State, move_cursor: bool) {
+    fn init(s: &mut State, move_cursor: bool) {
         let mut entries = Vec::new();
         let mut text = String::new();
 
-        let mut docs: Vec<_> = state.doc_store.iter().map(|(id, dse)| (*id, dse)).collect();
+        let mut docs: Vec<_> = s.doc_store.iter().map(|(id, dse)| (*id, dse)).collect();
         docs.sort_by_key(|(id, _)| id.0);
 
         for (id, dse) in docs {
@@ -50,29 +49,26 @@ impl ManageProtocol {
             );
 
             let _ = writeln!(text, "{modified} {path}");
-            entries.push(ManageTypes::Entry::Doc(id));
+            entries.push(ManageEntry::Doc(id));
 
-            if let Some(views) = state.index.doc_to_views(id) {
+            if let Some(views) = s.index.doc_to_views(id) {
                 let mut views: Vec<_> = views.iter().copied().collect();
                 views.sort_by_key(|v| v.0);
 
                 for view in views {
                     let _ = writeln!(text, "└─ View {}", view.0);
-                    entries.push(ManageTypes::Entry::View(view));
+                    entries.push(ManageEntry::View(view));
                 }
             }
         }
         // Remove trailing new line.
         text.pop();
 
-        state.manage.entries = entries;
+        s.p.manage.entries = entries;
 
-        let Some((vse, dse)) = State::vse_and_dse_mut(
-            &mut state.view_store,
-            &mut state.doc_store,
-            &state.index,
-            state.manage.view,
-        ) else {
+        let Some((vse, dse)) =
+            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, s.p.manage.view)
+        else {
             debug_panic!();
             return;
         };
@@ -87,12 +83,12 @@ impl ManageProtocol {
             util::offset_to_pos(vse.cursors.list.first().map_or(0, |c| c.offset), vse, dse)
         };
 
-        ActionProtocol::remove(state, state.manage.view, 0, len);
-        ActionProtocol::insert(state, state.manage.view, text);
-        ActionProtocol::move_cursor_to_pos(state, state.manage.view, pos, true);
-        ActionProtocol::saved(state, state.manage.doc);
+        ActionProtocol::remove(s, s.p.manage.view, 0, len);
+        ActionProtocol::insert(s, s.p.manage.view, text);
+        ActionProtocol::move_cursor_to_pos(s, s.p.manage.view, pos, true);
+        ActionProtocol::saved(s, s.p.manage.doc);
 
-        if let Some(dse) = state.doc_store.get_mut(&state.manage.doc) {
+        if let Some(dse) = s.doc_store.get_mut(&s.p.manage.doc) {
             // Reset the read only flag after the modifications.
             dse.read_only = true;
         } else {
@@ -100,22 +96,19 @@ impl ManageProtocol {
         }
     }
 
-    fn replace_window(state: &mut State, window: WindowId) {
-        Self::init(state, true);
+    fn replace_window(s: &mut State, window: WindowId) {
+        Self::init(s, true);
 
-        state.workspace.replace_renderer(window, Box::new(ManageRenderer::new(state.manage.view)));
-        state.index.link_window_to_view(window, state.manage.view);
+        s.workspace.replace_renderer(window, Box::new(ManageRenderer::new()));
+        s.index.link_window_to_view(window, s.p.manage.view);
 
-        ViewProtocol::update(state, state.manage.view);
+        ViewProtocol::update(s, s.p.manage.view);
     }
 
-    fn select(state: &mut State) {
-        let Some((vse, dse)) = State::vse_and_dse(
-            &state.view_store,
-            &state.doc_store,
-            &state.index,
-            state.manage.view,
-        ) else {
+    fn select(s: &mut State) {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.manage.view)
+        else {
             debug_panic!();
             return;
         };
@@ -123,23 +116,23 @@ impl ManageProtocol {
         let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
         let y = dse.doc.data.get_line_of_byte(offset);
 
-        if y >= state.manage.entries.len() {
+        if y >= s.p.manage.entries.len() {
             debug_panic!();
             return;
         }
 
-        let entry = state.manage.entries[y];
+        let entry = s.p.manage.entries[y];
 
         let view = match entry {
-            ManageTypes::Entry::Doc(id) => {
-                state.index.doc_to_views(id).and_then(|vs| vs.iter().next()).copied()
+            ManageEntry::Doc(id) => {
+                s.index.doc_to_views(id).and_then(|vs| vs.iter().next()).copied()
             }
-            ManageTypes::Entry::View(id) => Some(id),
+            ManageEntry::View(id) => Some(id),
         };
         let doc = match entry {
-            ManageTypes::Entry::Doc(id) => id,
-            ManageTypes::Entry::View(id) => {
-                let Some(doc) = state.index.view_to_doc(id) else {
+            ManageEntry::Doc(id) => id,
+            ManageEntry::View(id) => {
+                let Some(doc) = s.index.view_to_doc(id) else {
                     debug_panic!();
                     return;
                 };
@@ -149,41 +142,38 @@ impl ManageProtocol {
         };
 
         // Ignore selecting oneself.
-        if view == Some(state.manage.view) {
+        if view == Some(s.p.manage.view) {
             return;
         }
 
         if let Some(view) = view
-            && let Some(windows) = state.index.view_to_windows(view)
+            && let Some(windows) = s.index.view_to_windows(view)
             && let Some(&window) = windows.iter().next()
         {
-            DocViewProtocol::destroy_view(state, state.manage.view);
-            state.workspace.active_window = Some(window);
+            DocViewProtocol::destroy_view(s, s.p.manage.view);
+            s.workspace.active_window = Some(window);
             return;
         }
 
-        let Some(dse) = state.doc_store.get(&doc) else {
+        let Some(dse) = s.doc_store.get(&doc) else {
             debug_panic!();
             return;
         };
 
-        let window = state.workspace.active_window.unwrap();
+        let window = s.workspace.active_window.unwrap();
         match dse.mode {
             DocStoreTypes::Mode::Text | DocStoreTypes::Mode::Read => {
-                DocViewProtocol::replace_window(state, doc, view, window, false, None);
+                DocViewProtocol::replace_window(s, doc, view, window, false, None);
             }
             DocStoreTypes::Mode::Mp | DocStoreTypes::Mode::Manage => {}
-            DocStoreTypes::Mode::Dir => DirProtocol::replace_window(state, window),
+            DocStoreTypes::Mode::Dir => DirProtocol::replace_window(s, window),
         }
     }
 
-    fn close(state: &mut State, pstate: &mut PState) {
-        let Some((vse, dse)) = State::vse_and_dse(
-            &state.view_store,
-            &state.doc_store,
-            &state.index,
-            state.manage.view,
-        ) else {
+    fn close(s: &mut State) {
+        let Some((vse, dse)) =
+            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.manage.view)
+        else {
             debug_panic!();
             return;
         };
@@ -191,33 +181,32 @@ impl ManageProtocol {
         let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
         let y = dse.doc.data.get_line_of_byte(offset);
 
-        if y >= state.manage.entries.len() {
+        if y >= s.p.manage.entries.len() {
             debug_panic!();
             return;
         }
 
-        let entry = state.manage.entries[y];
+        let entry = s.p.manage.entries[y];
         match entry {
-            ManageTypes::Entry::Doc(id) => {
-                if state.doc_store.get(&id).unwrap().doc.modified {
+            ManageEntry::Doc(id) => {
+                if s.doc_store.get(&id).unwrap().doc.modified {
                     util::mp::message(
-                        state,
-                        pstate,
+                        s,
                         "There are unsaved changes".to_string(),
                         Duration::from_secs(3),
                     );
                 } else {
-                    for view in state.destroy_doc(id) {
-                        DocViewProtocol::destroy_view(state, view);
+                    for view in s.destroy_doc(id) {
+                        DocViewProtocol::destroy_view(s, view);
                     }
 
-                    Self::init(state, false);
+                    Self::init(s, false);
                 }
             }
-            ManageTypes::Entry::View(id) => {
-                DocViewProtocol::destroy_view(state, id);
+            ManageEntry::View(id) => {
+                DocViewProtocol::destroy_view(s, id);
 
-                Self::init(state, false);
+                Self::init(s, false);
             }
         }
     }

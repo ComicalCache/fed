@@ -1,14 +1,14 @@
 use std::path::PathBuf;
 
 use crate::{
-    state::DirTypes::{Entry, PrintableEntry},
+    protocols::dir::{DirEntry, PrintableDirEntry},
     types::render::WindowId,
 };
 
 #[allow(unused)]
 pub enum DirCmd {
     Init,
-    InitCompletion { entries: Vec<Entry>, printables: Vec<PrintableEntry> },
+    InitCompletion { entries: Vec<DirEntry>, printables: Vec<PrintableDirEntry> },
     ReplaceWindow { window: WindowId },
 
     Create { path: PathBuf, dir: bool },

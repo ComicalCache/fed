@@ -2,8 +2,8 @@ use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 
 use crate::{
     fed::FCmd,
-    protocols::action::ActionCmd,
-    state::{MpTypes, State},
+    protocols::{action::ActionCmd, mp::MpKind},
+    state::State,
     types::{MouseInputHandler, MouseInputPriority, Pos},
     util::debug_panic,
 };
@@ -13,16 +13,16 @@ pub struct MpMouseInput {}
 impl MouseInputHandler for MpMouseInput {
     fn priority(&self) -> MouseInputPriority { MouseInputPriority::MpMode }
 
-    fn mouse(&mut self, state: &State, event: MouseEvent) -> Option<Vec<FCmd>> {
+    fn mouse(&mut self, s: &State, event: MouseEvent) -> Option<Vec<FCmd>> {
         let mut pos = (event.column, event.row).into();
 
-        if state.mp.window.is_none() || state.mp.window != state.workspace.get_window(pos) {
+        if s.p.mp.window.is_none() || s.p.mp.window != s.workspace.get_window(pos) {
             return None;
         }
 
-        debug_assert!(state.mp.kind != MpTypes::Kind::None);
+        debug_assert!(s.p.mp.kind != MpKind::None);
 
-        if state.mp.kind == MpTypes::Kind::Message {
+        if s.p.mp.kind == MpKind::Message {
             // Consume the click but ignore it to avoid tiles under the message
             // to move the cursor bellow the floating message.
             return Some(Vec::new());
@@ -32,17 +32,16 @@ impl MouseInputHandler for MpMouseInput {
             return Some(Vec::new());
         }
 
-        let Some(window) = state.mp.window else {
+        let Some(window) = s.p.mp.window else {
             debug_panic!();
             return Some(Vec::new());
         };
-        let Some(rect) = state.workspace.get_rect(window) else {
+        let Some(rect) = s.workspace.get_rect(window) else {
             debug_panic!();
             return Some(Vec::new());
         };
-        let view = state.mp.view;
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        let view = s.p.mp.view;
+        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
         else {
             debug_panic!();
             return Some(Vec::new());

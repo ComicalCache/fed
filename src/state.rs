@@ -1,28 +1,21 @@
-pub mod dir;
 mod doc;
 mod index;
-pub mod manage;
-pub mod mp;
-mod read;
 mod view;
 
 use std::{collections::HashSet, path::PathBuf};
 
-pub use dir::{Dir, types as DirTypes};
 pub use doc::{DocId, DocStore, DocStoreEntry, types as DocStoreTypes};
-pub use manage::{Manage, types as ManageTypes};
-pub use mp::{Mp, MpId, types as MpTypes};
 use piece_table::PieceTable;
-pub use read::types as ReadTypes;
 use tokio::sync::mpsc::UnboundedSender;
 pub use view::{ViewId, ViewStore, ViewStoreEntry, types as ViewStoreTypes};
 
 use crate::{
     fed::{FCmd, FEvent},
     modes,
+    protocols::pstate::PState,
     state::index::Index,
     types::{
-        Theme,
+        Pos, Rect, Theme,
         render::{WindowId, Workspace},
     },
     util::{self, debug_panic},
@@ -32,15 +25,14 @@ pub struct State {
     next_doc_id: usize,
     next_view_id: usize,
 
+    pub p: PState,
+
     pub index: Index,
+
     pub workspace: Workspace,
 
     pub doc_store: DocStore,
     pub view_store: ViewStore,
-
-    pub mp: Mp,
-    pub dir: Dir,
-    pub manage: Manage,
 
     pub theme: Theme,
 
@@ -50,29 +42,27 @@ pub struct State {
 
 impl State {
     pub fn new(
-        workspace: Workspace, fevent_tx: UnboundedSender<FEvent>,
+        width: usize, height: usize, fevent_tx: UnboundedSender<FEvent>,
         async_fcmd_tx: UnboundedSender<FCmd>,
     ) -> Self {
-        let mut state = Self {
+        let mut s = Self {
             next_doc_id: 1,
             next_view_id: 1,
+            p: PState::new(width, height),
             index: Index::default(),
-            workspace,
+            workspace: Workspace::new(Rect::new(Pos::default(), width, height)),
             doc_store: DocStore::default(),
             view_store: ViewStore::default(),
-            mp: Mp::default(),
-            dir: Dir::default(),
-            manage: Manage::default(),
             theme: Theme::default(),
             fevent_tx,
             async_fcmd_tx,
         };
 
-        modes::mp::setup::setup(&mut state);
-        modes::dir::setup::setup(&mut state);
-        modes::manage::setup::setup(&mut state);
+        modes::mp::setup::setup(&mut s);
+        modes::dir::setup::setup(&mut s);
+        modes::manage::setup::setup(&mut s);
 
-        state
+        s
     }
 
     /// Creates a new Doc if the path is not yet opened. Returns Ok if a new Doc
@@ -150,7 +140,7 @@ impl State {
 
             match dse.mode {
                 DocStoreTypes::Mode::Mp => {
-                    let Some(windows) = self.index.view_to_windows(self.mp.view) else {
+                    let Some(windows) = self.index.view_to_windows(self.p.mp.view) else {
                         debug_panic!();
                         return HashSet::new();
                     };
@@ -158,7 +148,7 @@ impl State {
                     return windows.clone();
                 }
                 DocStoreTypes::Mode::Dir => {
-                    let Some(windows) = self.index.view_to_windows(self.dir.view) else {
+                    let Some(windows) = self.index.view_to_windows(self.p.dir.view) else {
                         debug_panic!();
                         return HashSet::new();
                     };
@@ -166,7 +156,7 @@ impl State {
                     return windows.clone();
                 }
                 DocStoreTypes::Mode::Manage => {
-                    let Some(windows) = self.index.view_to_windows(self.manage.view) else {
+                    let Some(windows) = self.index.view_to_windows(self.p.manage.view) else {
                         debug_panic!();
                         return HashSet::new();
                     };

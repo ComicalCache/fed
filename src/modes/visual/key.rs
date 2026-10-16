@@ -27,13 +27,13 @@ impl VisualKeyInput {
         Self { keymap, pending_keys: Vec::new(), last_view: None }
     }
 
-    fn exec(state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let view = state.active_view()?;
-        let Some(doc) = state.index.view_to_doc(view) else {
+    fn exec(s: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
+        let view = s.active_view()?;
+        let Some(doc) = s.index.view_to_doc(view) else {
             debug_panic!();
             return None;
         };
-        let Some(dse) = state.doc_store.get(&doc) else {
+        let Some(dse) = s.doc_store.get(&doc) else {
             debug_panic!();
             return None;
         };
@@ -49,24 +49,23 @@ impl VisualKeyInput {
                     return None;
                 }
 
-                Self::operator(state, view, doc, cmd)
+                Self::operator(s, view, doc, cmd)
             }
-            Cmd::Yank => Self::operator(state, view, doc, cmd),
+            Cmd::Yank => Self::operator(s, view, doc, cmd),
             Cmd::SwapLineDown | Cmd::SwapLineUp => {
                 if dse.read_only {
                     return None;
                 }
 
-                Self::swap_operation(state, view, doc, cmd)
+                Self::swap_operation(s, view, doc, cmd)
             }
-            Cmd::EnterSearchMode => Self::enter_search_mode(state, view, doc),
+            Cmd::EnterSearchMode => Self::enter_search_mode(s, view, doc),
             Cmd::Escape => Some(Self::escape(view)),
         }
     }
 
-    fn swap_operation(state: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+    fn swap_operation(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
+        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
         else {
             debug_panic!();
             return None;
@@ -93,12 +92,11 @@ impl VisualKeyInput {
             }
         }
 
-        common::swap_lines(state, view, doc, lines, matches!(cmd, Cmd::SwapLineDown))
+        common::swap_lines(s, view, doc, lines, matches!(cmd, Cmd::SwapLineDown))
     }
 
-    fn enter_search_mode(state: &State, view: ViewId, doc: DocId) -> Option<Vec<FCmd>> {
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+    fn enter_search_mode(s: &State, view: ViewId, doc: DocId) -> Option<Vec<FCmd>> {
+        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
         else {
             debug_panic!();
             return None;
@@ -134,9 +132,8 @@ impl VisualKeyInput {
         Some(search::util::start_search(view, doc, Some(bounds)))
     }
 
-    fn operator(state: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+    fn operator(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
+        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
         else {
             debug_panic!();
             return None;
@@ -202,9 +199,9 @@ impl VisualKeyInput {
 impl KeyInputHandler for VisualKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::VisualMode }
 
-    fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
-        let view = state.active_view()?;
-        let Some(vse) = state.view_store.get(&view) else {
+    fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
+        let view = s.active_view()?;
+        let Some(vse) = s.view_store.get(&view) else {
             debug_panic!();
             return None;
         };
@@ -225,7 +222,7 @@ impl KeyInputHandler for VisualKeyInput {
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
                 // Always treat entering execute as consuming the key.
-                let cmds = Some(Self::exec(state, cmd).unwrap_or_default());
+                let cmds = Some(Self::exec(s, cmd).unwrap_or_default());
                 self.pending_keys.clear();
 
                 cmds

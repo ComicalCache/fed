@@ -11,12 +11,11 @@ use crate::{
     },
     protocols::{
         action::ActionCmd,
-        dir::{DirCmd, DirProtocol},
+        dir::{DirCmd, DirEntry, DirProtocol},
         manage::ManageCmd,
         mp::MpCmd,
-        pstate::PState,
     },
-    state::{DirTypes, DocStoreTypes, State, ViewId, ViewStoreTypes},
+    state::{DocStoreTypes, State, ViewId, ViewStoreTypes},
     types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
     util::{self, debug_panic},
 };
@@ -33,26 +32,26 @@ impl DirKeyInput {
         Self { keymap: keymap::keymap(), pending_keys: Vec::new(), last_view: None }
     }
 
-    fn exec(state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let view = state.dir.view;
-        let doc = state.dir.doc;
+    fn exec(s: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
+        let view = s.p.dir.view;
+        let doc = s.p.dir.doc;
 
         match cmd {
             Cmd::Move(motion) => {
                 Some(vec![FCmd::Action(ActionCmd::MoveCursors { view, motion, move_anchor: true })])
             }
-            Cmd::Yank(motion) => common::yank(state, view, motion),
-            Cmd::YankLine => common::yank_line(state, view),
-            Cmd::ScrollView(motion) => common::scroll_view(state, view, motion),
-            Cmd::Jump => common::jump(state, view),
-            Cmd::Create => Self::create(state),
-            Cmd::Rename => Self::rename(state, view),
-            Cmd::Delete => Self::delete(state, view, false),
-            Cmd::DeleteRecursive => Self::delete(state, view, true),
+            Cmd::Yank(motion) => common::yank(s, view, motion),
+            Cmd::YankLine => common::yank_line(s, view),
+            Cmd::ScrollView(motion) => common::scroll_view(s, view, motion),
+            Cmd::Jump => common::jump(s, view),
+            Cmd::Create => Self::create(s),
+            Cmd::Rename => Self::rename(s, view),
+            Cmd::Delete => Self::delete(s, view, false),
+            Cmd::DeleteRecursive => Self::delete(s, view, true),
             Cmd::Select => Some(vec![FCmd::Dir(DirCmd::Select)]),
-            Cmd::FocusWindow(motion) => common::focus_window(state, motion),
+            Cmd::FocusWindow(motion) => common::focus_window(s, motion),
             Cmd::EnterManageMode => {
-                let Some(window) = state.workspace.active_window else {
+                let Some(window) = s.workspace.active_window else {
                     debug_panic!();
                     return None;
                 };
@@ -64,23 +63,23 @@ impl DirKeyInput {
                 mode: ViewStoreTypes::Mode::Visual,
             })]),
             Cmd::EnterSearchMode => Some(search::util::start_search(view, doc, None)),
-            Cmd::Quit => common::quit(state, view),
+            Cmd::Quit => common::quit(s, view),
         }
     }
 
-    fn create(state: &State) -> Option<Vec<FCmd>> {
-        let mut initial_text = state.dir.pwd.display().to_string();
+    fn create(s: &State) -> Option<Vec<FCmd>> {
+        let mut initial_text = s.p.dir.pwd.display().to_string();
 
         if !initial_text.ends_with(std::path::MAIN_SEPARATOR) {
             initial_text.push(std::path::MAIN_SEPARATOR);
         }
 
-        let pcallback = Box::new(move |state: &mut State, _: &mut PState, path: String| {
+        let pcallback = Box::new(move |s: &mut State, path: String| {
             let dir = path.ends_with(std::path::MAIN_SEPARATOR);
             let path = PathBuf::from(path);
 
             if !path.is_empty() {
-                DirProtocol::create(state, path, dir);
+                DirProtocol::create(s, path, dir);
             }
         });
 
@@ -92,16 +91,16 @@ impl DirKeyInput {
         })])
     }
 
-    fn rename(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
-        let entry = Self::curr_entry(state, view)?;
+    fn rename(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
+        let entry = Self::curr_entry(s, view)?;
         entry.path.file_name()?;
 
         let old = entry.path.clone();
-        let pcallback = Box::new(move |state: &mut State, _: &mut PState, new: String| {
+        let pcallback = Box::new(move |s: &mut State, new: String| {
             let new = util::path::normalize(new);
 
             if !new.is_empty() {
-                DirProtocol::rename(state, old, new);
+                DirProtocol::rename(s, old, new);
             }
         });
 
@@ -113,8 +112,8 @@ impl DirKeyInput {
         })])
     }
 
-    fn delete(state: &State, view: ViewId, recursive: bool) -> Option<Vec<FCmd>> {
-        let entry = Self::curr_entry(state, view)?;
+    fn delete(s: &State, view: ViewId, recursive: bool) -> Option<Vec<FCmd>> {
+        let entry = Self::curr_entry(s, view)?;
         entry.path.file_name()?;
 
         let path = entry.path;
@@ -126,18 +125,17 @@ impl DirKeyInput {
             format!("Delete '{name}'? (y/N): ")
         };
 
-        let pcallback = Box::new(move |state: &mut State, _: &mut PState, res: String| {
+        let pcallback = Box::new(move |s: &mut State, res: String| {
             if res.to_lowercase() == "y" {
-                DirProtocol::delete(state, path, recursive);
+                DirProtocol::delete(s, path, recursive);
             }
         });
 
         Some(vec![FCmd::Mp(MpCmd::Prompt { prompt, initial_text: None, pcallback, tx: None })])
     }
 
-    fn curr_entry(state: &State, view: ViewId) -> Option<DirTypes::Entry> {
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+    fn curr_entry(s: &State, view: ViewId) -> Option<DirEntry> {
+        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
         else {
             debug_panic!();
             return None;
@@ -151,18 +149,16 @@ impl DirKeyInput {
             return None;
         }
 
-        state.dir.entries.get(y).cloned()
+        s.p.dir.entries.get(y).cloned()
     }
 }
 
 impl KeyInputHandler for DirKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::DirMode }
 
-    fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
-        let view = state.active_view()?;
-        let Some((_, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
-        else {
+    fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
+        let view = s.active_view()?;
+        let Some((_, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view) else {
             debug_panic!();
             return None;
         };
@@ -183,7 +179,7 @@ impl KeyInputHandler for DirKeyInput {
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
                 // Always treat entering execute as consuming the key.
-                let cmds = Some(Self::exec(state, cmd).unwrap_or_default());
+                let cmds = Some(Self::exec(s, cmd).unwrap_or_default());
                 self.pending_keys.clear();
 
                 cmds

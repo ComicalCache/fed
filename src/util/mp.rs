@@ -4,21 +4,18 @@ use tokio::sync::{mpsc::UnboundedSender, oneshot};
 
 use crate::{
     fed::FCmd,
-    protocols::{
-        mp::{MpCmd, MpProtocol},
-        pstate::PState,
-    },
+    protocols::mp::{MpCmd, MpProtocol},
     state::State,
     util::debug_panic,
 };
 
-pub fn message(state: &mut State, pstate: &mut PState, message: String, duration: Duration) {
-    let Some(id) = MpProtocol::message(state, pstate, message, None) else {
+pub fn message(s: &mut State, message: String, duration: Duration) {
+    let Some(id) = MpProtocol::message(s, message, None) else {
         debug_panic!();
         return;
     };
 
-    let tx = state.async_fcmd_tx.clone();
+    let tx = s.async_fcmd_tx.clone();
     tokio::spawn(async move {
         tokio::time::sleep(duration).await;
 

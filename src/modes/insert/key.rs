@@ -24,9 +24,9 @@ impl InsertKeyInput {
         Self { keymap, pending_keys: Vec::new(), whitespace: false, last_view: None }
     }
 
-    fn exec(&mut self, state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let view = state.active_view()?;
-        let Some(doc) = state.index.view_to_doc(view) else {
+    fn exec(&mut self, s: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
+        let view = s.active_view()?;
+        let Some(doc) = s.index.view_to_doc(view) else {
             debug_panic!();
             return None;
         };
@@ -76,10 +76,9 @@ impl InsertKeyInput {
 impl KeyInputHandler for InsertKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::InsertMode }
 
-    fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
-        let view = state.active_view()?;
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+    fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
+        let view = s.active_view()?;
+        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
         else {
             debug_panic!();
             return None;
@@ -106,7 +105,7 @@ impl KeyInputHandler for InsertKeyInput {
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
                 // Always treat entering execute as consuming the key.
-                let cmds = Some(self.exec(state, cmd).unwrap_or_default());
+                let cmds = Some(self.exec(s, cmd).unwrap_or_default());
                 self.pending_keys.clear();
 
                 cmds
@@ -134,13 +133,12 @@ impl KeyInputHandler for InsertKeyInput {
 
                 if modifiers.is_empty() {
                     // Always treat entering execute as consuming the key.
-                    let cmds = self.exec(state, Cmd::Input(ch.to_string())).unwrap_or_default();
+                    let cmds = self.exec(s, Cmd::Input(ch.to_string())).unwrap_or_default();
                     Some(cmds)
                 } else {
                     // Always treat entering execute as consuming the key.
-                    let cmds = self
-                        .exec(state, Cmd::Input(format!("<{modifiers}-{ch}>")))
-                        .unwrap_or_default();
+                    let cmds =
+                        self.exec(s, Cmd::Input(format!("<{modifiers}-{ch}>"))).unwrap_or_default();
                     Some(cmds)
                 }
             }

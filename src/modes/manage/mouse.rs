@@ -13,23 +13,20 @@ pub struct ManageMouseInput {}
 impl MouseInputHandler for ManageMouseInput {
     fn priority(&self) -> MouseInputPriority { MouseInputPriority::ManageMode }
 
-    fn mouse(&mut self, state: &State, event: MouseEvent) -> Option<Vec<FCmd>> {
+    fn mouse(&mut self, s: &State, event: MouseEvent) -> Option<Vec<FCmd>> {
         let mut pos = (event.column, event.row).into();
 
-        let Some(window) = state.workspace.get_window(pos) else {
-            // Click outside of any window, just abort.
-            return None;
-        };
-        let Some(rect) = state.workspace.get_rect(window) else {
+        // Click outside of any window, just abort.
+        let Some(window) = s.workspace.get_window(pos) else { return None };
+        let Some(rect) = s.workspace.get_rect(window) else {
             debug_panic!();
             return None;
         };
-        let Some(view) = state.active_view() else {
+        let Some(view) = s.active_view() else {
             debug_panic!();
             return None;
         };
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
         else {
             debug_panic!();
             return None;

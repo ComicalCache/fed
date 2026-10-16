@@ -1,10 +1,13 @@
-use crate::protocols::{io::IoPState, mp::MpPState, quit::QuitPState, screen::ScreenPState};
+use crate::protocols::{
+    dir::DirPState, io::IoPState, manage::ManagePState, mp::MpPState, quit::QuitPState,
+};
 
 pub struct PState {
     pub io: IoPState,
     pub mp: MpPState,
     pub quit: QuitPState,
-    pub screen: ScreenPState,
+    pub manage: ManagePState,
+    pub dir: DirPState,
 }
 
 impl PState {
@@ -13,7 +16,8 @@ impl PState {
             io: IoPState::default(),
             mp: MpPState::new(width, height),
             quit: QuitPState::default(),
-            screen: ScreenPState::new(width, height),
+            manage: ManagePState::default(),
+            dir: DirPState::default(),
         }
     }
 }

@@ -4,7 +4,7 @@ use unicode_width::UnicodeWidthStr;
 use crate::{
     layers::{CurrLineLayer, CursorLayer, DirLayer, SelectionLayer},
     protocols::view::ViewRenderer,
-    state::{State, ViewId},
+    state::State,
     types::{
         Pos, Rect,
         render::{Cell, Renderer, Viewport, WindowId},
@@ -13,29 +13,24 @@ use crate::{
 };
 
 pub struct DirRenderer {
-    view: ViewId,
     inner: ViewRenderer,
 }
 
 impl DirRenderer {
-    pub fn new(view: ViewId) -> Self {
+    pub fn new() -> Self {
         Self {
-            view,
-            inner: ViewRenderer::new(
-                view,
-                vec![
-                    Box::new(DirLayer {}),
-                    Box::new(CurrLineLayer {}),
-                    Box::new(SelectionLayer {}),
-                    Box::new(CursorLayer {}),
-                ],
-            ),
+            inner: ViewRenderer::new(vec![
+                Box::new(DirLayer {}),
+                Box::new(CurrLineLayer {}),
+                Box::new(SelectionLayer {}),
+                Box::new(CursorLayer {}),
+            ]),
         }
     }
 }
 
 impl Renderer for DirRenderer {
-    fn render(&self, state: &State, viewport: &mut Viewport, window: WindowId) {
+    fn render(&self, s: &State, viewport: &mut Viewport, window: WindowId) {
         let width = viewport.width();
         let height = viewport.height();
 
@@ -44,7 +39,7 @@ impl Renderer for DirRenderer {
         }
 
         let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, self.view)
+            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.dir.view)
         else {
             debug_panic!();
             return;
@@ -60,27 +55,26 @@ impl Renderer for DirRenderer {
             vse.layout.gutter_width(lines),
             buffer_height,
         ));
-        self.render_gutter(state, &mut gutter, vse.layout.gutter_width(lines));
+        self.render_gutter(s, &mut gutter, vse.layout.gutter_width(lines));
 
         let mut mode_line =
             viewport.sub_view(Rect::new(Pos::new(0, buffer_height), width, vse.layout.mode_line));
-        self.render_mode_line(state, &mut mode_line);
+        self.render_mode_line(s, &mut mode_line);
 
         let mut view = viewport.sub_view(Rect::new(
             Pos::new(vse.layout.gutter_width(lines), 0),
             buffer_width,
             buffer_height,
         ));
-        self.inner.render(state, &mut view, window);
+        self.inner.render(s, &mut view, window);
     }
 }
 
 impl DirRenderer {
-    fn render_gutter(&self, state: &State, viewport: &mut Viewport, width: usize) {
+    fn render_gutter(&self, s: &State, viewport: &mut Viewport, width: usize) {
         // The render function checks for existance.
         let (vse, dse) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, self.view)
-                .unwrap();
+            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.dir.view).unwrap();
 
         let lines = dse.doc.data.lines();
         let scroll = vse.scroll;
@@ -98,40 +92,39 @@ impl DirRenderer {
                     break;
                 }
 
-                viewport.set(Pos::new(x, y), Cell::new(ch.to_string(), 1, state.theme.gutter));
+                viewport.set(Pos::new(x, y), Cell::new(ch.to_string(), 1, s.theme.gutter));
             }
         }
     }
 
-    fn render_mode_line(&self, state: &State, viewport: &mut Viewport) {
+    fn render_mode_line(&self, s: &State, viewport: &mut Viewport) {
         // The render function checks for existance.
         let (vse, dse) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, self.view)
-                .unwrap();
+            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.dir.view).unwrap();
 
         // Force left padding.
         let mut left = Vec::new();
         for widget in &vse.mode_line_config.left {
-            left.push(widget.render(state, vse, dse));
+            left.push(widget.render(s, vse, dse));
 
             // Add padding.
-            left.push((" ".to_string(), state.theme.mode_line));
+            left.push((" ".to_string(), s.theme.mode_line));
         }
         // Removing trailing padding.
         left.pop();
 
         let mut right = Vec::new();
         for widget in &vse.mode_line_config.right {
-            right.push(widget.render(state, vse, dse));
+            right.push(widget.render(s, vse, dse));
 
             // Add padding. Keep the trailing padding as right padding.
-            right.push((" ".to_string(), state.theme.mode_line));
+            right.push((" ".to_string(), s.theme.mode_line));
         }
 
         let mut x = 0;
 
         for (text, span_face) in left {
-            let mut face = state.theme.mode_line;
+            let mut face = s.theme.mode_line;
             face.merge(span_face);
 
             for grapheme in text.graphemes(true) {
@@ -164,12 +157,12 @@ impl DirRenderer {
         let right_start = viewport.width().saturating_sub(right_width);
 
         while x < right_start {
-            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), 1, state.theme.mode_line));
+            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), 1, s.theme.mode_line));
             x += 1;
         }
 
         for (text, span_face) in right {
-            let mut face = state.theme.mode_line;
+            let mut face = s.theme.mode_line;
             face.merge(span_face);
 
             for grapheme in text.graphemes(true) {
@@ -195,7 +188,7 @@ impl DirRenderer {
         }
 
         while x < viewport.width() {
-            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), 1, state.theme.mode_line));
+            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), 1, s.theme.mode_line));
             x += 1;
         }
     }

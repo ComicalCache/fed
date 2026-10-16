@@ -18,7 +18,6 @@ use crate::{
         io::{IoFuture, IoProtocol},
         manage::ManageCmd,
         mp::MpCmd,
-        pstate::PState,
     },
     state::{DocId, State, ViewId, ViewStoreTypes},
     types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, Motion, ParseResult},
@@ -39,13 +38,13 @@ impl NormalKeyInput {
         Self { keymap: keymap::keymap(), pending_keys: Vec::new(), replace: false, last_view: None }
     }
 
-    fn exec(&mut self, state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let view = state.active_view()?;
-        let Some(doc) = state.index.view_to_doc(view) else {
+    fn exec(&mut self, s: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
+        let view = s.active_view()?;
+        let Some(doc) = s.index.view_to_doc(view) else {
             debug_panic!();
             return None;
         };
-        let Some(dse) = state.doc_store.get(&doc) else {
+        let Some(dse) = s.doc_store.get(&doc) else {
             debug_panic!();
             return None;
         };
@@ -54,23 +53,23 @@ impl NormalKeyInput {
             Cmd::Move(motion) => {
                 Some(vec![FCmd::Action(ActionCmd::MoveCursors { view, motion, move_anchor: true })])
             }
-            Cmd::Yank(motion) => common::yank(state, view, motion),
+            Cmd::Yank(motion) => common::yank(s, view, motion),
             Cmd::Delete(_) | Cmd::Change(_) => {
                 if dse.read_only {
                     return None;
                 }
 
-                Self::motion(state, view, doc, cmd)
+                Self::motion(s, view, doc, cmd)
             }
-            Cmd::YankLine => common::yank_line(state, view),
+            Cmd::YankLine => common::yank_line(s, view),
             Cmd::DeleteLine | Cmd::ChangeLine | Cmd::Indent | Cmd::Dedent => {
                 if dse.read_only {
                     return None;
                 }
 
-                Self::line_operation(state, view, doc, cmd)
+                Self::line_operation(s, view, doc, cmd)
             }
-            Cmd::ScrollView(motion) => common::scroll_view(state, view, motion),
+            Cmd::ScrollView(motion) => common::scroll_view(s, view, motion),
             Cmd::Undo => {
                 if dse.read_only {
                     return None;
@@ -97,7 +96,7 @@ impl NormalKeyInput {
                     return None;
                 }
 
-                Self::swap_operation(state, view, doc, cmd)
+                Self::swap_operation(s, view, doc, cmd)
             }
             Cmd::Paste => {
                 if !dse.read_only
@@ -138,14 +137,14 @@ impl NormalKeyInput {
                     return None;
                 }
 
-                Self::replace_char(state, view, doc, ch)
+                Self::replace_char(s, view, doc, ch)
             }
-            Cmd::SaveFile => Self::save_file(state, doc),
-            Cmd::Jump => common::jump(state, view),
-            Cmd::SplitWindow(direction) => common::split_window(state, doc, direction),
-            Cmd::FocusWindow(motion) => common::focus_window(state, motion),
+            Cmd::SaveFile => Self::save_file(s, doc),
+            Cmd::Jump => common::jump(s, view),
+            Cmd::SplitWindow(direction) => common::split_window(s, doc, direction),
+            Cmd::FocusWindow(motion) => common::focus_window(s, motion),
             Cmd::EnterDirMode => {
-                let Some(window) = state.workspace.active_window else {
+                let Some(window) = s.workspace.active_window else {
                     debug_panic!();
                     return None;
                 };
@@ -153,7 +152,7 @@ impl NormalKeyInput {
                 Some(vec![FCmd::Dir(DirCmd::ReplaceWindow { window })])
             }
             Cmd::EnterManageMode => {
-                let Some(window) = state.workspace.active_window else {
+                let Some(window) = s.workspace.active_window else {
                     debug_panic!();
                     return None;
                 };
@@ -178,15 +177,14 @@ impl NormalKeyInput {
                 mode: ViewStoreTypes::Mode::Visual,
             })]),
             Cmd::EnterSearchMode => Some(search::util::start_search(view, doc, None)),
-            Cmd::Quit => common::quit(state, view),
+            Cmd::Quit => common::quit(s, view),
         }
     }
 
-    fn motion(state: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
+    fn motion(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
         let (Cmd::Delete(motion) | Cmd::Change(motion)) = cmd else { unreachable!() };
 
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
         else {
             debug_panic!();
             return None;
@@ -213,9 +211,8 @@ impl NormalKeyInput {
         Some(cmds)
     }
 
-    fn line_operation(state: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+    fn line_operation(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
+        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
         else {
             debug_panic!();
             return None;
@@ -360,9 +357,8 @@ impl NormalKeyInput {
         Some(cmds)
     }
 
-    fn swap_operation(state: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+    fn swap_operation(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
+        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
         else {
             debug_panic!();
             return None;
@@ -371,12 +367,11 @@ impl NormalKeyInput {
         let lines: Vec<_> =
             vse.cursors.list.iter().map(|c| dse.doc.data.get_line_of_byte(c.offset)).collect();
 
-        common::swap_lines(state, view, doc, lines, matches!(cmd, Cmd::SwapLineDown))
+        common::swap_lines(s, view, doc, lines, matches!(cmd, Cmd::SwapLineDown))
     }
 
-    fn replace_char(state: &State, view: ViewId, doc: DocId, ch: char) -> Option<Vec<FCmd>> {
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+    fn replace_char(s: &State, view: ViewId, doc: DocId, ch: char) -> Option<Vec<FCmd>> {
+        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
         else {
             debug_panic!();
             return None;
@@ -421,8 +416,8 @@ impl NormalKeyInput {
         Some(cmds)
     }
 
-    fn save_file(state: &State, doc: DocId) -> Option<Vec<FCmd>> {
-        let Some(dse) = state.doc_store.get(&doc) else {
+    fn save_file(s: &State, doc: DocId) -> Option<Vec<FCmd>> {
+        let Some(dse) = s.doc_store.get(&doc) else {
             debug_panic!();
             return None;
         };
@@ -438,12 +433,12 @@ impl NormalKeyInput {
             |p| p.display().to_string(),
         );
 
-        let pcallback = Box::new(move |state: &mut State, pstate: &mut PState, res: String| {
+        let pcallback = Box::new(move |s: &mut State, res: String| {
             if res.is_empty() {
                 return;
             }
 
-            let Some(dse) = state.doc_store.get(&doc) else {
+            let Some(dse) = s.doc_store.get(&doc) else {
                 debug_panic!();
                 return;
             };
@@ -452,14 +447,14 @@ impl NormalKeyInput {
             let data = dse.doc.data.slice(0..dse.doc.data.len());
 
             let cb_path = path.clone();
-            let async_fcmd_tx = state.async_fcmd_tx.clone();
+            let async_fcmd_tx = s.async_fcmd_tx.clone();
             let wcallback = Box::new(move |res| -> IoFuture {
                 Box::pin(
                     async move { Self::save_file_completion(async_fcmd_tx, res, doc, cb_path) },
                 )
             });
 
-            IoProtocol::write(pstate, path, data, wcallback);
+            IoProtocol::write(s, path, data, wcallback);
         });
 
         Some(vec![FCmd::Mp(MpCmd::Prompt {
@@ -499,9 +494,9 @@ impl NormalKeyInput {
 impl KeyInputHandler for NormalKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::NormalMode }
 
-    fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
-        let view = state.active_view()?;
-        let Some(vse) = state.view_store.get(&view) else {
+    fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
+        let view = s.active_view()?;
+        let Some(vse) = s.view_store.get(&view) else {
             debug_panic!();
             return None;
         };
@@ -520,7 +515,7 @@ impl KeyInputHandler for NormalKeyInput {
         if self.replace {
             let cmds = if let KeyCode::Char(ch) = event.code {
                 // Always treat entering execute as consuming the key.
-                Some(self.exec(state, Cmd::ReplaceChar(ch)).unwrap_or_default())
+                Some(self.exec(s, Cmd::ReplaceChar(ch)).unwrap_or_default())
             } else {
                 None
             };
@@ -537,7 +532,7 @@ impl KeyInputHandler for NormalKeyInput {
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
                 // Always treat entering execute as consuming the key.
-                let cmds = Some(self.exec(state, cmd).unwrap_or_default());
+                let cmds = Some(self.exec(s, cmd).unwrap_or_default());
                 self.pending_keys.clear();
 
                 cmds

@@ -19,15 +19,14 @@ use crate::{
         io::{IoCmd, IoProtocol},
         manage::ManageCmd,
         mp::MpCmd,
-        pstate::PState,
         quit::QuitProtocol,
         screen::{ScreenCmd, ScreenProtocol},
         view::{ViewCmd, ViewProtocol},
     },
     state::{DocId, DocStoreTypes, State, ViewId, ViewStoreTypes},
     types::{
-        Pos, Rect, RectSplit,
-        render::{WindowId, Workspace},
+        Pos, RectSplit,
+        render::{Screen, WindowId},
     },
     util::{self, debug_panic},
 };
@@ -54,8 +53,8 @@ pub enum FEvent {
 pub struct Fed {
     input_router: InputRouter,
 
-    state: State,
-    pstate: PState,
+    screen: Screen,
+    s: State,
 
     input_rx: UnboundedReceiver<Event>,
     shutdown_tx: UnboundedSender<()>,
@@ -73,17 +72,12 @@ impl Fed {
         let (async_fcmd_tx, async_fcmd_rx) = unbounded_channel();
 
         let input_router = InputRouter::default();
-        let mut state = State::new(
-            Workspace::new(Rect::new(Pos::default(), width, height)),
-            fevent_tx,
-            async_fcmd_tx.clone(),
-        );
-        let pstate = PState::new(width, height);
+        let screen = Screen::new(width, height);
+        let mut s = State::new(width, height, fevent_tx, async_fcmd_tx.clone());
 
-        let doc = state.create_doc(path.filter(|p| !p.is_dir())).unwrap();
+        let doc = s.create_doc(path.filter(|p| !p.is_dir())).unwrap();
 
-        let fed =
-            Self { input_router, state, pstate, input_rx, shutdown_tx, fevent_rx, async_fcmd_rx };
+        let fed = Self { input_router, screen, s, input_rx, shutdown_tx, fevent_rx, async_fcmd_rx };
 
         (fed, async_fcmd_tx, doc)
     }
@@ -92,15 +86,15 @@ impl Fed {
         loop {
             tokio::select! {
                 Some(event) = self.input_rx.recv() => {
-                    for cmd in self.input_router.exec(&mut self.state, event) {
-                        ProtocolRouter::exec(&mut self.state, &mut self.pstate, cmd);
+                    for cmd in self.input_router.exec(&mut self.s, event) {
+                        ProtocolRouter::exec(&mut self.s, &mut self.screen, cmd);
                     }
                 }
                 Some(cmd) = self.async_fcmd_rx.recv() => {
-                    ProtocolRouter::exec(&mut self.state, &mut self.pstate, cmd);
+                    ProtocolRouter::exec(&mut self.s, &mut self.screen, cmd);
 
                     while let Ok(cmd) = self.async_fcmd_rx.try_recv() {
-                        ProtocolRouter::exec(&mut self.state, &mut self.pstate, cmd);
+                        ProtocolRouter::exec(&mut self.s, &mut self.screen, cmd);
                     }
                 }
                 else => break,
@@ -109,28 +103,28 @@ impl Fed {
             while let Ok(event) = self.fevent_rx.try_recv() {
                 match event {
                     FEvent::Doc(event) => {
-                        modes::mp::setup::exec_doc_event(&mut self.state, &event);
-                        modes::dir::setup::exec_doc_event(&mut self.state, &event);
-                        modes::manage::setup::exec_doc_event(&mut self.state, &event);
-                        modes::read::setup::exec_doc_event(&mut self.state, &event);
-                        ViewProtocol::exec_doc_event(&mut self.state, &event);
+                        modes::mp::setup::exec_doc_event(&mut self.s, &event);
+                        modes::dir::setup::exec_doc_event(&mut self.s, &event);
+                        modes::manage::setup::exec_doc_event(&mut self.s, &event);
+                        modes::read::setup::exec_doc_event(&mut self.s, &event);
+                        ViewProtocol::exec_doc_event(&mut self.s, &event);
                     }
                     FEvent::View(event) => {
-                        modes::mp::setup::exec_view_event(&mut self.state, &event);
-                        modes::dir::setup::exec_view_event(&mut self.state, &event);
-                        modes::manage::setup::exec_view_event(&mut self.state, &event);
-                        modes::read::setup::exec_view_event(&mut self.state, &event);
-                        ViewProtocol::exec_view_event(&mut self.state, &event);
+                        modes::mp::setup::exec_view_event(&mut self.s, &event);
+                        modes::dir::setup::exec_view_event(&mut self.s, &event);
+                        modes::manage::setup::exec_view_event(&mut self.s, &event);
+                        modes::read::setup::exec_view_event(&mut self.s, &event);
+                        ViewProtocol::exec_view_event(&mut self.s, &event);
                     }
                 }
             }
 
-            if QuitProtocol::can_quit(&self.pstate) {
+            if QuitProtocol::can_quit(&self.s) {
                 let _ = self.shutdown_tx.send(());
                 break;
             }
 
-            ScreenProtocol::render(&self.state, &mut self.pstate);
+            ScreenProtocol::render(&self.s, &mut self.screen);
         }
     }
 

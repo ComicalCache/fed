@@ -6,7 +6,7 @@ use crate::{
     decorators::SearchDecorator,
     fed::FCmd,
     modes::search::{cmd::Cmd, keymap},
-    protocols::{action::ActionCmd, mp::MpCmd, pstate::PState},
+    protocols::{action::ActionCmd, mp::MpCmd},
     state::{DocId, State, ViewId, ViewStoreTypes},
     types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
     util::debug_panic,
@@ -25,13 +25,13 @@ impl SearchKeyInput {
         Self { keymap, pending_keys: Vec::new(), last_view: None }
     }
 
-    fn exec(state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let view = state.active_view()?;
-        let Some(doc) = state.index.view_to_doc(view) else {
+    fn exec(s: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
+        let view = s.active_view()?;
+        let Some(doc) = s.index.view_to_doc(view) else {
             debug_panic!();
             return None;
         };
-        let Some(dse) = state.doc_store.get(&doc) else {
+        let Some(dse) = s.doc_store.get(&doc) else {
             debug_panic!();
             return None;
         };
@@ -40,23 +40,23 @@ impl SearchKeyInput {
             Cmd::Move(motion) => {
                 Some(vec![FCmd::Action(ActionCmd::MoveCursors { view, motion, move_anchor: true })])
             }
-            Cmd::NextMatch => Self::navigate_match(state, view, true),
-            Cmd::PrevMatch => Self::navigate_match(state, view, false),
-            Cmd::CursorsBegin => Self::cursors(state, view, true),
-            Cmd::CursorsEnd => Self::cursors(state, view, false),
+            Cmd::NextMatch => Self::navigate_match(s, view, true),
+            Cmd::PrevMatch => Self::navigate_match(s, view, false),
+            Cmd::CursorsBegin => Self::cursors(s, view, true),
+            Cmd::CursorsEnd => Self::cursors(s, view, false),
             Cmd::Replace => {
                 if dse.read_only {
                     return None;
                 }
 
-                Self::replace(state, view, doc)
+                Self::replace(s, view, doc)
             }
             Cmd::Escape => Some(Self::escape(view)),
         }
     }
 
-    fn navigate_match(state: &State, view: ViewId, forward: bool) -> Option<Vec<FCmd>> {
-        let (_, matches, offsets) = Self::search_state(state, view)?;
+    fn navigate_match(s: &State, view: ViewId, forward: bool) -> Option<Vec<FCmd>> {
+        let (_, matches, offsets) = Self::search_state(s, view)?;
         let offset = offsets.first().copied().unwrap_or(0);
 
         let target = if forward {
@@ -71,10 +71,10 @@ impl SearchKeyInput {
         ])
     }
 
-    fn cursors(state: &State, view: ViewId, front: bool) -> Option<Vec<FCmd>> {
+    fn cursors(s: &State, view: ViewId, front: bool) -> Option<Vec<FCmd>> {
         let mut cmds = Vec::new();
 
-        let (_, matches, offsets) = Self::search_state(state, view)?;
+        let (_, matches, offsets) = Self::search_state(s, view)?;
         cmds.push(FCmd::Action(ActionCmd::RemoveCursors { view, offsets }));
         let offsets = matches.iter().map(|m| if front { m.0 } else { m.1 }).collect();
         cmds.push(FCmd::Action(ActionCmd::CreateCursorsAtOffset { view, offsets }));
@@ -84,18 +84,18 @@ impl SearchKeyInput {
         Some(cmds)
     }
 
-    fn replace(state: &State, view: ViewId, doc: DocId) -> Option<Vec<FCmd>> {
-        let (query, matches, _) = Self::search_state(state, view)?;
+    fn replace(s: &State, view: ViewId, doc: DocId) -> Option<Vec<FCmd>> {
+        let (query, matches, _) = Self::search_state(s, view)?;
 
-        let pcallback = Box::new(move |state: &mut State, _: &mut PState, replacement: String| {
-            let Some(dse) = state.doc_store.get(&doc) else {
+        let pcallback = Box::new(move |s: &mut State, replacement: String| {
+            let Some(dse) = s.doc_store.get(&doc) else {
                 debug_panic!();
                 return;
             };
 
             // TODO: somehow don't require copying the entire doc anymore?
             let data = dse.doc.data.slice(0..dse.doc.data.len());
-            let async_fcmd_tx = state.async_fcmd_tx.clone();
+            let async_fcmd_tx = s.async_fcmd_tx.clone();
             tokio::spawn(async move {
                 // Delay actually processing the regex into an asynchronous
                 // task to not block the main loop.
@@ -154,10 +154,8 @@ impl SearchKeyInput {
         ]
     }
 
-    fn search_state(
-        state: &State, view: ViewId,
-    ) -> Option<(String, Vec<(usize, usize)>, Vec<usize>)> {
-        let Some(vse) = state.view_store.get(&view) else {
+    fn search_state(s: &State, view: ViewId) -> Option<(String, Vec<(usize, usize)>, Vec<usize>)> {
+        let Some(vse) = s.view_store.get(&view) else {
             debug_panic!();
             return None;
         };
@@ -185,9 +183,9 @@ impl SearchKeyInput {
 impl KeyInputHandler for SearchKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::SearchMode }
 
-    fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
-        let view = state.active_view()?;
-        let Some(vse) = state.view_store.get(&view) else {
+    fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
+        let view = s.active_view()?;
+        let Some(vse) = s.view_store.get(&view) else {
             debug_panic!();
             return None;
         };
@@ -208,7 +206,7 @@ impl KeyInputHandler for SearchKeyInput {
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
                 // Always treat entering execute as consuming the key.
-                let cmds = Some(Self::exec(state, cmd).unwrap_or_default());
+                let cmds = Some(Self::exec(s, cmd).unwrap_or_default());
                 self.pending_keys.clear();
 
                 cmds

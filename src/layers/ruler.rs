@@ -7,7 +7,7 @@ pub struct RulerLayer {}
 
 impl Layer for RulerLayer {
     fn apply(
-        &self, state: &State, row: &mut [Cell], _: usize, scroll: ViewStoreTypes::Scroll,
+        &self, s: &State, row: &mut [Cell], _: usize, scroll: ViewStoreTypes::Scroll,
         _: &[VisualOffsetMapping], vse: &ViewStoreEntry, _: &DocStoreEntry,
     ) {
         if vse.layout.rulers.is_empty() {
@@ -16,7 +16,7 @@ impl Layer for RulerLayer {
 
         for (x, cell) in row.iter_mut().enumerate() {
             if vse.layout.rulers.contains(&(scroll.x + x)) {
-                cell.face.merge(state.theme.ruler);
+                cell.face.merge(s.theme.ruler);
             }
         }
     }

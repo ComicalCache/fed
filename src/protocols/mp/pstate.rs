@@ -1,9 +1,32 @@
-use crate::{protocols::pstate::PState, state::State};
+use crate::{
+    state::{DocId, State, ViewId},
+    types::render::WindowId,
+    util::newtype,
+};
 
-pub type PCallback = Box<dyn FnOnce(&mut State, &mut PState, String) + Send>;
+pub type PCallback = Box<dyn FnOnce(&mut State, String) + Send>;
+
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+pub enum MpKind {
+    #[default]
+    None,
+    Message,
+    Prompt,
+}
+
+newtype!(MpId, usize);
 
 pub struct MpPState {
     pub next_id: usize,
+    pub id: MpId,
+
+    pub kind: MpKind,
+
+    pub doc: DocId,
+    pub view: ViewId,
+
+    pub window: Option<WindowId>,
+    pub prev_window: Option<WindowId>,
 
     pub width: usize,
     pub height: usize,
@@ -13,6 +36,17 @@ pub struct MpPState {
 
 impl MpPState {
     pub fn new(width: usize, height: usize) -> Self {
-        Self { next_id: 1, width, height, pcallback: None }
+        Self {
+            next_id: 1,
+            id: MpId(0),
+            kind: MpKind::default(),
+            doc: DocId::default(),
+            view: ViewId::default(),
+            window: None,
+            prev_window: None,
+            width,
+            height,
+            pcallback: None,
+        }
     }
 }

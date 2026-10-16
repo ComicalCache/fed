@@ -9,23 +9,16 @@ pub fn keymap() -> Keymap<Cmd> {
     let mut keymap = Keymap::new();
 
     keymap.bind(&[KeyChord::new(KeyCode::Up, KeyModifiers::empty())], Cmd::Move(Motion::Up));
-    keymap
-        .bind(&[KeyChord::new(KeyCode::Down, KeyModifiers::empty())], Cmd::Move(Motion::Down));
-    keymap
-        .bind(&[KeyChord::new(KeyCode::Left, KeyModifiers::empty())], Cmd::Move(Motion::Left));
-    keymap.bind(
-        &[KeyChord::new(KeyCode::Right, KeyModifiers::empty())],
-        Cmd::Move(Motion::Right),
-    );
+    keymap.bind(&[KeyChord::new(KeyCode::Down, KeyModifiers::empty())], Cmd::Move(Motion::Down));
+    keymap.bind(&[KeyChord::new(KeyCode::Left, KeyModifiers::empty())], Cmd::Move(Motion::Left));
+    keymap.bind(&[KeyChord::new(KeyCode::Right, KeyModifiers::empty())], Cmd::Move(Motion::Right));
 
-    keymap
-        .bind(&[KeyChord::new(KeyCode::Left, KeyModifiers::ALT)], Cmd::Move(Motion::PrevWord));
+    keymap.bind(&[KeyChord::new(KeyCode::Left, KeyModifiers::ALT)], Cmd::Move(Motion::PrevWord));
     keymap.bind(
         &[KeyChord::new(KeyCode::Left, KeyModifiers::SHIFT | KeyModifiers::ALT)],
         Cmd::Move(Motion::PrevWordEnd),
     );
-    keymap
-        .bind(&[KeyChord::new(KeyCode::Right, KeyModifiers::ALT)], Cmd::Move(Motion::NextWord));
+    keymap.bind(&[KeyChord::new(KeyCode::Right, KeyModifiers::ALT)], Cmd::Move(Motion::NextWord));
     keymap.bind(
         &[KeyChord::new(KeyCode::Right, KeyModifiers::SHIFT | KeyModifiers::ALT)],
         Cmd::Move(Motion::NextWordEnd),
@@ -38,10 +31,8 @@ pub fn keymap() -> Keymap<Cmd> {
         &[KeyChord::new(KeyCode::Enter, KeyModifiers::empty())],
         Cmd::Input("\n".to_string()),
     );
-    keymap.bind(
-        &[KeyChord::new(KeyCode::Tab, KeyModifiers::empty())],
-        Cmd::Input("\t".to_string()),
-    );
+    keymap
+        .bind(&[KeyChord::new(KeyCode::Tab, KeyModifiers::empty())], Cmd::Input("\t".to_string()));
     keymap.bind(&[KeyChord::new(KeyCode::Esc, KeyModifiers::empty())], Cmd::Escape);
 
     keymap

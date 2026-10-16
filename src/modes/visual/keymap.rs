@@ -19,10 +19,7 @@ pub fn keymap() -> Keymap<Cmd> {
     keymap.bind(&[KeyChord::new(KeyCode::Char('j'), KeyModifiers::ALT)], Cmd::SwapLineDown);
     keymap.bind(&[KeyChord::new(KeyCode::Char('k'), KeyModifiers::ALT)], Cmd::SwapLineUp);
 
-    keymap.bind(
-        &[KeyChord::new(KeyCode::Char('f'), KeyModifiers::empty())],
-        Cmd::EnterSearchMode,
-    );
+    keymap.bind(&[KeyChord::new(KeyCode::Char('f'), KeyModifiers::empty())], Cmd::EnterSearchMode);
 
     keymap.bind(&[KeyChord::new(KeyCode::Esc, KeyModifiers::empty())], Cmd::Escape);
 

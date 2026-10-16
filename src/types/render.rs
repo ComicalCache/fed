@@ -18,11 +18,11 @@ use crate::state::{DocStoreEntry, State, ViewStoreEntry, ViewStoreTypes};
 
 pub trait Layer: Send + Sync + 'static {
     fn apply(
-        &self, state: &State, row: &mut [Cell], y: usize, scroll: ViewStoreTypes::Scroll,
+        &self, s: &State, row: &mut [Cell], y: usize, scroll: ViewStoreTypes::Scroll,
         voms: &[VisualOffsetMapping], vse: &ViewStoreEntry, dse: &DocStoreEntry,
     );
 }
 
 pub trait Renderer: Send + Sync + 'static {
-    fn render(&self, state: &State, viewport: &mut Viewport, window: WindowId);
+    fn render(&self, s: &State, viewport: &mut Viewport, window: WindowId);
 }

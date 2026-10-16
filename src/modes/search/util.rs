@@ -4,7 +4,7 @@ use piece_table::Slice;
 use crate::{
     decorators::SearchDecorator,
     fed::FCmd,
-    protocols::{action::ActionCmd, mp::MpCmd, pstate::PState},
+    protocols::{action::ActionCmd, mp::MpCmd},
     state::{DocId, State, ViewId, ViewStoreTypes},
     util::debug_panic,
 };
@@ -16,20 +16,20 @@ pub fn start_search(view: ViewId, doc: DocId, bounds: Option<Vec<(usize, usize)>
         "Search doc: ".to_string()
     };
 
-    let pcallback = Box::new(move |state: &mut State, _: &mut PState, query: String| {
+    let pcallback = Box::new(move |s: &mut State, query: String| {
         if query.is_empty() {
             return;
         }
 
-        let Some(dse) = state.doc_store.get(&doc) else {
+        let Some(dse) = s.doc_store.get(&doc) else {
             debug_panic!();
             return;
         };
 
         // TODO: somehow don't require copying the entire doc anymore?
         let text = dse.doc.data.slice(0..dse.doc.data.len());
-        let face = state.theme.search_match;
-        let async_fcmd_tx = state.async_fcmd_tx.clone();
+        let face = s.theme.search_match;
+        let async_fcmd_tx = s.async_fcmd_tx.clone();
         tokio::spawn(async move {
             // Delay actually processing the regex into an asynchronous task to
             // not block the main loop.

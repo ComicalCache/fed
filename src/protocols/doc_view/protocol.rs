@@ -16,35 +16,32 @@ use crate::{
 pub struct DocViewProtocol {}
 
 impl DocViewProtocol {
-    pub fn exec(state: &mut State, cmd: DocViewCmd) {
+    pub fn exec(s: &mut State, cmd: DocViewCmd) {
         match cmd {
             DocViewCmd::CreateTile { doc, view, split_window, direction, raw, tx } => {
-                Self::create_tile(state, doc, view, split_window, direction, raw, tx);
+                Self::create_tile(s, doc, view, split_window, direction, raw, tx);
             }
             DocViewCmd::CreateFloating { doc, view, rect, z, raw, tx } => {
-                Self::create_floating(state, doc, view, rect, z, raw, tx);
+                Self::create_floating(s, doc, view, rect, z, raw, tx);
             }
             DocViewCmd::ReplaceWindow { doc, view, window, raw, tx } => {
-                Self::replace_window(state, doc, view, window, raw, tx);
+                Self::replace_window(s, doc, view, window, raw, tx);
             }
-            DocViewCmd::DestroyView { view } => Self::destroy_view(state, view),
+            DocViewCmd::DestroyView { view } => Self::destroy_view(s, view),
         }
     }
 
     pub fn create_tile(
-        state: &mut State, doc: DocId, view: Option<ViewId>, split_window: WindowId,
+        s: &mut State, doc: DocId, view: Option<ViewId>, split_window: WindowId,
         direction: RectSplit, raw: bool, tx: Option<oneshot::Sender<Option<(ViewId, WindowId)>>>,
     ) -> Option<(ViewId, WindowId)> {
-        let view = view.unwrap_or_else(|| state.create_view(doc));
+        let view = view.unwrap_or_else(|| s.create_view(doc));
 
-        let window = state.workspace.create_tile(
-            split_window,
-            direction,
-            Box::new(DocViewRenderer::new(view, raw)),
-        );
+        let window =
+            s.workspace.create_tile(split_window, direction, Box::new(DocViewRenderer::new(raw)));
 
         let Some(window) = window else {
-            Self::destroy_view(state, view);
+            Self::destroy_view(s, view);
 
             debug_panic!();
 
@@ -55,9 +52,9 @@ impl DocViewProtocol {
             return None;
         };
 
-        state.index.link_window_to_view(window, view);
+        s.index.link_window_to_view(window, view);
 
-        ViewProtocol::update(state, view);
+        ViewProtocol::update(s, view);
 
         if let Some(tx) = tx {
             let _ = tx.send(Some((view, window)));
@@ -67,16 +64,15 @@ impl DocViewProtocol {
     }
 
     pub fn create_floating(
-        state: &mut State, doc: DocId, view: Option<ViewId>, rect: Rect, z: ZLayer, raw: bool,
+        s: &mut State, doc: DocId, view: Option<ViewId>, rect: Rect, z: ZLayer, raw: bool,
         tx: Option<oneshot::Sender<(ViewId, WindowId)>>,
     ) -> (ViewId, WindowId) {
-        let view = view.unwrap_or_else(|| state.create_view(doc));
+        let view = view.unwrap_or_else(|| s.create_view(doc));
 
-        let window =
-            state.workspace.create_floating(rect, z, Box::new(DocViewRenderer::new(view, raw)));
-        state.index.link_window_to_view(window, view);
+        let window = s.workspace.create_floating(rect, z, Box::new(DocViewRenderer::new(raw)));
+        s.index.link_window_to_view(window, view);
 
-        ViewProtocol::update(state, view);
+        ViewProtocol::update(s, view);
 
         if let Some(tx) = tx {
             let _ = tx.send((view, window));
@@ -86,15 +82,15 @@ impl DocViewProtocol {
     }
 
     pub fn replace_window(
-        state: &mut State, doc: DocId, view: Option<ViewId>, window: WindowId, raw: bool,
+        s: &mut State, doc: DocId, view: Option<ViewId>, window: WindowId, raw: bool,
         tx: Option<oneshot::Sender<ViewId>>,
     ) -> ViewId {
-        let view = view.unwrap_or_else(|| state.create_view(doc));
+        let view = view.unwrap_or_else(|| s.create_view(doc));
 
-        state.workspace.replace_renderer(window, Box::new(DocViewRenderer::new(view, raw)));
-        state.index.link_window_to_view(window, view);
+        s.workspace.replace_renderer(window, Box::new(DocViewRenderer::new(raw)));
+        s.index.link_window_to_view(window, view);
 
-        ViewProtocol::update(state, view);
+        ViewProtocol::update(s, view);
 
         if let Some(tx) = tx {
             let _ = tx.send(view);
@@ -103,9 +99,9 @@ impl DocViewProtocol {
         view
     }
 
-    pub fn destroy_view(state: &mut State, view: ViewId) {
-        for window in state.destroy_view(view) {
-            state.workspace.destroy_window(window);
+    pub fn destroy_view(s: &mut State, view: ViewId) {
+        for window in s.destroy_view(view) {
+            s.workspace.destroy_window(window);
         }
     }
 }

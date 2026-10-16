@@ -3,8 +3,11 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crate::{
     fed::FCmd,
     modes::mp::{cmd::Cmd, keymap},
-    protocols::{action::ActionCmd, mp::MpCmd},
-    state::{MpTypes, State, ViewId},
+    protocols::{
+        action::ActionCmd,
+        mp::{MpCmd, MpKind},
+    },
+    state::{State, ViewId},
     types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
     util::debug_panic,
 };
@@ -22,9 +25,9 @@ impl MpKeyInput {
         Self { keymap, pending_keys: Vec::new(), last_view: None }
     }
 
-    fn exec(state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let id = state.mp.id;
-        let view = state.mp.view;
+    fn exec(s: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
+        let id = s.p.mp.id;
+        let view = s.p.mp.view;
 
         match cmd {
             Cmd::Input(text) => Some(vec![FCmd::Action(ActionCmd::Insert { view, text })]),
@@ -42,15 +45,15 @@ impl MpKeyInput {
 impl KeyInputHandler for MpKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::MpMode }
 
-    fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
-        if state.workspace.active_window != state.mp.window {
+    fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
+        if s.workspace.active_window != s.p.mp.window {
             return None;
         }
-        if state.mp.kind != MpTypes::Kind::Prompt {
+        if s.p.mp.kind != MpKind::Prompt {
             return None;
         }
 
-        let Some(dse) = state.doc_store.get(&state.mp.doc) else {
+        let Some(dse) = s.doc_store.get(&s.p.mp.doc) else {
             debug_panic!();
             return Some(Vec::new());
         };
@@ -60,7 +63,7 @@ impl KeyInputHandler for MpKeyInput {
             return Some(Vec::new());
         }
 
-        let view = state.mp.view;
+        let view = s.p.mp.view;
 
         if self.last_view != Some(view) {
             self.pending_keys.clear();
@@ -74,7 +77,7 @@ impl KeyInputHandler for MpKeyInput {
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
                 // Always treat entering execute as consuming the key.
-                let cmds = Some(Self::exec(state, cmd).unwrap_or_default());
+                let cmds = Some(Self::exec(s, cmd).unwrap_or_default());
                 self.pending_keys.clear();
 
                 cmds
@@ -102,11 +105,11 @@ impl KeyInputHandler for MpKeyInput {
 
                 if modifiers.is_empty() {
                     // Always treat entering execute as consuming the key.
-                    let cmds = Self::exec(state, Cmd::Input(ch.to_string())).unwrap_or_default();
+                    let cmds = Self::exec(s, Cmd::Input(ch.to_string())).unwrap_or_default();
                     Some(cmds)
                 } else {
                     // Always treat entering execute as consuming the key.
-                    let cmds = Self::exec(state, Cmd::Input(format!("<{modifiers}-{ch}>")))
+                    let cmds = Self::exec(s, Cmd::Input(format!("<{modifiers}-{ch}>")))
                         .unwrap_or_default();
                     Some(cmds)
                 }

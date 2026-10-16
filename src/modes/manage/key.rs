@@ -25,23 +25,23 @@ impl ManageKeyInput {
         Self { keymap: keymap::keymap(), pending_keys: Vec::new(), last_view: None }
     }
 
-    fn exec(state: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let view = state.manage.view;
-        let doc = state.manage.doc;
+    fn exec(s: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
+        let view = s.p.manage.view;
+        let doc = s.p.manage.doc;
 
         match cmd {
             Cmd::Move(motion) => {
                 Some(vec![FCmd::Action(ActionCmd::MoveCursors { view, motion, move_anchor: true })])
             }
-            Cmd::Yank(motion) => common::yank(state, view, motion),
-            Cmd::YankLine => common::yank_line(state, view),
-            Cmd::ScrollView(motion) => common::scroll_view(state, view, motion),
-            Cmd::Jump => common::jump(state, view),
+            Cmd::Yank(motion) => common::yank(s, view, motion),
+            Cmd::YankLine => common::yank_line(s, view),
+            Cmd::ScrollView(motion) => common::scroll_view(s, view, motion),
+            Cmd::Jump => common::jump(s, view),
             Cmd::Select => Some(vec![FCmd::Manage(ManageCmd::Select)]),
             Cmd::Close => Some(vec![FCmd::Manage(ManageCmd::Close)]),
-            Cmd::FocusWindow(motion) => common::focus_window(state, motion),
+            Cmd::FocusWindow(motion) => common::focus_window(s, motion),
             Cmd::EnterDirMode => {
-                let Some(window) = state.workspace.active_window else {
+                let Some(window) = s.workspace.active_window else {
                     debug_panic!();
                     return None;
                 };
@@ -53,7 +53,7 @@ impl ManageKeyInput {
                 mode: ViewStoreTypes::Mode::Visual,
             })]),
             Cmd::EnterSearchMode => Some(search::util::start_search(view, doc, None)),
-            Cmd::Quit => common::quit(state, view),
+            Cmd::Quit => common::quit(s, view),
         }
     }
 }
@@ -61,11 +61,9 @@ impl ManageKeyInput {
 impl KeyInputHandler for ManageKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::ManageMode }
 
-    fn key(&mut self, state: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
-        let view = state.active_view()?;
-        let Some((_, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
-        else {
+    fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
+        let view = s.active_view()?;
+        let Some((_, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view) else {
             debug_panic!();
             return None;
         };
@@ -86,7 +84,7 @@ impl KeyInputHandler for ManageKeyInput {
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
                 // Always treat entering execute as consuming the key.
-                let cmds = Some(Self::exec(state, cmd).unwrap_or_default());
+                let cmds = Some(Self::exec(s, cmd).unwrap_or_default());
                 self.pending_keys.clear();
 
                 cmds

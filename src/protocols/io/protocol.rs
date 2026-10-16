@@ -1,12 +1,9 @@
 use std::{path::PathBuf, sync::atomic::Ordering};
 
 use crate::{
-    protocols::{
-        io::{
-            IoCmd,
-            cmd::{RCallback, WCallback},
-        },
-        pstate::PState,
+    protocols::io::{
+        IoCmd,
+        cmd::{RCallback, WCallback},
     },
     state::State,
 };
@@ -14,10 +11,10 @@ use crate::{
 pub struct IoProtocol {}
 
 impl IoProtocol {
-    pub fn exec(pstate: &PState, cmd: IoCmd) {
+    pub fn exec(s: &State, cmd: IoCmd) {
         match cmd {
             IoCmd::Read { path, rcallback } => Self::read(path, rcallback),
-            IoCmd::Write { path, data, wcallback } => Self::write(pstate, path, data, wcallback),
+            IoCmd::Write { path, data, wcallback } => Self::write(s, path, data, wcallback),
         }
     }
 
@@ -27,10 +24,10 @@ impl IoProtocol {
         });
     }
 
-    pub fn write(pstate: &PState, path: PathBuf, data: String, wcallback: WCallback) {
-        pstate.io.writers.fetch_add(1, Ordering::Relaxed);
+    pub fn write(s: &State, path: PathBuf, data: String, wcallback: WCallback) {
+        s.p.io.writers.fetch_add(1, Ordering::Relaxed);
 
-        let writers = pstate.io.writers.clone();
+        let writers = s.p.io.writers.clone();
         tokio::spawn(async move {
             let data = tokio::fs::write(&path, data).await.map_err(|err| err.to_string());
             writers.fetch_sub(1, Ordering::Relaxed);
@@ -39,8 +36,8 @@ impl IoProtocol {
         });
     }
 
-    pub fn can_quit(_: &State, pstate: &PState) -> Result<(), String> {
-        let writers = pstate.io.writers.load(Ordering::Relaxed);
+    pub fn can_quit(s: &State) -> Result<(), String> {
+        let writers = s.p.io.writers.load(Ordering::Relaxed);
         if writers > 0 { Err(format!("{writers} ongoing writes in progress")) } else { Ok(()) }
     }
 }

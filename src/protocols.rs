@@ -4,7 +4,7 @@ pub mod doc_view;
 pub mod io;
 pub mod manage;
 pub mod mp;
+pub mod pstate;
 pub mod quit;
 pub mod screen;
-pub mod pstate;
 pub mod view;

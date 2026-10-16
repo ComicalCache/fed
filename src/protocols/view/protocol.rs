@@ -10,16 +10,16 @@ use crate::{
 pub struct ViewProtocol {}
 
 impl ViewProtocol {
-    pub fn exec(state: &mut State, cmd: ViewCmd) {
+    pub fn exec(s: &mut State, cmd: ViewCmd) {
         match cmd {
-            ViewCmd::Update { view } => Self::update(state, view),
-            ViewCmd::ScrollTo { view, pos } => Self::scroll_to(state, view, pos),
+            ViewCmd::Update { view } => Self::update(s, view),
+            ViewCmd::ScrollTo { view, pos } => Self::scroll_to(s, view, pos),
 
-            ViewCmd::Resize => Self::resize(state),
+            ViewCmd::Resize => Self::resize(s),
         }
     }
 
-    pub fn exec_doc_event(state: &mut State, event: &DocStoreTypes::Event) {
+    pub fn exec_doc_event(s: &mut State, event: &DocStoreTypes::Event) {
         let doc = match event {
             DocStoreTypes::Event::Created { .. }
             | DocStoreTypes::Event::Destroyed { .. }
@@ -31,16 +31,16 @@ impl ViewProtocol {
         };
 
         let views: Vec<_> =
-            state.index.doc_to_views(*doc).map_or_default(|views| views.iter().copied().collect());
+            s.index.doc_to_views(*doc).map_or_default(|views| views.iter().copied().collect());
         for view in views {
-            Self::update(state, view);
+            Self::update(s, view);
         }
     }
 
-    pub fn exec_view_event(state: &mut State, event: &ViewStoreTypes::Event) {
+    pub fn exec_view_event(s: &mut State, event: &ViewStoreTypes::Event) {
         match event {
-            ViewStoreTypes::Event::Created { id } => Self::update(state, *id),
-            ViewStoreTypes::Event::CursorsMoved { view } => Self::cursor_moved(state, *view),
+            ViewStoreTypes::Event::Created { id } => Self::update(s, *id),
+            ViewStoreTypes::Event::CursorsMoved { view } => Self::cursor_moved(s, *view),
             ViewStoreTypes::Event::CursorsChanged { .. }
             | ViewStoreTypes::Event::ModeChanged { .. }
             | ViewStoreTypes::Event::Destroyed { .. } => {
@@ -50,43 +50,43 @@ impl ViewProtocol {
         }
     }
 
-    pub fn update(state: &mut State, view: ViewId) {
-        let Some(windows) = state.index.view_to_windows(view) else { return };
-        let Some(vse) = state.view_store.get(&view) else {
+    pub fn update(s: &mut State, view: ViewId) {
+        let Some(windows) = s.index.view_to_windows(view) else { return };
+        let Some(vse) = s.view_store.get(&view) else {
             debug_panic!();
             return;
         };
-        let Some(doc) = state.index.view_to_doc(view) else {
+        let Some(doc) = s.index.view_to_doc(view) else {
             debug_panic!();
             return;
         };
 
         let height = windows
             .iter()
-            .filter_map(|&w| state.workspace.get_rect(w))
+            .filter_map(|&w| s.workspace.get_rect(w))
             .map(|r| r.height.saturating_sub(vse.layout.mode_line))
             .max()
             .unwrap_or(0);
 
         if height > 0 {
-            Self::fetch(state, view, doc, vse.scroll, height);
+            Self::fetch(s, view, doc, vse.scroll, height);
         }
     }
 
-    pub fn scroll_to(state: &mut State, view: ViewId, pos: Pos) {
-        let Some(windows) = state.index.view_to_windows(view) else { return };
-        let Some(vse) = state.view_store.get_mut(&view) else {
+    pub fn scroll_to(s: &mut State, view: ViewId, pos: Pos) {
+        let Some(windows) = s.index.view_to_windows(view) else { return };
+        let Some(vse) = s.view_store.get_mut(&view) else {
             debug_panic!();
             return;
         };
-        let Some(doc) = state.index.view_to_doc(view) else {
+        let Some(doc) = s.index.view_to_doc(view) else {
             debug_panic!();
             return;
         };
 
         let height = windows
             .iter()
-            .filter_map(|&w| state.workspace.get_rect(w))
+            .filter_map(|&w| s.workspace.get_rect(w))
             .map(|r| r.height.saturating_sub(vse.layout.mode_line))
             .max()
             .unwrap_or(0);
@@ -94,44 +94,43 @@ impl ViewProtocol {
         vse.scroll = ViewStoreTypes::Scroll(pos);
 
         if height > 0 {
-            Self::fetch(state, view, doc, ViewStoreTypes::Scroll(pos), height);
+            Self::fetch(s, view, doc, ViewStoreTypes::Scroll(pos), height);
         }
     }
 
-    pub fn resize(state: &mut State) {
-        let mappings: Vec<_> = state.index.window_to_view.iter().map(|(&w, &v)| (w, v)).collect();
+    pub fn resize(s: &mut State) {
+        let mappings: Vec<_> = s.index.window_to_view.iter().map(|(&w, &v)| (w, v)).collect();
 
         for (window, view) in mappings {
-            let Some(rect) = state.workspace.get_rect(window) else {
+            let Some(rect) = s.workspace.get_rect(window) else {
                 debug_panic!();
                 continue;
             };
-            let Some(vse) = state.view_store.get(&view) else {
+            let Some(vse) = s.view_store.get(&view) else {
                 debug_panic!();
                 continue;
             };
-            let Some(doc) = state.index.view_to_doc(view) else {
+            let Some(doc) = s.index.view_to_doc(view) else {
                 debug_panic!();
                 continue;
             };
 
             let height = rect.height.saturating_sub(vse.layout.mode_line);
             if height > 0 {
-                Self::fetch(state, view, doc, vse.scroll, height);
+                Self::fetch(s, view, doc, vse.scroll, height);
             }
         }
     }
 
-    fn cursor_moved(state: &mut State, view: ViewId) {
-        let Some(window) = state.workspace.active_window else { return };
+    fn cursor_moved(s: &mut State, view: ViewId) {
+        let Some(window) = s.workspace.active_window else { return };
 
         // Don't scroll windows that don't have focus.
-        if state.index.window_to_view(window) != Some(view) {
+        if s.index.window_to_view(window) != Some(view) {
             return;
         }
 
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
         else {
             debug_panic!();
             return;
@@ -143,17 +142,17 @@ impl ViewProtocol {
 
         let pos = util::offset_to_pos(cursor.offset, vse, dse);
 
-        Self::scroll_if_needed(state, window, view, pos);
+        Self::scroll_if_needed(s, window, view, pos);
     }
 
     fn fetch(
-        state: &mut State, view: ViewId, doc: DocId, scroll: ViewStoreTypes::Scroll, height: usize,
+        s: &mut State, view: ViewId, doc: DocId, scroll: ViewStoreTypes::Scroll, height: usize,
     ) {
-        let Some(vse) = state.view_store.get_mut(&view) else {
+        let Some(vse) = s.view_store.get_mut(&view) else {
             debug_panic!();
             return;
         };
-        let Some(dse) = state.doc_store.get_mut(&doc) else {
+        let Some(dse) = s.doc_store.get_mut(&doc) else {
             debug_panic!();
             return;
         };
@@ -174,25 +173,24 @@ impl ViewProtocol {
         vse.view_cache = ViewStoreTypes::ViewCache { offset: start, lines };
     }
 
-    fn scroll_if_needed(state: &mut State, window: WindowId, view: ViewId, pos: Pos) {
-        let Some(windows) = state.index.view_to_windows(view) else { return };
+    fn scroll_if_needed(s: &mut State, window: WindowId, view: ViewId, pos: Pos) {
+        let Some(windows) = s.index.view_to_windows(view) else { return };
 
         if !windows.contains(&window) {
             debug_panic!();
             return;
         }
 
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
+        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
         else {
             debug_panic!();
             return;
         };
-        let Some(doc) = state.index.view_to_doc(view) else {
+        let Some(doc) = s.index.view_to_doc(view) else {
             debug_panic!();
             return;
         };
-        let Some(rect) = state.workspace.get_rect(window) else {
+        let Some(rect) = s.workspace.get_rect(window) else {
             debug_panic!();
             return;
         };
@@ -200,7 +198,7 @@ impl ViewProtocol {
         let mut scroll = vse.scroll;
         let max_height = windows
             .iter()
-            .filter_map(|&w| state.workspace.get_rect(w))
+            .filter_map(|&w| s.workspace.get_rect(w))
             .map(|r| r.height.saturating_sub(vse.layout.mode_line))
             .max()
             .unwrap_or(0);
@@ -230,14 +228,14 @@ impl ViewProtocol {
         }
 
         if scroll_needed {
-            let Some(vse) = state.view_store.get_mut(&view) else {
+            let Some(vse) = s.view_store.get_mut(&view) else {
                 debug_panic!();
                 return;
             };
 
             vse.scroll = scroll;
 
-            Self::fetch(state, view, doc, scroll, max_height);
+            Self::fetch(s, view, doc, scroll, max_height);
         }
     }
 }

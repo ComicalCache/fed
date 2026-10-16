@@ -1,22 +1,19 @@
-use crate::{
-    protocols::{pstate::PState, screen::ScreenCmd},
-    state::State,
-};
+use crate::{protocols::screen::ScreenCmd, state::State, types::render::Screen};
 
 pub struct ScreenProtocol {}
 
 impl ScreenProtocol {
-    pub fn exec(state: &mut State, pstate: &mut PState, cmd: ScreenCmd) {
+    pub fn exec(s: &mut State, screen: &mut Screen, cmd: ScreenCmd) {
         match cmd {
             ScreenCmd::Resize(width, height) => {
-                state.workspace.resize(width, height);
-                pstate.screen.screen.resize(width, height);
+                s.workspace.resize(width, height);
+                screen.resize(width, height);
             }
         }
     }
 
-    pub fn render(state: &State, pstate: &mut PState) {
-        state.workspace.render(state, &mut pstate.screen.screen);
-        pstate.screen.screen.render();
+    pub fn render(s: &State, screen: &mut Screen) {
+        s.workspace.render(s, screen);
+        screen.render();
     }
 }

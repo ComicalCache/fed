@@ -7,7 +7,6 @@ use crate::{
         action::{ActionCmd, ActionProtocol},
         doc_view::DocViewCmd,
         mp::MpCmd,
-        pstate::PState,
         view::ViewCmd,
     },
     state::{DocId, State, ViewId},
@@ -15,9 +14,8 @@ use crate::{
     util::{self, debug_panic},
 };
 
-pub fn quit(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
-    let fallback =
-        state.workspace.tiles().into_iter().find(|&w| Some(w) != state.workspace.active_window);
+pub fn quit(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
+    let fallback = s.workspace.tiles().into_iter().find(|&w| Some(w) != s.workspace.active_window);
 
     fallback.map_or_else(
         || Some(vec![FCmd::Quit]),
@@ -30,8 +28,8 @@ pub fn quit(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
     )
 }
 
-pub fn scroll_view(state: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>> {
-    let Some(vse) = state.view_store.get(&view) else {
+pub fn scroll_view(s: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>> {
+    let Some(vse) = s.view_store.get(&view) else {
         debug_panic!();
         return None;
     };
@@ -49,10 +47,8 @@ pub fn scroll_view(state: &State, view: ViewId, motion: Motion) -> Option<Vec<FC
     Some(vec![FCmd::View(ViewCmd::ScrollTo { view, pos: scroll })])
 }
 
-pub fn jump(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
-    let Some((vse, dse)) =
-        State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
-    else {
+pub fn jump(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
+    let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view) else {
         debug_panic!();
         return None;
     };
@@ -63,7 +59,7 @@ pub fn jump(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
     let mut x = pos.x;
     let mut y = pos.y;
 
-    let pcallback = Box::new(move |state: &mut State, _: &mut PState, res: String| {
+    let pcallback = Box::new(move |s: &mut State, res: String| {
         if res.is_empty() {
             return;
         }
@@ -83,7 +79,7 @@ pub fn jump(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
             x = val.saturating_sub(1);
         }
 
-        ActionProtocol::move_cursor_to_pos(state, view, Pos::new(x, y), true);
+        ActionProtocol::move_cursor_to_pos(s, view, Pos::new(x, y), true);
     });
 
     Some(vec![FCmd::Mp(MpCmd::Prompt {
@@ -94,17 +90,14 @@ pub fn jump(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
     })])
 }
 
-pub fn focus_window(state: &State, motion: Motion) -> Option<Vec<FCmd>> {
-    state
-        .workspace
+pub fn focus_window(s: &State, motion: Motion) -> Option<Vec<FCmd>> {
+    s.workspace
         .navigate(motion)
         .map(|window| vec![FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) })])
 }
 
-pub fn yank(state: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>> {
-    let Some((vse, dse)) =
-        State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
-    else {
+pub fn yank(s: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>> {
+    let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view) else {
         debug_panic!();
         return None;
     };
@@ -132,10 +125,8 @@ pub fn yank(state: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>> {
     Some(Vec::new())
 }
 
-pub fn yank_line(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
-    let Some((vse, dse)) =
-        State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
-    else {
+pub fn yank_line(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
+    let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view) else {
         debug_panic!();
         return None;
     };
@@ -176,7 +167,7 @@ pub fn yank_line(state: &State, view: ViewId) -> Option<Vec<FCmd>> {
 }
 
 pub fn swap_lines(
-    state: &State, view: ViewId, doc: DocId, mut lines: Vec<usize>, down: bool,
+    s: &State, view: ViewId, doc: DocId, mut lines: Vec<usize>, down: bool,
 ) -> Option<Vec<FCmd>> {
     lines.sort_unstable();
     lines.dedup();
@@ -184,9 +175,7 @@ pub fn swap_lines(
         return None;
     }
 
-    let Some((_vse, dse)) =
-        State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, view)
-    else {
+    let Some((_vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view) else {
         debug_panic!();
         return None;
     };
@@ -342,14 +331,14 @@ pub fn remove_offsets(view: ViewId, offsets: Vec<(usize, usize)>) -> Vec<FCmd> {
     cmds
 }
 
-pub fn split_window(state: &State, doc: DocId, direction: RectSplit) -> Option<Vec<FCmd>> {
-    let Some(window) = state.workspace.active_window else {
+pub fn split_window(s: &State, doc: DocId, direction: RectSplit) -> Option<Vec<FCmd>> {
+    let Some(window) = s.workspace.active_window else {
         debug_panic!();
         return None;
     };
 
     let (tx, rx) = oneshot::channel();
-    let async_fcmd_tx = state.async_fcmd_tx.clone();
+    let async_fcmd_tx = s.async_fcmd_tx.clone();
     tokio::spawn(async move {
         let Ok(Some((_, window))) = rx.await else {
             debug_panic!();

@@ -13,27 +13,22 @@ use crate::{
 };
 
 pub struct DocViewRenderer {
-    view: ViewId,
     inner: ViewRenderer,
 
     raw: bool,
 }
 
 impl DocViewRenderer {
-    pub fn new(view: ViewId, raw: bool) -> Self {
+    pub fn new(raw: bool) -> Self {
         if raw {
-            Self { view, inner: ViewRenderer::new(view, vec![Box::new(CursorLayer {})]), raw }
+            Self { inner: ViewRenderer::new(vec![Box::new(CursorLayer {})]), raw }
         } else {
             Self {
-                view,
-                inner: ViewRenderer::new(
-                    view,
-                    vec![
-                        Box::new(SelectionLayer {}),
-                        Box::new(RulerLayer {}),
-                        Box::new(CursorLayer {}),
-                    ],
-                ),
+                inner: ViewRenderer::new(vec![
+                    Box::new(SelectionLayer {}),
+                    Box::new(RulerLayer {}),
+                    Box::new(CursorLayer {}),
+                ]),
                 raw,
             }
         }
@@ -41,7 +36,7 @@ impl DocViewRenderer {
 }
 
 impl Renderer for DocViewRenderer {
-    fn render(&self, state: &State, viewport: &mut Viewport, window: WindowId) {
+    fn render(&self, s: &State, viewport: &mut Viewport, window: WindowId) {
         let width = viewport.width();
         let height = viewport.height();
 
@@ -49,15 +44,19 @@ impl Renderer for DocViewRenderer {
             return;
         }
 
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, self.view)
+        let Some(view) = s.index.window_to_view(window) else {
+            debug_panic!();
+            return;
+        };
+
+        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
         else {
             debug_panic!();
             return;
         };
 
         if self.raw {
-            self.inner.render(state, viewport, window);
+            self.inner.render(s, viewport, window);
             return;
         }
 
@@ -71,27 +70,25 @@ impl Renderer for DocViewRenderer {
             vse.layout.gutter_width(lines),
             buffer_height,
         ));
-        self.render_gutter(state, &mut gutter, vse.layout.gutter_width(lines));
+        self.render_gutter(s, &mut gutter, view, vse.layout.gutter_width(lines));
 
         let mut mode_line =
             viewport.sub_view(Rect::new(Pos::new(0, buffer_height), width, vse.layout.mode_line));
-        self.render_mode_line(state, &mut mode_line);
+        self.render_mode_line(s, &mut mode_line, view);
 
         let mut view = viewport.sub_view(Rect::new(
             Pos::new(vse.layout.gutter_width(lines), 0),
             buffer_width,
             buffer_height,
         ));
-        self.inner.render(state, &mut view, window);
+        self.inner.render(s, &mut view, window);
     }
 }
 
 impl DocViewRenderer {
-    fn render_gutter(&self, state: &State, viewport: &mut Viewport, width: usize) {
+    fn render_gutter(&self, s: &State, viewport: &mut Viewport, view: ViewId, width: usize) {
         // The render function checks for existance.
-        let (vse, dse) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, self.view)
-                .unwrap();
+        let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         let lines = dse.doc.data.lines();
         let scroll = vse.scroll;
@@ -109,40 +106,38 @@ impl DocViewRenderer {
                     break;
                 }
 
-                viewport.set(Pos::new(x, y), Cell::new(ch.to_string(), 1, state.theme.gutter));
+                viewport.set(Pos::new(x, y), Cell::new(ch.to_string(), 1, s.theme.gutter));
             }
         }
     }
 
-    fn render_mode_line(&self, state: &State, viewport: &mut Viewport) {
+    fn render_mode_line(&self, s: &State, viewport: &mut Viewport, view: ViewId) {
         // The render function checks for existance.
-        let (vse, dse) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, self.view)
-                .unwrap();
+        let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         // Force left padding.
         let mut left = Vec::new();
         for widget in &vse.mode_line_config.left {
-            left.push(widget.render(state, vse, dse));
+            left.push(widget.render(s, vse, dse));
 
             // Add padding.
-            left.push((" ".to_string(), state.theme.mode_line));
+            left.push((" ".to_string(), s.theme.mode_line));
         }
         // Removing trailing padding.
         left.pop();
 
         let mut right = Vec::new();
         for widget in &vse.mode_line_config.right {
-            right.push(widget.render(state, vse, dse));
+            right.push(widget.render(s, vse, dse));
 
             // Add padding. Keep the trailing padding as right padding.
-            right.push((" ".to_string(), state.theme.mode_line));
+            right.push((" ".to_string(), s.theme.mode_line));
         }
 
         let mut x = 0;
 
         for (text, span_face) in left {
-            let mut face = state.theme.mode_line;
+            let mut face = s.theme.mode_line;
             face.merge(span_face);
 
             for grapheme in text.graphemes(true) {
@@ -175,12 +170,12 @@ impl DocViewRenderer {
         let right_start = viewport.width().saturating_sub(right_width);
 
         while x < right_start {
-            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), 1, state.theme.mode_line));
+            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), 1, s.theme.mode_line));
             x += 1;
         }
 
         for (text, span_face) in right {
-            let mut face = state.theme.mode_line;
+            let mut face = s.theme.mode_line;
             face.merge(span_face);
 
             for grapheme in text.graphemes(true) {
@@ -206,7 +201,7 @@ impl DocViewRenderer {
         }
 
         while x < viewport.width() {
-            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), 1, state.theme.mode_line));
+            viewport.set(Pos::new(x, 0), Cell::new(" ".to_string(), 1, s.theme.mode_line));
             x += 1;
         }
     }

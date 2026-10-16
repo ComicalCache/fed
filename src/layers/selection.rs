@@ -7,7 +7,7 @@ pub struct SelectionLayer {}
 
 impl Layer for SelectionLayer {
     fn apply(
-        &self, state: &State, row: &mut [Cell], _: usize, scroll: ViewStoreTypes::Scroll,
+        &self, s: &State, row: &mut [Cell], _: usize, scroll: ViewStoreTypes::Scroll,
         voms: &[VisualOffsetMapping], vse: &ViewStoreEntry, _: &DocStoreEntry,
     ) {
         for (x, cell) in row.iter_mut().enumerate() {
@@ -24,7 +24,7 @@ impl Layer for SelectionLayer {
                 let end = cursor.offset.max(cursor.anchor);
 
                 if start <= vo.offset && vo.offset <= end {
-                    cell.face.merge(state.theme.selection);
+                    cell.face.merge(s.theme.selection);
                     break;
                 }
             }

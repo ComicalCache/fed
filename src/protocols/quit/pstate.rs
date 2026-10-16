@@ -1,9 +1,9 @@
 use crate::{
-    protocols::{action::ActionProtocol, io::IoProtocol, pstate::PState},
+    protocols::{action::ActionProtocol, io::IoProtocol},
     state::State,
 };
 
-pub type QuitCallback = fn(&State, &PState) -> Result<(), String>;
+pub type QuitCallback = fn(&State) -> Result<(), String>;
 
 pub struct QuitPState {
     pub quit: bool,

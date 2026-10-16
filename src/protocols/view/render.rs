@@ -1,5 +1,5 @@
 use crate::{
-    state::{State, ViewId},
+    state::State,
     types::{
         Pos,
         render::{self, Cell, Layer, Renderer, Viewport, WindowId},
@@ -8,22 +8,28 @@ use crate::{
 };
 
 pub struct ViewRenderer {
-    view: ViewId,
-
     layers: Vec<Box<dyn Layer>>,
 }
 
 impl ViewRenderer {
-    pub fn new(view: ViewId, layers: Vec<Box<dyn Layer>>) -> Self { Self { view, layers } }
+    pub fn new(layers: Vec<Box<dyn Layer>>) -> Self { Self { layers } }
 }
 
 impl Renderer for ViewRenderer {
-    fn render(&self, state: &State, viewport: &mut Viewport, _: WindowId) {
+    fn render(&self, s: &State, viewport: &mut Viewport, window: WindowId) {
         let width = viewport.width();
         let height = viewport.height();
 
-        let Some((vse, dse)) =
-            State::vse_and_dse(&state.view_store, &state.doc_store, &state.index, self.view)
+        if height == 0 || width == 0 {
+            return;
+        }
+
+        let Some(view) = s.index.window_to_view(window) else {
+            debug_panic!();
+            return;
+        };
+
+        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
         else {
             debug_panic!();
             return;
@@ -73,8 +79,7 @@ impl Renderer for ViewRenderer {
                     break;
                 }
 
-                let mut face =
-                    if state.mp.view == self.view { state.theme.mp } else { state.theme.default };
+                let mut face = if s.p.mp.view == view { s.theme.mp } else { s.theme.default };
                 face.merge(cell.face);
 
                 if visual_x == vse.scroll.x && cell.width == 0 {
@@ -93,15 +98,14 @@ impl Renderer for ViewRenderer {
 
             // Undrawn tail of line.
             while x < width {
-                let face =
-                    if state.mp.view == self.view { state.theme.mp } else { state.theme.default };
+                let face = if s.p.mp.view == view { s.theme.mp } else { s.theme.default };
 
                 row[x] = Cell::new(" ".to_string(), 1, face);
                 x += 1;
             }
 
             for layer in &self.layers {
-                layer.apply(state, &mut row, vse.scroll.y + y, vse.scroll, &vom, vse, dse);
+                layer.apply(s, &mut row, vse.scroll.y + y, vse.scroll, &vom, vse, dse);
             }
 
             for (idx, cell) in row.into_iter().enumerate() {
@@ -112,12 +116,12 @@ impl Renderer for ViewRenderer {
         }
 
         // Undrawn trailing lines.
-        let face = if state.mp.view == self.view { state.theme.mp } else { state.theme.default };
+        let face = if s.p.mp.view == view { s.theme.mp } else { s.theme.default };
         for y in lines_drawn..height {
             let mut row = vec![Cell::new(" ".to_string(), 1, face); width];
 
             for layer in &self.layers {
-                layer.apply(state, &mut row, vse.scroll.y + y, vse.scroll, &[], vse, dse);
+                layer.apply(s, &mut row, vse.scroll.y + y, vse.scroll, &[], vse, dse);
             }
 
             for (x, cell) in row.into_iter().enumerate() {
