@@ -11,31 +11,12 @@ use crate::{
 
 pub fn setup(s: &mut State) {
     s.p.dir.doc = s.create_doc(None).unwrap();
-    s.p.dir.view = s.create_view(s.p.dir.doc);
-}
-
-pub fn exec_doc_event(s: &mut State, event: &DocStoreTypes::Event) {
-    let DocStoreTypes::Event::Created { id } = event else {
-        return;
-    };
-    if *id != s.p.dir.doc {
-        return;
-    }
-
     let dse = s.doc_store.get_mut(&s.p.dir.doc).unwrap();
     dse.mode = DocStoreTypes::Mode::Dir;
     dse.read_only = true;
     dse.max_cursors = Some(1);
-}
 
-pub fn exec_view_event(s: &mut State, event: &ViewStoreTypes::Event) {
-    let ViewStoreTypes::Event::Created { id } = event else {
-        return;
-    };
-    if *id != s.p.dir.view {
-        return;
-    }
-
+    s.p.dir.view = s.create_view(s.p.dir.doc);
     let vse = s.view_store.get_mut(&s.p.dir.view).unwrap();
     vse.layout = ViewStoreTypes::Layout {
         tab_width: TabWidth::default(),

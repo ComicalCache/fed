@@ -88,35 +88,19 @@ impl Fed {
                 Some(event) = self.input_rx.recv() => {
                     for cmd in self.input_router.exec(&mut self.s, event) {
                         ProtocolRouter::exec(&mut self.s, &mut self.screen, cmd);
+                        self.process_events();
                     }
                 }
                 Some(cmd) = self.async_fcmd_rx.recv() => {
                     ProtocolRouter::exec(&mut self.s, &mut self.screen, cmd);
+                    self.process_events();
 
                     while let Ok(cmd) = self.async_fcmd_rx.try_recv() {
                         ProtocolRouter::exec(&mut self.s, &mut self.screen, cmd);
+                        self.process_events();
                     }
                 }
                 else => break,
-            }
-
-            while let Ok(event) = self.fevent_rx.try_recv() {
-                match event {
-                    FEvent::Doc(event) => {
-                        modes::mp::setup::exec_doc_event(&mut self.s, &event);
-                        modes::dir::setup::exec_doc_event(&mut self.s, &event);
-                        modes::manage::setup::exec_doc_event(&mut self.s, &event);
-                        modes::read::setup::exec_doc_event(&mut self.s, &event);
-                        ViewProtocol::exec_doc_event(&mut self.s, &event);
-                    }
-                    FEvent::View(event) => {
-                        modes::mp::setup::exec_view_event(&mut self.s, &event);
-                        modes::dir::setup::exec_view_event(&mut self.s, &event);
-                        modes::manage::setup::exec_view_event(&mut self.s, &event);
-                        modes::read::setup::exec_view_event(&mut self.s, &event);
-                        ViewProtocol::exec_view_event(&mut self.s, &event);
-                    }
-                }
             }
 
             if QuitProtocol::can_quit(&self.s) {
@@ -125,6 +109,21 @@ impl Fed {
             }
 
             ScreenProtocol::render(&self.s, &mut self.screen);
+        }
+    }
+
+    fn process_events(&mut self) {
+        while let Ok(event) = self.fevent_rx.try_recv() {
+            match event {
+                FEvent::Doc(event) => {
+                    modes::read::setup::exec_doc_event(&mut self.s, &event);
+                    ViewProtocol::exec_doc_event(&mut self.s, &event);
+                }
+                FEvent::View(event) => {
+                    modes::read::setup::exec_view_event(&mut self.s, &event);
+                    ViewProtocol::exec_view_event(&mut self.s, &event);
+                }
+            }
         }
     }
 

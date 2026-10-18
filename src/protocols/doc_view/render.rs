@@ -6,7 +6,7 @@ use crate::{
     protocols::view::ViewRenderer,
     state::{State, ViewId},
     types::{
-        Pos, Rect,
+        Pos,
         render::{Cell, Renderer, Viewport, WindowId},
     },
     util::debug_panic,
@@ -15,13 +15,14 @@ use crate::{
 pub struct DocViewRenderer {
     inner: ViewRenderer,
 
+    view: ViewId,
     raw: bool,
 }
 
 impl DocViewRenderer {
-    pub fn new(raw: bool) -> Self {
+    pub fn new(view: ViewId, raw: bool) -> Self {
         if raw {
-            Self { inner: ViewRenderer::new(vec![Box::new(CursorLayer {})]), raw }
+            Self { inner: ViewRenderer::new(vec![Box::new(CursorLayer {})]), view, raw }
         } else {
             Self {
                 inner: ViewRenderer::new(vec![
@@ -29,6 +30,7 @@ impl DocViewRenderer {
                     Box::new(RulerLayer {}),
                     Box::new(CursorLayer {}),
                 ]),
+                view,
                 raw,
             }
         }
@@ -36,7 +38,7 @@ impl DocViewRenderer {
 }
 
 impl Renderer for DocViewRenderer {
-    fn render(&self, s: &State, viewport: &mut Viewport, window: WindowId) {
+    fn render(&self, s: &State, viewport: &mut Viewport, _: WindowId) {
         let width = viewport.width();
         let height = viewport.height();
 
@@ -44,51 +46,32 @@ impl Renderer for DocViewRenderer {
             return;
         }
 
-        let Some(view) = s.index.window_to_view(window) else {
-            debug_panic!();
-            return;
-        };
-
-        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
+        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, self.view)
         else {
             debug_panic!();
             return;
         };
 
-        if self.raw {
-            self.inner.render(s, viewport, window);
-            return;
+        let layout = vse.layout(dse);
+
+        if !self.raw {
+            let mut gutter = viewport.sub_view(layout.gutter);
+            self.render_gutter(s, &mut gutter, layout.gutter.width);
+
+            let mut mode_line = viewport.sub_view(layout.mode_line);
+            self.render_mode_line(s, &mut mode_line);
         }
 
-        let lines = dse.doc.data.lines();
-
-        let buffer_height = height.saturating_sub(vse.layout.mode_line);
-        let buffer_width = width.saturating_sub(vse.layout.gutter_width(lines));
-
-        let mut gutter = viewport.sub_view(Rect::new(
-            Pos::new(0, 0),
-            vse.layout.gutter_width(lines),
-            buffer_height,
-        ));
-        self.render_gutter(s, &mut gutter, view, vse.layout.gutter_width(lines));
-
-        let mut mode_line =
-            viewport.sub_view(Rect::new(Pos::new(0, buffer_height), width, vse.layout.mode_line));
-        self.render_mode_line(s, &mut mode_line, view);
-
-        let mut view = viewport.sub_view(Rect::new(
-            Pos::new(vse.layout.gutter_width(lines), 0),
-            buffer_width,
-            buffer_height,
-        ));
-        self.inner.render(s, &mut view, window);
+        let mut content = viewport.sub_view(layout.content);
+        self.inner.render(s, &mut content, self.view);
     }
 }
 
 impl DocViewRenderer {
-    fn render_gutter(&self, s: &State, viewport: &mut Viewport, view: ViewId, width: usize) {
+    fn render_gutter(&self, s: &State, viewport: &mut Viewport, width: usize) {
         // The render function checks for existance.
-        let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
+        let (vse, dse) =
+            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, self.view).unwrap();
 
         let lines = dse.doc.data.lines();
         let scroll = vse.scroll;
@@ -111,9 +94,10 @@ impl DocViewRenderer {
         }
     }
 
-    fn render_mode_line(&self, s: &State, viewport: &mut Viewport, view: ViewId) {
+    fn render_mode_line(&self, s: &State, viewport: &mut Viewport) {
         // The render function checks for existance.
-        let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
+        let (vse, dse) =
+            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, self.view).unwrap();
 
         // Force left padding.
         let mut left = Vec::new();

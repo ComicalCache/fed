@@ -6,7 +6,7 @@ use crate::{
     protocols::view::ViewRenderer,
     state::State,
     types::{
-        Pos, Rect,
+        Pos,
         render::{Cell, Renderer, Viewport, WindowId},
     },
     util::debug_panic,
@@ -30,7 +30,7 @@ impl DirRenderer {
 }
 
 impl Renderer for DirRenderer {
-    fn render(&self, s: &State, viewport: &mut Viewport, window: WindowId) {
+    fn render(&self, s: &State, viewport: &mut Viewport, _: WindowId) {
         let width = viewport.width();
         let height = viewport.height();
 
@@ -45,28 +45,16 @@ impl Renderer for DirRenderer {
             return;
         };
 
-        let lines = dse.doc.data.lines();
+        let layout = vse.layout(dse);
 
-        let buffer_height = height.saturating_sub(vse.layout.mode_line);
-        let buffer_width = width.saturating_sub(vse.layout.gutter_width(lines));
+        let mut gutter = viewport.sub_view(layout.gutter);
+        self.render_gutter(s, &mut gutter, layout.gutter.width);
 
-        let mut gutter = viewport.sub_view(Rect::new(
-            Pos::new(0, 0),
-            vse.layout.gutter_width(lines),
-            buffer_height,
-        ));
-        self.render_gutter(s, &mut gutter, vse.layout.gutter_width(lines));
-
-        let mut mode_line =
-            viewport.sub_view(Rect::new(Pos::new(0, buffer_height), width, vse.layout.mode_line));
+        let mut mode_line = viewport.sub_view(layout.mode_line);
         self.render_mode_line(s, &mut mode_line);
 
-        let mut view = viewport.sub_view(Rect::new(
-            Pos::new(vse.layout.gutter_width(lines), 0),
-            buffer_width,
-            buffer_height,
-        ));
-        self.inner.render(s, &mut view, window);
+        let mut content = viewport.sub_view(layout.content);
+        self.inner.render(s, &mut content, s.p.dir.view);
     }
 }
 

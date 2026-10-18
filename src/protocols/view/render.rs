@@ -1,8 +1,8 @@
 use crate::{
-    state::State,
+    state::{State, ViewId},
     types::{
         Pos,
-        render::{self, Cell, Layer, Renderer, Viewport, WindowId},
+        render::{self, Cell, Layer, Viewport},
     },
     util::debug_panic,
 };
@@ -15,25 +15,20 @@ impl ViewRenderer {
     pub fn new(layers: Vec<Box<dyn Layer>>) -> Self { Self { layers } }
 }
 
-impl Renderer for ViewRenderer {
-    fn render(&self, s: &State, viewport: &mut Viewport, window: WindowId) {
-        let width = viewport.width();
-        let height = viewport.height();
-
-        if height == 0 || width == 0 {
-            return;
-        }
-
-        let Some(view) = s.index.window_to_view(window) else {
-            debug_panic!();
-            return;
-        };
-
+impl ViewRenderer {
+    pub fn render(&self, s: &State, viewport: &mut Viewport, view: ViewId) {
         let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
         else {
             debug_panic!();
             return;
         };
+
+        let content = vse.layout(dse).content;
+        let width = content.width.min(viewport.width());
+        let height = content.height.min(viewport.height());
+        if width == 0 || height == 0 {
+            return;
+        }
 
         let start = vse.view_cache.offset;
         let end = start + vse.view_cache.lines.iter().take(height).map(String::len).sum::<usize>();
@@ -49,20 +44,8 @@ impl Renderer for ViewRenderer {
                 break;
             }
 
-            let (vom, next_offset) = render::layout_vom(
-                line,
-                offset,
-                &decs,
-                &vse.layout.replacements,
-                vse.layout.tab_width,
-            );
-            let cells = render::layout_cells(
-                line,
-                offset,
-                &decs,
-                &vse.layout.replacements,
-                vse.layout.tab_width,
-            );
+            let (vom, next_offset) = render::layout_vom(line, offset, &decs, &vse.layout);
+            let cells = render::layout_cells(line, offset, &decs, &vse.layout);
             offset = next_offset;
 
             let mut row = vec![Cell::default(); width];

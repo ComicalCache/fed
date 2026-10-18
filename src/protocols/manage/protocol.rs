@@ -99,10 +99,11 @@ impl ManageProtocol {
     fn replace_window(s: &mut State, window: WindowId) {
         Self::init(s, true);
 
+        s.index.unlink_window(window);
         s.workspace.replace_renderer(window, Box::new(ManageRenderer::new()));
-        s.index.link_window_to_view(window, s.p.manage.view);
+        s.attach_view(window, s.p.manage.view);
 
-        ViewProtocol::update(s, s.p.manage.view);
+        ViewProtocol::resize(s);
     }
 
     fn select(s: &mut State) {
@@ -147,8 +148,7 @@ impl ManageProtocol {
         }
 
         if let Some(view) = view
-            && let Some(windows) = s.index.view_to_windows(view)
-            && let Some(&window) = windows.iter().next()
+            && let Some(window) = s.index.view_to_window(view)
         {
             DocViewProtocol::destroy_view(s, s.p.manage.view);
             s.workspace.active_window = Some(window);

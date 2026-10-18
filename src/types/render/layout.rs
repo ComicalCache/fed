@@ -13,8 +13,7 @@ pub struct VisualOffsetMapping {
 }
 
 pub fn layout_cells(
-    line: &str, mut offset: usize, decs: &[Span<Decoration>],
-    replacements: &ViewStoreTypes::Replacements, tab_width: ViewStoreTypes::TabWidth,
+    line: &str, mut offset: usize, decs: &[Span<Decoration>], layout: &ViewStoreTypes::Layout,
 ) -> Vec<Cell> {
     let mut cells = Vec::new();
 
@@ -94,9 +93,9 @@ pub fn layout_cells(
         }
 
         let ch_width = if ch == "\t" {
-            *tab_width - (visual_x % *tab_width)
+            *layout.tab_width - (visual_x % *layout.tab_width)
         } else if ch == "\n" {
-            if let Some((newline, _)) = replacements.newline {
+            if let Some((newline, _)) = layout.replacements.newline {
                 newline.width().unwrap_or_default()
             } else {
                 // "\n".width() == 1!
@@ -108,7 +107,7 @@ pub fn layout_cells(
 
         if ch_width > 0 {
             if ch == "\t" {
-                if let Some(((start, fill), tab_face)) = replacements.tab {
+                if let Some(((start, fill), tab_face)) = layout.replacements.tab {
                     let mut face = face;
                     face.merge(tab_face);
 
@@ -130,7 +129,7 @@ pub fn layout_cells(
                     }
                 }
             } else if ch == "\n" {
-                if let Some((newline, newline_face)) = replacements.newline {
+                if let Some((newline, newline_face)) = layout.replacements.newline {
                     let mut face = face;
                     face.merge(newline_face);
 
@@ -141,7 +140,7 @@ pub fn layout_cells(
                     ));
                 }
             } else if ch == " " {
-                if let Some((space, space_face)) = replacements.space {
+                if let Some((space, space_face)) = layout.replacements.space {
                     let mut face = face;
                     face.merge(space_face);
 
@@ -199,8 +198,7 @@ pub fn layout_cells(
 }
 
 pub fn layout_vom(
-    line: &str, mut offset: usize, decs: &[Span<Decoration>],
-    replacements: &ViewStoreTypes::Replacements, tab_width: ViewStoreTypes::TabWidth,
+    line: &str, mut offset: usize, decs: &[Span<Decoration>], layout: &ViewStoreTypes::Layout,
 ) -> (Vec<VisualOffsetMapping>, usize) {
     let mut vom = Vec::new();
 
@@ -252,10 +250,10 @@ pub fn layout_vom(
                 map_width = ch_width;
             }
         } else if ch == "\t" {
-            ch_width = *tab_width - (visual_x % *tab_width);
+            ch_width = *layout.tab_width - (visual_x % *layout.tab_width);
             map_width = ch_width;
         } else if ch == "\n" {
-            if let Some((newline, _)) = replacements.newline {
+            if let Some((newline, _)) = layout.replacements.newline {
                 ch_width = newline.width().unwrap_or_default();
             }
 

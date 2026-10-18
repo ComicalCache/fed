@@ -8,4 +8,5 @@ pub enum Event {
     CursorsMoved { view: ViewId },
     CursorsChanged { view: ViewId },
     ModeChanged { id: ViewId, mode: ViewStoreTypes::Mode },
+    Resized { id: ViewId },
 }

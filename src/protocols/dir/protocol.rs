@@ -98,10 +98,11 @@ impl DirProtocol {
     pub fn replace_window(s: &mut State, window: WindowId) {
         Self::init(s);
 
+        s.index.unlink_window(window);
         s.workspace.replace_renderer(window, Box::new(DirRenderer::new()));
-        s.index.link_window_to_view(window, s.p.dir.view);
+        s.attach_view(window, s.p.dir.view);
 
-        ViewProtocol::update(s, s.p.dir.view);
+        ViewProtocol::resize(s);
     }
 
     pub fn create(s: &State, path: PathBuf, dir: bool) {
@@ -209,8 +210,7 @@ impl DirProtocol {
                             s.index.doc_to_views(doc).and_then(|vs| vs.iter().next()).copied();
 
                         if let Some(view) = view
-                            && let Some(windows) = s.index.view_to_windows(view)
-                            && let Some(&window) = windows.iter().next()
+                            && let Some(window) = s.index.view_to_window(view)
                         {
                             s.workspace.active_window = Some(window);
                             return;

@@ -3,45 +3,53 @@ use std::collections::{HashMap, HashSet};
 use crate::{
     state::{DocId, ViewId},
     types::render::WindowId,
+    util::debug_panic,
 };
 
 #[derive(Default)]
 pub struct Index {
-    pub window_to_view: HashMap<WindowId, ViewId>,
-    pub view_to_windows: HashMap<ViewId, HashSet<WindowId>>,
+    window_to_views: HashMap<WindowId, HashSet<ViewId>>,
+    view_to_window: HashMap<ViewId, WindowId>,
 
-    pub view_to_doc: HashMap<ViewId, DocId>,
-    pub doc_to_views: HashMap<DocId, HashSet<ViewId>>,
+    view_to_doc: HashMap<ViewId, DocId>,
+    doc_to_views: HashMap<DocId, HashSet<ViewId>>,
 }
 
 impl Index {
-    pub fn link_window_to_view(&mut self, window: WindowId, view: ViewId) {
-        self.unlink_window(window);
+    /// Returns the window the view was previously linked to.
+    #[must_use]
+    pub fn link_window_to_view(&mut self, window: WindowId, view: ViewId) -> Option<WindowId> {
+        let prev_window = self.view_to_window.insert(view, window);
 
-        self.window_to_view.insert(window, view);
-        self.view_to_windows.entry(view).or_default().insert(window);
-    }
-
-    pub fn unlink_window(&mut self, window: WindowId) {
-        if let Some(view) = self.window_to_view.remove(&window)
-            && let Some(windows) = self.view_to_windows.get_mut(&view)
+        if let Some(prev_window) = prev_window
+            && prev_window != window
         {
-            windows.remove(&window);
+            if let Some(views) = self.window_to_views.get_mut(&prev_window) {
+                views.remove(&view);
 
-            if windows.is_empty() {
-                self.view_to_windows.remove(&view);
+                if views.is_empty() {
+                    self.window_to_views.remove(&prev_window);
+                }
+            } else {
+                debug_panic!();
             }
         }
+
+        self.window_to_views.entry(window).or_default().insert(view);
+
+        prev_window
     }
 
     pub fn link_view_to_doc(&mut self, view: ViewId, doc: DocId) {
-        if let Some(doc) = self.view_to_doc.remove(&view)
-            && let Some(views) = self.doc_to_views.get_mut(&doc)
-        {
-            views.remove(&view);
+        if let Some(doc) = self.view_to_doc.remove(&view) {
+            if let Some(views) = self.doc_to_views.get_mut(&doc) {
+                views.remove(&view);
 
-            if views.is_empty() {
-                self.doc_to_views.remove(&doc);
+                if views.is_empty() {
+                    self.doc_to_views.remove(&doc);
+                }
+            } else {
+                debug_panic!();
             }
         }
 
@@ -49,24 +57,49 @@ impl Index {
         self.doc_to_views.entry(doc).or_default().insert(view);
     }
 
-    /// Returns all windows which contained the view.
-    pub fn unlink_view(&mut self, view: ViewId) -> HashSet<WindowId> {
-        if let Some(doc) = self.view_to_doc.remove(&view)
-            && let Some(views) = self.doc_to_views.get_mut(&doc)
-        {
-            views.remove(&view);
+    pub fn unlink_window(&mut self, window: WindowId) {
+        if let Some(views) = self.window_to_views.remove(&window) {
+            for view in views {
+                let prev_window = self.view_to_window.remove(&view);
+                debug_assert!(prev_window == Some(window));
+            }
+        }
+    }
 
-            if views.is_empty() {
-                self.doc_to_views.remove(&doc);
+    /// Returns the window which contained the view.
+    #[must_use]
+    pub fn unlink_view(&mut self, view: ViewId) -> Option<WindowId> {
+        if let Some(doc) = self.view_to_doc.remove(&view) {
+            if let Some(views) = self.doc_to_views.get_mut(&doc) {
+                views.remove(&view);
+
+                if views.is_empty() {
+                    self.doc_to_views.remove(&doc);
+                }
+            } else {
+                debug_panic!();
             }
         }
 
-        let windows = self.view_to_windows.remove(&view).unwrap_or_default();
-        for window in &windows {
-            self.window_to_view.remove(window);
+        self.unlink_view_from_window(view)
+    }
+
+    /// Detaches the view while preserving its document association.
+    pub fn unlink_view_from_window(&mut self, view: ViewId) -> Option<WindowId> {
+        let window = self.view_to_window.remove(&view);
+        if let Some(window) = window {
+            if let Some(views) = self.window_to_views.get_mut(&window) {
+                views.remove(&view);
+
+                if views.is_empty() {
+                    self.window_to_views.remove(&window);
+                }
+            } else {
+                debug_panic!();
+            }
         }
 
-        windows
+        window
     }
 
     /// Returns all views which contained the document.
@@ -79,31 +112,30 @@ impl Index {
         views
     }
 
-    pub fn window_to_view(&self, window: WindowId) -> Option<ViewId> {
-        let view = self.window_to_view.get(&window).copied();
+    pub fn window_to_views(&self, window: WindowId) -> Option<&HashSet<ViewId>> {
+        let views = self.window_to_views.get(&window);
 
         if cfg!(debug_assertions)
-            && let Some(view) = view
+            && let Some(views) = views
         {
-            let windows = self.view_to_windows.get(&view);
-            debug_assert!(windows.is_some_and(|w| w.contains(&window)));
-        }
-
-        view
-    }
-
-    pub fn view_to_windows(&self, view: ViewId) -> Option<&HashSet<WindowId>> {
-        let windows = self.view_to_windows.get(&view);
-
-        if cfg!(debug_assertions)
-            && let Some(windows) = windows
-        {
-            for window in windows {
-                debug_assert!(self.window_to_view.get(window) == Some(&view));
+            for view in views {
+                debug_assert!(self.view_to_window.get(view).is_some_and(|&w| w == window));
             }
         }
 
-        windows
+        views
+    }
+
+    pub fn view_to_window(&self, view: ViewId) -> Option<WindowId> {
+        let window = self.view_to_window.get(&view).cloned();
+
+        if cfg!(debug_assertions)
+            && let Some(window) = window
+        {
+            debug_assert!(self.window_to_views.get(&window).is_some_and(|v| v.contains(&view)));
+        }
+
+        window
     }
 
     pub fn view_to_doc(&self, view: ViewId) -> Option<DocId> {

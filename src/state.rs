@@ -129,55 +129,56 @@ impl State {
         view
     }
 
-    /// Returns all windows which contained the view.
-    pub fn destroy_view(&mut self, view: ViewId) -> HashSet<WindowId> {
-        // Don't destroy internal views, just return their windows.
+    /// Returns the window which contained the view.
+    pub fn destroy_view(&mut self, view: ViewId) -> Option<WindowId> {
         if let Some(doc) = self.index.view_to_doc(view) {
             let Some(dse) = self.doc_store.get(&doc) else {
                 debug_panic!();
-                return HashSet::new();
+                return None;
             };
 
-            match dse.mode {
-                DocStoreTypes::Mode::Mp => {
-                    let Some(windows) = self.index.view_to_windows(self.p.mp.view) else {
-                        debug_panic!();
-                        return HashSet::new();
-                    };
-
-                    return windows.clone();
-                }
-                DocStoreTypes::Mode::Dir => {
-                    let Some(windows) = self.index.view_to_windows(self.p.dir.view) else {
-                        debug_panic!();
-                        return HashSet::new();
-                    };
-
-                    return windows.clone();
-                }
-                DocStoreTypes::Mode::Manage => {
-                    let Some(windows) = self.index.view_to_windows(self.p.manage.view) else {
-                        debug_panic!();
-                        return HashSet::new();
-                    };
-
-                    return windows.clone();
-                }
-                _ => {}
+            if matches!(
+                dse.mode,
+                DocStoreTypes::Mode::Mp | DocStoreTypes::Mode::Dir | DocStoreTypes::Mode::Manage
+            ) {
+                return self.index.unlink_view_from_window(view);
             }
         }
 
         self.view_store.remove(&view);
 
-        let windows = self.index.unlink_view(view);
+        let window = self.index.unlink_view(view);
 
         let _ = self.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::Destroyed { id: view }));
 
-        windows
+        window
+    }
+
+    pub fn attach_view(&mut self, window: WindowId, view: ViewId) {
+        if let Some(previous) = self.index.link_window_to_view(window, view)
+            && previous != window
+            && self.index.window_to_views(previous).is_none()
+        {
+            if self.workspace.active_window == Some(previous) {
+                self.workspace.active_window = Some(window);
+            }
+
+            self.workspace.destroy_window(previous);
+        }
+    }
+
+    pub fn active_views(&self) -> Option<&HashSet<ViewId>> {
+        self.workspace.active_window.and_then(|window| self.index.window_to_views(window))
     }
 
     pub fn active_view(&self) -> Option<ViewId> {
-        self.workspace.active_window.and_then(|w| self.index.window_to_view(w))
+        let views = self.active_views()?;
+
+        if views.len() != 1 {
+            return None;
+        }
+
+        views.iter().next().copied()
     }
 
     pub fn vse_and_dse<'a>(

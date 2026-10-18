@@ -35,10 +35,13 @@ impl DocViewProtocol {
         s: &mut State, doc: DocId, view: Option<ViewId>, split_window: WindowId,
         direction: RectSplit, raw: bool, tx: Option<oneshot::Sender<Option<(ViewId, WindowId)>>>,
     ) -> Option<(ViewId, WindowId)> {
-        let view = view.unwrap_or_else(|| s.create_view(doc));
+        let view = Self::prepare_view(s, doc, view, raw);
 
-        let window =
-            s.workspace.create_tile(split_window, direction, Box::new(DocViewRenderer::new(raw)));
+        let window = s.workspace.create_tile(
+            split_window,
+            direction,
+            Box::new(DocViewRenderer::new(view, raw)),
+        );
 
         let Some(window) = window else {
             Self::destroy_view(s, view);
@@ -52,9 +55,9 @@ impl DocViewProtocol {
             return None;
         };
 
-        s.index.link_window_to_view(window, view);
+        s.attach_view(window, view);
 
-        ViewProtocol::update(s, view);
+        ViewProtocol::resize(s);
 
         if let Some(tx) = tx {
             let _ = tx.send(Some((view, window)));
@@ -67,12 +70,13 @@ impl DocViewProtocol {
         s: &mut State, doc: DocId, view: Option<ViewId>, rect: Rect, z: ZLayer, raw: bool,
         tx: Option<oneshot::Sender<(ViewId, WindowId)>>,
     ) -> (ViewId, WindowId) {
-        let view = view.unwrap_or_else(|| s.create_view(doc));
+        let view = Self::prepare_view(s, doc, view, raw);
 
-        let window = s.workspace.create_floating(rect, z, Box::new(DocViewRenderer::new(raw)));
-        s.index.link_window_to_view(window, view);
+        let window =
+            s.workspace.create_floating(rect, z, Box::new(DocViewRenderer::new(view, raw)));
+        s.attach_view(window, view);
 
-        ViewProtocol::update(s, view);
+        ViewProtocol::resize(s);
 
         if let Some(tx) = tx {
             let _ = tx.send((view, window));
@@ -85,12 +89,13 @@ impl DocViewProtocol {
         s: &mut State, doc: DocId, view: Option<ViewId>, window: WindowId, raw: bool,
         tx: Option<oneshot::Sender<ViewId>>,
     ) -> ViewId {
-        let view = view.unwrap_or_else(|| s.create_view(doc));
+        let view = Self::prepare_view(s, doc, view, raw);
 
-        s.workspace.replace_renderer(window, Box::new(DocViewRenderer::new(raw)));
-        s.index.link_window_to_view(window, view);
+        s.index.unlink_window(window);
+        s.workspace.replace_renderer(window, Box::new(DocViewRenderer::new(view, raw)));
+        s.attach_view(window, view);
 
-        ViewProtocol::update(s, view);
+        ViewProtocol::resize(s);
 
         if let Some(tx) = tx {
             let _ = tx.send(view);
@@ -100,8 +105,28 @@ impl DocViewProtocol {
     }
 
     pub fn destroy_view(s: &mut State, view: ViewId) {
-        for window in s.destroy_view(view) {
-            s.workspace.destroy_window(window);
+        if let Some(window) = s.destroy_view(view) {
+            if s.index.window_to_views(window).is_none() {
+                s.workspace.destroy_window(window);
+
+                if s.workspace.active_window == Some(window) {
+                    s.workspace.active_window = None;
+                }
+            }
+
+            ViewProtocol::resize(s);
         }
+    }
+
+    fn prepare_view(s: &mut State, doc: DocId, view: Option<ViewId>, raw: bool) -> ViewId {
+        let view = view.unwrap_or_else(|| s.create_view(doc));
+
+        if raw {
+            let vse = s.view_store.get_mut(&view).unwrap();
+            vse.layout.gutter = false;
+            vse.layout.mode_line = 0;
+        }
+
+        view
     }
 }

@@ -1,7 +1,41 @@
 use crate::{
-    state::ViewStoreTypes::TabWidth,
-    types::{Face, Rgb},
+    types::{Face, Rect, Rgb},
+    util::newtype,
 };
+
+newtype!(TabWidth, usize, Clone, Copy, PartialEq, Eq, Hash);
+
+impl Default for TabWidth {
+    fn default() -> Self { Self(4) }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct Replacements {
+    pub space: Option<(char, Face)>,
+    pub tab: Option<((char, char), Face)>,
+    pub newline: Option<(char, Face)>,
+}
+
+impl Replacements {
+    pub const fn none() -> Self { Self { space: None, tab: None, newline: None } }
+}
+
+impl Default for Replacements {
+    fn default() -> Self {
+        Self {
+            space: Some(('·', Face { fg: Some(Rgb::new(68, 71, 79)), ..Face::default() })),
+            tab: Some((('›', '—'), Face { fg: Some(Rgb::new(68, 71, 79)), ..Face::default() })),
+            newline: Some(('¬', Face { fg: Some(Rgb::new(68, 71, 79)), ..Face::default() })),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct ViewLayout {
+    pub gutter: Rect,
+    pub mode_line: Rect,
+    pub content: Rect,
+}
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Layout {
@@ -33,27 +67,6 @@ impl Default for Layout {
             mode_line: 1,
             replacements: Replacements::default(),
             rulers: vec![100],
-        }
-    }
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub struct Replacements {
-    pub space: Option<(char, Face)>,
-    pub tab: Option<((char, char), Face)>,
-    pub newline: Option<(char, Face)>,
-}
-
-impl Replacements {
-    pub const fn none() -> Self { Self { space: None, tab: None, newline: None } }
-}
-
-impl Default for Replacements {
-    fn default() -> Self {
-        Self {
-            space: Some(('·', Face { fg: Some(Rgb::new(68, 71, 79)), ..Face::default() })),
-            tab: Some((('›', '—'), Face { fg: Some(Rgb::new(68, 71, 79)), ..Face::default() })),
-            newline: Some(('¬', Face { fg: Some(Rgb::new(68, 71, 79)), ..Face::default() })),
         }
     }
 }
