@@ -9,7 +9,7 @@ use crate::{
 pub enum DirCmd {
     Init,
     InitCompletion { entries: Vec<DirEntry>, printables: Vec<PrintableDirEntry> },
-    ReplaceWindow { window: WindowId },
+    ReplaceWindow { window: WindowId, path: Option<PathBuf> },
 
     Create { path: PathBuf, dir: bool },
     Rename { old: PathBuf, new: PathBuf },

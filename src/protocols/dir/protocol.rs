@@ -25,7 +25,13 @@ impl DirProtocol {
             DirCmd::InitCompletion { entries, printables } => {
                 Self::init_completion(s, entries, printables);
             }
-            DirCmd::ReplaceWindow { window } => Self::replace_window(s, window),
+            DirCmd::ReplaceWindow { window, path } => {
+                if let Some(path) = path {
+                    s.p.dir.pwd = util::path::normalize(path);
+                }
+
+                Self::replace_window(s, window);
+            }
 
             DirCmd::Create { path, dir } => Self::create(s, path, dir),
             DirCmd::Rename { old, new } => Self::rename(s, old, new),
@@ -36,10 +42,6 @@ impl DirProtocol {
     }
 
     pub fn init(s: &mut State) {
-        s.p.dir.pwd = std::env::current_dir()
-            .and_then(|p| p.canonicalize())
-            .unwrap_or_else(|_| s.p.dir.pwd.clone());
-
         tokio::spawn(Self::fetch_entries(s.p.dir.pwd.clone(), s.async_fcmd_tx.clone()));
     }
 
@@ -234,8 +236,6 @@ impl DirProtocol {
             }
             DirEntryKind::Dir => {
                 s.p.dir.pwd = s.p.dir.entries[y].path.clone();
-
-                let _ = std::env::set_current_dir(s.p.dir.entries[y].path.clone());
 
                 Self::init(s);
             }

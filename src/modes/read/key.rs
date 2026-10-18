@@ -56,7 +56,7 @@ impl ReadKeyInput {
                     return None;
                 };
 
-                Some(vec![FCmd::Dir(DirCmd::ReplaceWindow { window })])
+                Some(vec![FCmd::Dir(DirCmd::ReplaceWindow { window, path: None })])
             }
 
             Cmd::EnterVisualMode => Some(vec![FCmd::Action(ActionCmd::PushViewMode {

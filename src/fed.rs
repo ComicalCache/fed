@@ -17,7 +17,7 @@ use crate::{
         dir::DirCmd,
         doc_view::DocViewCmd,
         io::{IoCmd, IoProtocol},
-        manage::ManageCmd,
+        manage::{ManageCmd, ManageProtocol},
         mp::MpCmd,
         quit::QuitProtocol,
         screen::{ScreenCmd, ScreenProtocol},
@@ -117,6 +117,7 @@ impl Fed {
             match event {
                 FEvent::Doc(event) => {
                     modes::read::setup::exec_doc_event(&mut self.s, &event);
+                    ManageProtocol::exec_doc_event(&mut self.s, &event);
                     ViewProtocol::exec_doc_event(&mut self.s, &event);
                 }
                 FEvent::View(event) => {
@@ -149,12 +150,8 @@ impl Fed {
         let _ = tx.send(FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) }));
 
         if dir {
-            let _ = std::env::set_current_dir(cli.path.clone().unwrap());
-
-            let _ = tx.send(FCmd::Dir(DirCmd::Init));
-            let _ = tx.send(FCmd::Dir(DirCmd::ReplaceWindow { window }));
-        }
-        if let Some(text) = cli.piped.clone() {
+            let _ = tx.send(FCmd::Dir(DirCmd::ReplaceWindow { window, path: cli.path.clone() }));
+        } else if let Some(text) = cli.piped.clone() {
             let mut decoration_parser = util::ansi::DecoratioParser::default();
             let mut parser = Parser::<DefaultCharAccumulator>::new();
 

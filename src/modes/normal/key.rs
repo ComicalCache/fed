@@ -149,7 +149,7 @@ impl NormalKeyInput {
                     return None;
                 };
 
-                Some(vec![FCmd::Dir(DirCmd::ReplaceWindow { window })])
+                Some(vec![FCmd::Dir(DirCmd::ReplaceWindow { window, path: None })])
             }
             Cmd::EnterManageMode => {
                 let Some(window) = s.workspace.active_window else {

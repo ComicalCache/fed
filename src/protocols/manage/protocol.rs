@@ -25,6 +25,21 @@ impl ManageProtocol {
         }
     }
 
+    pub fn exec_doc_event(s: &mut State, event: &DocStoreTypes::Event) {
+        match event {
+            DocStoreTypes::Event::Created { .. } | DocStoreTypes::Event::Destroyed { .. } => {}
+            DocStoreTypes::Event::Written { .. }
+            | DocStoreTypes::Event::Inserted { .. }
+            | DocStoreTypes::Event::Removed { .. }
+            | DocStoreTypes::Event::ModeChanged { .. }
+            | DocStoreTypes::Event::PathChanged { .. } => return,
+        }
+
+        if s.index.view_to_window(s.p.manage.view).is_some() {
+            Self::init(s, false);
+        }
+    }
+
     fn init(s: &mut State, move_cursor: bool) {
         let mut entries = Vec::new();
         let mut text = String::new();
