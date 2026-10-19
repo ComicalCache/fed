@@ -1,19 +1,19 @@
 use std::{path::PathBuf, time::Duration};
 
-use tokio::sync::{mpsc::UnboundedSender, oneshot};
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     fed::FCmd,
     protocols::{
-        action::{ActionCmd, ActionProtocol},
+        action::ActionProtocol,
         dir::{DirCmd, DirEntry, DirEntryKind, DirRenderer, PrintableDirEntry},
-        doc_view::{DocViewCmd, DocViewProtocol},
+        doc_view::DocViewProtocol,
         io::{IoFuture, IoProtocol},
         view::ViewProtocol,
     },
-    state::{DocId, State, ViewId},
+    state::State,
     types::{Pos, render::WindowId},
-    util::{self, debug_panic, format},
+    util::{self, format},
 };
 
 pub struct DirProtocol {}
@@ -38,6 +38,9 @@ impl DirProtocol {
             DirCmd::Delete { path, recursive } => Self::delete(s, path, recursive),
 
             DirCmd::Select => Self::select(s),
+            DirCmd::SelectCompletion { revision, window, path, res } => {
+                Self::select_completion(s, revision, window, path, res);
+            }
         }
     }
 
@@ -74,35 +77,23 @@ impl DirProtocol {
 
         s.p.dir.entries = entries;
 
-        let len = if let Some(dse) = s.doc_store.get_mut(&s.p.dir.doc) {
-            // Temporarily set the mode to not read only for the modifications.
-            dse.read_only = false;
-
-            dse.doc.data.len()
-        } else {
-            debug_panic!();
-            return;
-        };
+        let dse = s.doc_store.get_mut(&s.p.dir.doc).unwrap();
+        dse.read_only = false;
+        let len = dse.doc.data.len();
 
         ActionProtocol::remove(s, s.p.dir.view, 0, len);
         ActionProtocol::insert(s, s.p.dir.view, text);
         ActionProtocol::saved(s, s.p.dir.doc);
         ActionProtocol::move_cursor_to_pos(s, s.p.dir.view, Pos::new(0, 1), true);
 
-        if let Some(dse) = s.doc_store.get_mut(&s.p.dir.doc) {
-            // Reset the read only flag after the modifications.
-            dse.read_only = true;
-        } else {
-            debug_panic!();
-        }
+        s.doc_store.get_mut(&s.p.dir.doc).unwrap().read_only = true;
     }
 
     pub fn replace_window(s: &mut State, window: WindowId) {
+        s.p.dir.revision += 1;
         Self::init(s);
 
-        s.index.unlink_window(window);
-        s.workspace.replace_renderer(window, Box::new(DirRenderer::new()));
-        s.attach_view(window, s.p.dir.view);
+        s.replace_view(window, s.p.dir.view, Box::new(DirRenderer::new()));
 
         ViewProtocol::resize(s);
     }
@@ -182,55 +173,54 @@ impl DirProtocol {
     }
 
     pub fn select(s: &mut State) {
-        let Some((vse, dse)) =
-            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.dir.view)
-        else {
-            debug_panic!();
-            return;
-        };
+        let Some(window) = s.index.view_to_window(s.p.dir.view) else { return };
+
+        s.p.dir.revision += 1;
+
+        let (vse, dse) =
+            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.dir.view).unwrap();
 
         let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
         let y = dse.doc.data.get_line_of_byte(offset);
 
-        if y >= s.p.dir.entries.len() {
-            debug_panic!();
-            return;
-        }
-
-        let entry = s.p.dir.entries[y].clone();
+        let Some(entry) = s.p.dir.entries.get(y).cloned() else { return };
         match entry.kind {
             DirEntryKind::File => {
-                let Some(window) = s.workspace.active_window else {
-                    debug_panic!();
-                    return;
-                };
+                let path = util::path::normalize(entry.path);
+                let doc = s
+                    .doc_store
+                    .iter()
+                    .find(|(_, dse)| dse.doc.path.as_ref() == Some(&path))
+                    .map(|(&doc, _)| doc);
 
-                let doc = match s.create_doc(Some(entry.path.clone())) {
-                    Ok(doc) => doc,
-                    Err(doc) => {
-                        let view =
-                            s.index.doc_to_views(doc).and_then(|vs| vs.iter().next()).copied();
-
-                        if let Some(view) = view
-                            && let Some(window) = s.index.view_to_window(view)
-                        {
-                            s.workspace.active_window = Some(window);
-                            return;
-                        }
-
-                        DocViewProtocol::replace_window(s, doc, view, window, false, None);
-
+                if let Some(doc) = doc {
+                    let views = s.index.doc_to_views(doc);
+                    if let Some(window) =
+                        views.and_then(|v| v.iter().find_map(|v| s.index.view_to_window(*v)))
+                    {
+                        ActionProtocol::set_active_window(s, Some(window));
                         return;
                     }
-                };
 
-                let view = s.index.doc_to_views(doc).and_then(|vs| vs.iter().next()).copied();
+                    let view = views.map(|views| views[0]);
+                    DocViewProtocol::replace_window(s, doc, view, window, false, None);
 
+                    return;
+                }
+
+                let revision = s.p.dir.revision;
                 let async_fcmd_tx = s.async_fcmd_tx.clone();
                 IoProtocol::read(
-                    entry.path,
+                    path.clone(),
                     Box::new(move |res| -> IoFuture {
-                        Box::pin(Self::select_file(async_fcmd_tx, window, view, doc, res))
+                        Box::pin(async move {
+                            let _ = async_fcmd_tx.send(FCmd::Dir(DirCmd::SelectCompletion {
+                                revision,
+                                window,
+                                path,
+                                res,
+                            }));
+                        })
                     }),
                 );
             }
@@ -379,43 +369,46 @@ impl DirProtocol {
         let _ = async_fcmd_tx.send(FCmd::Dir(DirCmd::InitCompletion { entries, printables }));
     }
 
-    async fn select_file(
-        async_fcmd_tx: UnboundedSender<FCmd>, window: WindowId, view: Option<ViewId>, doc: DocId,
-        res: Result<String, String>,
+    fn select_completion(
+        s: &mut State, revision: usize, window: WindowId, path: PathBuf,
+        result: Result<String, String>,
     ) {
-        let text = match res {
+        if revision != s.p.dir.revision {
+            return;
+        }
+
+        if s.index.view_to_window(s.p.dir.view) != Some(window) {
+            return;
+        }
+
+        let text = match result {
             Ok(text) => text,
             Err(err) => {
-                util::mp::async_message(
-                    async_fcmd_tx,
-                    format!("Error reading file: {err}"),
-                    Duration::from_secs(3),
-                );
-
+                util::mp::message(s, format!("Error reading file: {err}"), Duration::from_secs(3));
                 return;
             }
         };
 
-        let (tx, rx) = oneshot::channel();
-        let _ = async_fcmd_tx.send(FCmd::DocView(DocViewCmd::ReplaceWindow {
-            doc,
-            view,
-            window,
-            raw: false,
-            tx: Some(tx),
-        }));
+        match s.create_doc(Some(path)) {
+            Ok(doc) => {
+                let view = DocViewProtocol::replace_window(s, doc, None, window, false, None);
 
-        let Ok(view) = rx.await else {
-            debug_panic!();
-            return;
-        };
+                ActionProtocol::insert(s, view, text);
+                ActionProtocol::move_cursor_to_pos(s, view, Pos::default(), true);
+                ActionProtocol::saved(s, doc);
+            }
+            Err(doc) => {
+                let views = s.index.doc_to_views(doc);
+                if let Some(window) =
+                    views.and_then(|v| v.iter().find_map(|v| s.index.view_to_window(*v)))
+                {
+                    ActionProtocol::set_active_window(s, Some(window));
+                    return;
+                }
 
-        let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::Insert { view, text }));
-        let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::MoveCursorToPos {
-            view,
-            pos: Pos::new(0, 0),
-            move_anchor: true,
-        }));
-        let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::Saved { doc }));
+                let view = views.map(|views| views[0]);
+                DocViewProtocol::replace_window(s, doc, view, window, false, None);
+            }
+        }
     }
 }

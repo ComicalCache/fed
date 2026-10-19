@@ -4,7 +4,6 @@ use crate::{
         Face,
         render::{ModeLineConfig, ModeLineWidget},
     },
-    util::debug_panic,
 };
 
 pub fn exec_doc_event(s: &mut State, event: &DocStoreTypes::Event) {
@@ -15,12 +14,9 @@ pub fn exec_doc_event(s: &mut State, event: &DocStoreTypes::Event) {
     let dse = s.doc_store.get_mut(id).unwrap();
     dse.read_only = true;
 
-    let views: Vec<_> = s.index.doc_to_views(*id).map_or_default(|v| v.iter().copied().collect());
+    let views = s.index.doc_to_views(*id).cloned().unwrap_or_default();
     for view in views {
-        let Some(vse) = s.view_store.get_mut(&view) else {
-            debug_panic!();
-            continue;
-        };
+        let vse = s.view_store.get_mut(&view).unwrap();
 
         vse.layout.tab_width = ViewStoreTypes::TabWidth::default();
         vse.layout.gutter = false;
@@ -40,23 +36,14 @@ pub fn exec_doc_event(s: &mut State, event: &DocStoreTypes::Event) {
 pub fn exec_view_event(s: &mut State, event: &ViewStoreTypes::Event) {
     let ViewStoreTypes::Event::Created { id } = event else { return };
 
-    let Some(doc) = s.index.view_to_doc(*id) else {
-        debug_panic!();
-        return;
-    };
-    let Some(dse) = s.doc_store.get(&doc) else {
-        debug_panic!();
-        return;
-    };
+    let doc = s.index.view_to_doc(*id).unwrap();
+    let dse = s.doc_store.get(&doc).unwrap();
 
     if dse.mode != DocStoreTypes::Mode::Read {
         return;
     }
 
-    let Some(vse) = s.view_store.get_mut(id) else {
-        debug_panic!();
-        return;
-    };
+    let vse = s.view_store.get_mut(id).unwrap();
 
     vse.layout.tab_width = ViewStoreTypes::TabWidth::default();
     vse.layout.gutter = false;

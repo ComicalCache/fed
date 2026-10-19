@@ -5,15 +5,18 @@ use crate::{
     decorators::MpDecorator,
     protocols::{
         action::ActionProtocol,
-        doc_view::DocViewProtocol,
+        doc_view::DocViewRenderer,
         mp::{
             MpCmd, MpKind,
             pstate::{MpId, PCallback},
         },
+        view::ViewProtocol,
     },
     state::{State, ViewStoreTypes},
-    types::{Pos, Rect, render::ZLayer},
-    util::debug_panic,
+    types::{
+        Pos, Rect,
+        render::{WindowId, ZLayer},
+    },
 };
 
 pub struct MpProtocol {}
@@ -43,15 +46,7 @@ impl MpProtocol {
 
         Self::close(s, s.p.mp.id);
 
-        let (_, window) = DocViewProtocol::create_floating(
-            s,
-            s.p.mp.doc,
-            Some(s.p.mp.view),
-            Rect::new(Pos::new(0, s.p.mp.height.saturating_sub(1)), s.p.mp.width, 1),
-            ZLayer::Mp,
-            true,
-            None,
-        );
+        let window = Self::create_window(s);
 
         ActionProtocol::insert_at(s, s.p.mp.view, message, 0);
         ActionProtocol::saved(s, s.p.mp.doc);
@@ -86,27 +81,12 @@ impl MpProtocol {
             ActionProtocol::insert_at(s, s.p.mp.view, text, 0);
         }
 
-        let (_, window) = DocViewProtocol::create_floating(
-            s,
-            s.p.mp.doc,
-            Some(s.p.mp.view),
-            Rect::new(Pos::new(0, s.p.mp.height.saturating_sub(1)), s.p.mp.width, 1),
-            ZLayer::Mp,
-            true,
-            None,
-        );
+        let window = Self::create_window(s);
 
         let id = MpId(s.p.mp.next_id);
         s.p.mp.next_id += 1;
 
-        let Some(vse) = s.view_store.get_mut(&s.p.mp.view) else {
-            Self::close(s, s.p.mp.id);
-
-            debug_panic!();
-
-            return None;
-        };
-
+        let vse = s.view_store.get_mut(&s.p.mp.view).unwrap();
         vse.decs.decorators.insert(
             ViewStoreTypes::DecorationId::Mp,
             Box::new(MpDecorator::new(prompt, s.theme.mp)),
@@ -132,19 +112,14 @@ impl MpProtocol {
             return;
         }
 
-        let Some(dse) = s.doc_store.get(&s.p.mp.doc) else {
-            Self::close(s, s.p.mp.id);
-
-            debug_panic!();
-
-            return;
-        };
+        let dse = s.doc_store.get(&s.p.mp.doc).unwrap();
 
         let res = dse.doc.data.slice(0..dse.doc.data.len());
+        let callback = s.p.mp.pcallback.take();
 
         Self::close(s, s.p.mp.id);
 
-        if let Some(cb) = s.p.mp.pcallback.take() {
+        if let Some(cb) = callback {
             cb(s, res);
         }
     }
@@ -158,23 +133,25 @@ impl MpProtocol {
         }
 
         if let Some(window) = s.p.mp.window.take() {
-            s.index.unlink_window(window);
-            s.workspace.destroy_window(window);
-        }
+            let was_active = s.workspace.active_window == Some(window);
 
-        s.workspace.active_window = s.p.mp.prev_window;
+            s.destroy_window(window);
+
+            if was_active {
+                s.workspace.active_window =
+                    s.p.mp
+                        .prev_window
+                        .filter(|previous| s.workspace.get_rect(*previous).is_some())
+                        .or_else(|| s.workspace.tiles().into_iter().next());
+            }
+        }
 
         s.p.mp.kind = MpKind::None;
         s.p.mp.prev_window = None;
+        s.p.mp.pcallback = None;
 
-        let Some(vse) = s.view_store.get_mut(&s.p.mp.view) else {
-            debug_panic!();
-            return;
-        };
-        let Some(dse) = s.doc_store.get(&s.p.mp.doc) else {
-            debug_panic!();
-            return;
-        };
+        let vse = s.view_store.get_mut(&s.p.mp.view).unwrap();
+        let dse = s.doc_store.get(&s.p.mp.doc).unwrap();
 
         vse.decs.decorators.remove(&ViewStoreTypes::DecorationId::Mp);
 
@@ -185,6 +162,19 @@ impl MpProtocol {
         ActionProtocol::saved(s, s.p.mp.doc);
     }
 
+    fn create_window(s: &mut State) -> WindowId {
+        let window = s.workspace.create_floating(
+            Rect::new(Pos::new(0, s.p.mp.height.saturating_sub(1)), s.p.mp.width, 1),
+            ZLayer::Mp,
+            Box::new(DocViewRenderer::new(s.p.mp.view, true)),
+        );
+        s.attach_view(window, s.p.mp.view);
+
+        ViewProtocol::resize(s);
+
+        window
+    }
+
     pub fn resize(s: &mut State, width: usize, height: usize) {
         s.p.mp.width = width;
         s.p.mp.height = height;
@@ -193,10 +183,7 @@ impl MpProtocol {
             return;
         }
 
-        let Some(window) = s.p.mp.window else {
-            debug_panic!();
-            return;
-        };
+        let window = s.p.mp.window.unwrap();
 
         s.workspace.resize_floating(window, width, 1);
     }

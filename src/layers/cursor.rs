@@ -13,9 +13,10 @@ impl Layer for CursorLayer {
         // This is kind of a hack: ideally I don't have to compare the memory
         // addresses of the ViewStoreEntrys.
         let active = s
-            .active_view()
-            .and_then(|id| s.view_store.get(&id))
-            .is_some_and(|active| std::ptr::eq(vse, active));
+            .active_views()
+            .into_flat_iter()
+            .filter_map(|id| s.view_store.get(id))
+            .any(|active| std::ptr::eq(vse, active));
 
         let face = if active { s.theme.active_cursor } else { s.theme.cursor };
 

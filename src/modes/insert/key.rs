@@ -6,7 +6,6 @@ use crate::{
     protocols::action::ActionCmd,
     state::{State, ViewId, ViewStoreTypes},
     types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
-    util::debug_panic,
 };
 
 pub struct InsertKeyInput {
@@ -26,10 +25,7 @@ impl InsertKeyInput {
 
     fn exec(&mut self, s: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;
-        let Some(doc) = s.index.view_to_doc(view) else {
-            debug_panic!();
-            return None;
-        };
+        let doc = s.index.view_to_doc(view).unwrap();
 
         match cmd {
             Cmd::Input(text) => {
@@ -78,19 +74,12 @@ impl KeyInputHandler for InsertKeyInput {
 
     fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;
-        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return None;
-        };
+        let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         if vse.mode() != ViewStoreTypes::Mode::Insert {
             return None;
         }
-        if dse.read_only {
-            debug_panic!();
-            return Some(Vec::new());
-        }
+        assert!(!dse.read_only);
 
         if self.last_view != Some(view) {
             self.whitespace = false;

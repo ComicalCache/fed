@@ -9,7 +9,6 @@ use crate::{
     protocols::{action::ActionCmd, mp::MpCmd},
     state::{DocId, State, ViewId, ViewStoreTypes},
     types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
-    util::debug_panic,
 };
 
 pub struct SearchKeyInput {
@@ -27,14 +26,8 @@ impl SearchKeyInput {
 
     fn exec(s: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;
-        let Some(doc) = s.index.view_to_doc(view) else {
-            debug_panic!();
-            return None;
-        };
-        let Some(dse) = s.doc_store.get(&doc) else {
-            debug_panic!();
-            return None;
-        };
+        let doc = s.index.view_to_doc(view).unwrap();
+        let dse = s.doc_store.get(&doc).unwrap();
 
         match cmd {
             Cmd::Move(motion) => {
@@ -88,10 +81,7 @@ impl SearchKeyInput {
         let (query, matches, _) = Self::search_state(s, view)?;
 
         let pcallback = Box::new(move |s: &mut State, replacement: String| {
-            let Some(dse) = s.doc_store.get(&doc) else {
-                debug_panic!();
-                return;
-            };
+            let dse = s.doc_store.get(&doc).unwrap();
 
             // TODO: somehow don't require copying the entire doc anymore?
             let data = dse.doc.data.slice(0..dse.doc.data.len());
@@ -155,18 +145,9 @@ impl SearchKeyInput {
     }
 
     fn search_state(s: &State, view: ViewId) -> Option<(String, Vec<(usize, usize)>, Vec<usize>)> {
-        let Some(vse) = s.view_store.get(&view) else {
-            debug_panic!();
-            return None;
-        };
-        let Some(decorator) = vse.decs.decorators.get(&ViewStoreTypes::DecorationId::Search) else {
-            debug_panic!();
-            return None;
-        };
-        let Some(decorator) = decorator.any().downcast_ref::<SearchDecorator>() else {
-            debug_panic!();
-            return None;
-        };
+        let vse = s.view_store.get(&view).unwrap();
+        let decorator = vse.decs.decorators.get(&ViewStoreTypes::DecorationId::Search).unwrap();
+        let decorator = decorator.any().downcast_ref::<SearchDecorator>().unwrap();
 
         if decorator.matches.is_empty() {
             return None;
@@ -185,10 +166,7 @@ impl KeyInputHandler for SearchKeyInput {
 
     fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;
-        let Some(vse) = s.view_store.get(&view) else {
-            debug_panic!();
-            return None;
-        };
+        let vse = s.view_store.get(&view).unwrap();
 
         if vse.mode() != ViewStoreTypes::Mode::Search {
             return None;

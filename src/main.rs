@@ -1,4 +1,5 @@
 #![feature(path_absolute_method)]
+#![feature(option_into_flat_iter)]
 
 mod cli;
 mod decorators;

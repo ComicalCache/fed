@@ -143,17 +143,17 @@ impl Workspace {
 
     pub fn create_tile(
         &mut self, split_id: WindowId, direction: RectSplit, content: Box<dyn Renderer>,
-    ) -> Option<WindowId> {
+    ) -> WindowId {
         let id = WindowId(self.next_window_id);
         self.next_window_id += 1;
 
         let Some(root) = &mut self.root else {
             self.root = Some(Tile::Window { id, content });
 
-            return Some(id);
+            return id;
         };
 
-        let target = root.find(split_id)?;
+        let target = root.find(split_id).unwrap();
 
         let tile = std::mem::replace(target, Tile::Dummy);
 
@@ -164,7 +164,7 @@ impl Workspace {
             second: Box::new(Tile::Window { id, content }),
         };
 
-        Some(id)
+        id
     }
 
     pub fn resize_tile(&mut self, id: WindowId, delta: f32) {
@@ -188,16 +188,13 @@ impl Workspace {
     }
 
     pub fn resize_floating(&mut self, id: WindowId, width: usize, height: usize) {
-        if let Some(floating) = self.floating.iter_mut().find(|f| f.id == id) {
-            floating.rect.width = width;
-            floating.rect.height = height;
-        }
+        let floating = self.floating.iter_mut().find(|f| f.id == id).unwrap();
+        floating.rect.width = width;
+        floating.rect.height = height;
     }
 
     pub fn reposition_floating(&mut self, id: WindowId, pos: Pos) {
-        if let Some(idx) = self.floating.iter().position(|f| f.id == id) {
-            self.floating[idx].rect.pos = pos;
-        }
+        self.floating.iter_mut().find(|f| f.id == id).unwrap().rect.pos = pos;
     }
 
     pub fn destroy_window(&mut self, id: WindowId) {
@@ -213,24 +210,28 @@ impl Workspace {
         }
 
         // Search tiling tree second.
-        let Some(root) = &mut self.root else { return };
+        let root = self.root.as_mut().unwrap();
         match root {
             Tile::Dummy => unreachable!(),
-            Tile::Window { id: root, .. } if *root == id => self.root = None,
-            _ => {
-                if let Some(parent) = root.find_parent(id) {
-                    let survivor = if let Tile::Split { first, second, .. } = parent {
-                        if matches!(**first, Tile::Window { id: first_id, .. } if first_id == id) {
-                            std::mem::replace(&mut **second, Tile::Dummy)
-                        } else {
-                            std::mem::replace(&mut **first, Tile::Dummy)
-                        }
-                    } else {
-                        unreachable!()
-                    };
-
-                    *parent = survivor;
+            Tile::Window { id: root, .. } if *root == id => {
+                self.root = None;
+                if self.active_window == Some(id) {
+                    self.active_window = None;
                 }
+            }
+            _ => {
+                let parent = root.find_parent(id).unwrap();
+                let survivor = if let Tile::Split { first, second, .. } = parent {
+                    if matches!(**first, Tile::Window { id: first_id, .. } if first_id == id) {
+                        std::mem::replace(&mut **second, Tile::Dummy)
+                    } else {
+                        std::mem::replace(&mut **first, Tile::Dummy)
+                    }
+                } else {
+                    unreachable!()
+                };
+
+                *parent = survivor;
 
                 if self.active_window == Some(id) {
                     self.active_window = None;
@@ -248,12 +249,9 @@ impl Workspace {
         }
 
         // Search tiling tree second.
-        if let Some(root) = &mut self.root
-            && let Some(tile) = root.find(id)
-            && matches!(tile, Tile::Window { .. })
-        {
-            *tile = Tile::Window { id, content };
-        }
+        let root = self.root.as_mut().unwrap();
+        let tile = root.find(id).unwrap();
+        *tile = Tile::Window { id, content };
     }
 
     pub fn get_rect(&self, id: WindowId) -> Option<Rect> {
@@ -298,7 +296,7 @@ impl Workspace {
 
     pub fn navigate(&self, motion: Motion) -> Option<WindowId> {
         let active = self.active_window?;
-        let Some(root) = &self.root else { return None };
+        let root = self.root.as_ref()?;
 
         let mut layout = Vec::new();
         root.layout(self.rect, &mut layout);

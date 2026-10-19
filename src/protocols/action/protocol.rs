@@ -8,7 +8,7 @@ use crate::{
     protocols::action::ActionCmd,
     state::{DocId, DocStoreTypes, State, ViewId, ViewStoreTypes},
     types::{Cursor, Decorator, Motion, Pos, render::WindowId},
-    util::{self, debug_panic},
+    util,
 };
 
 struct Edit {
@@ -77,12 +77,8 @@ impl ActionProtocol {
     }
 
     pub fn move_cursors(s: &mut State, view: ViewId, motion: Motion, move_anchor: bool) {
-        let Some((vse, dse)) =
-            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return;
-        };
+        let (vse, dse) =
+            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view).unwrap();
 
         let mut cursors = vse.cursors.clone();
         for cursor in &mut cursors.list {
@@ -105,12 +101,8 @@ impl ActionProtocol {
     }
 
     pub fn move_cursor_to_pos(s: &mut State, view: ViewId, pos: Pos, move_anchor: bool) {
-        let Some((vse, dse)) =
-            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return;
-        };
+        let (vse, dse) =
+            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view).unwrap();
 
         let offset = util::pos_to_offset(pos, vse, dse);
 
@@ -130,12 +122,8 @@ impl ActionProtocol {
     }
 
     pub fn create_cursor_at_pos(s: &mut State, view: ViewId, pos: Pos) {
-        let Some((vse, dse)) =
-            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return;
-        };
+        let (vse, dse) =
+            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view).unwrap();
 
         if let Some(max_cursors) = dse.max_cursors
             && vse.cursors.list.len() >= max_cursors
@@ -152,12 +140,8 @@ impl ActionProtocol {
     }
 
     pub fn create_cursors_at_offset(s: &mut State, view: ViewId, mut offsets: Vec<usize>) {
-        let Some((vse, dse)) =
-            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return;
-        };
+        let (vse, dse) =
+            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view).unwrap();
 
         if let Some(max_cursors) = dse.max_cursors {
             if vse.cursors.list.len() >= max_cursors {
@@ -179,10 +163,7 @@ impl ActionProtocol {
     }
 
     pub fn remove_cursors(s: &mut State, view: ViewId, offsets: &[usize]) {
-        let Some(vse) = s.view_store.get_mut(&view) else {
-            debug_panic!();
-            return;
-        };
+        let vse = s.view_store.get_mut(&view).unwrap();
 
         vse.cursors.list.retain(|c| !offsets.contains(&c.offset));
 
@@ -190,10 +171,7 @@ impl ActionProtocol {
     }
 
     pub fn reset_cursor_anchors(s: &mut State, view: ViewId) {
-        let Some(vse) = s.view_store.get_mut(&view) else {
-            debug_panic!();
-            return;
-        };
+        let vse = s.view_store.get_mut(&view).unwrap();
 
         for cursor in &mut vse.cursors.list {
             cursor.anchor = cursor.offset;
@@ -203,49 +181,27 @@ impl ActionProtocol {
     }
 
     pub fn start_commit(s: &mut State, doc: DocId) {
-        let Some(dse) = s.doc_store.get_mut(&doc) else {
-            debug_panic!();
-            return;
-        };
+        let dse = s.doc_store.get_mut(&doc).unwrap();
 
-        if dse.read_only {
-            debug_panic!();
-            return;
-        }
+        assert!(!dse.read_only);
 
         dse.doc.data.start_commit();
     }
 
     pub fn end_commit(s: &mut State, doc: DocId) {
-        let Some(dse) = s.doc_store.get_mut(&doc) else {
-            debug_panic!();
-            return;
-        };
+        let dse = s.doc_store.get_mut(&doc).unwrap();
 
-        if dse.read_only {
-            debug_panic!();
-            return;
-        }
+        assert!(!dse.read_only);
 
         dse.doc.data.end_commit();
     }
 
     pub fn undo(s: &mut State, view: ViewId) {
-        let Some((vse, dse)) =
-            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return;
-        };
-        let Some(doc) = s.index.view_to_doc(view) else {
-            debug_panic!();
-            return;
-        };
+        let (vse, dse) =
+            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view).unwrap();
+        let doc = s.index.view_to_doc(view).unwrap();
 
-        if dse.read_only {
-            debug_panic!();
-            return;
-        }
+        assert!(!dse.read_only);
 
         let edits = dse.doc.data.undo();
         dse.doc.modified = true;
@@ -291,21 +247,11 @@ impl ActionProtocol {
     }
 
     pub fn hot_redo(s: &mut State, view: ViewId) {
-        let Some((vse, dse)) =
-            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return;
-        };
-        let Some(doc) = s.index.view_to_doc(view) else {
-            debug_panic!();
-            return;
-        };
+        let (vse, dse) =
+            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view).unwrap();
+        let doc = s.index.view_to_doc(view).unwrap();
 
-        if dse.read_only {
-            debug_panic!();
-            return;
-        }
+        assert!(!dse.read_only);
 
         let edits = dse.doc.data.hot_redo();
         dse.doc.modified = true;
@@ -351,10 +297,7 @@ impl ActionProtocol {
     }
 
     pub fn saved(s: &mut State, doc: DocId) {
-        let Some(dse) = s.doc_store.get_mut(&doc) else {
-            debug_panic!();
-            return;
-        };
+        let dse = s.doc_store.get_mut(&doc).unwrap();
 
         if !dse.doc.modified {
             return;
@@ -398,21 +341,17 @@ impl ActionProtocol {
     }
 
     pub fn set_doc_path(s: &mut State, doc: DocId, path: Option<PathBuf>) {
-        let Some(dse) = s.doc_store.get_mut(&doc) else {
-            debug_panic!();
-            return;
-        };
-
+        let dse = s.doc_store.get_mut(&doc).unwrap();
         dse.doc.path.clone_from(&path);
 
         let _ = s.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::PathChanged { id: doc, path }));
     }
 
     pub fn set_doc_mode(s: &mut State, doc: DocId, mode: DocStoreTypes::Mode) {
-        let Some(dse) = s.doc_store.get_mut(&doc) else {
-            debug_panic!();
+        let dse = s.doc_store.get_mut(&doc).unwrap();
+        if dse.mode.singleton() || mode.singleton() {
             return;
-        };
+        }
 
         dse.mode = mode;
 
@@ -420,11 +359,7 @@ impl ActionProtocol {
     }
 
     pub fn push_view_mode(s: &mut State, view: ViewId, mode: ViewStoreTypes::Mode) {
-        let Some(vse) = s.view_store.get_mut(&view) else {
-            debug_panic!();
-            return;
-        };
-
+        let vse = s.view_store.get_mut(&view).unwrap();
         if vse.modes.last() != Some(&mode) {
             vse.modes.push(mode);
         }
@@ -450,44 +385,30 @@ impl ActionProtocol {
     pub fn set_doc_decorator(
         s: &mut State, doc: DocId, id: DocStoreTypes::DecorationId, dec: Box<dyn Decorator>,
     ) {
-        let Some(dse) = s.doc_store.get_mut(&doc) else {
-            debug_panic!();
-            return;
-        };
-
+        let dse = s.doc_store.get_mut(&doc).unwrap();
         dse.decs.decorators.insert(id, dec);
     }
 
     pub fn set_view_decorator(
         s: &mut State, view: ViewId, id: ViewStoreTypes::DecorationId, dec: Box<dyn Decorator>,
     ) {
-        let Some(vse) = s.view_store.get_mut(&view) else {
-            debug_panic!();
-            return;
-        };
-
+        let vse = s.view_store.get_mut(&view).unwrap();
         vse.decs.decorators.insert(id, dec);
     }
 
     pub fn remove_doc_decorator(s: &mut State, doc: DocId, id: DocStoreTypes::DecorationId) {
-        let Some(dse) = s.doc_store.get_mut(&doc) else {
-            debug_panic!();
-            return;
-        };
-
+        let dse = s.doc_store.get_mut(&doc).unwrap();
         dse.decs.decorators.remove(&id);
     }
 
     pub fn remove_view_decorator(s: &mut State, view: ViewId, id: ViewStoreTypes::DecorationId) {
-        let Some(vse) = s.view_store.get_mut(&view) else {
-            debug_panic!();
-            return;
-        };
-
+        let vse = s.view_store.get_mut(&view).unwrap();
         vse.decs.decorators.remove(&id);
     }
 
-    pub const fn set_active_window(s: &mut State, window: Option<WindowId>) {
+    pub fn set_active_window(s: &mut State, window: Option<WindowId>) {
+        assert!(window.is_none_or(|window| s.workspace.get_rect(window).is_some()));
+
         s.workspace.active_window = window;
     }
 
@@ -575,21 +496,11 @@ impl ActionProtocol {
         s: &mut State, view: ViewId,
         edits: impl FnOnce(&mut PieceTable, &Vec<Cursor>, ViewStoreTypes::TabWidth) -> Vec<Edit>,
     ) {
-        let Some((vse, dse)) =
-            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return;
-        };
-        let Some(doc) = s.index.view_to_doc(view) else {
-            debug_panic!();
-            return;
-        };
+        let (vse, dse) =
+            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view).unwrap();
+        let doc = s.index.view_to_doc(view).unwrap();
 
-        if dse.read_only {
-            debug_panic!();
-            return;
-        }
+        assert!(!dse.read_only);
 
         let mut cursors = vse.cursors.clone();
         let tab_width = vse.layout.tab_width;
@@ -658,7 +569,7 @@ impl ActionProtocol {
 
         cursors.normalize();
 
-        debug_assert!(
+        assert!(
             cursors
                 .list
                 .iter()

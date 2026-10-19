@@ -10,7 +10,6 @@ use crate::{
     protocols::{action::ActionCmd, dir::DirCmd, manage::ManageCmd},
     state::{DocStoreTypes, State, ViewId, ViewStoreTypes},
     types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
-    util::debug_panic,
 };
 
 pub struct ManageKeyInput {
@@ -41,11 +40,7 @@ impl ManageKeyInput {
             Cmd::Close => Some(vec![FCmd::Manage(ManageCmd::Close)]),
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),
             Cmd::EnterDirMode => {
-                let Some(window) = s.workspace.active_window else {
-                    debug_panic!();
-                    return None;
-                };
-
+                let window = s.workspace.active_window?;
                 Some(vec![FCmd::Dir(DirCmd::ReplaceWindow { window, path: None })])
             }
             Cmd::EnterVisualMode => Some(vec![FCmd::Action(ActionCmd::PushViewMode {
@@ -63,12 +58,9 @@ impl KeyInputHandler for ManageKeyInput {
 
     fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;
-        let Some((_, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view) else {
-            debug_panic!();
-            return None;
-        };
+        let (_, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
-        if dse.mode != DocStoreTypes::Mode::Manage {
+        if view != s.p.manage.view || dse.mode != DocStoreTypes::Mode::Manage {
             return None;
         }
 

@@ -6,7 +6,7 @@ pub mod motion;
 pub mod mp;
 pub mod path;
 
-pub(crate) use macros::{debug_panic, newtype};
+pub(crate) use macros::newtype;
 
 use crate::{
     state::{DocStoreEntry, ViewStoreEntry},

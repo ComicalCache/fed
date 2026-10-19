@@ -9,7 +9,6 @@ use crate::{
     },
     state::{State, ViewId},
     types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
-    util::debug_panic,
 };
 
 pub struct MpKeyInput {
@@ -46,22 +45,15 @@ impl KeyInputHandler for MpKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::MpMode }
 
     fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
-        if s.workspace.active_window != s.p.mp.window {
+        if s.p.mp.window.is_none() || s.workspace.active_window != s.p.mp.window {
             return None;
         }
         if s.p.mp.kind != MpKind::Prompt {
-            return None;
-        }
-
-        let Some(dse) = s.doc_store.get(&s.p.mp.doc) else {
-            debug_panic!();
-            return Some(Vec::new());
-        };
-
-        if dse.read_only {
-            debug_panic!();
             return Some(Vec::new());
         }
+
+        let dse = s.doc_store.get(&s.p.mp.doc).unwrap();
+        assert!(!dse.read_only);
 
         let view = s.p.mp.view;
 

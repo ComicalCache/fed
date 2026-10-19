@@ -1,4 +1,4 @@
-use crossterm::event::{Event, MouseButton, MouseEventKind};
+use crossterm::event::Event;
 
 use crate::{
     fed::FCmd,
@@ -37,14 +37,12 @@ impl InputRouter {
                 Vec::new()
             }
             Event::Mouse(mouse) => {
-                if mouse.kind == MouseEventKind::Down(MouseButton::Left)
-                    && let Some(w) = s.workspace.get_window((mouse.column, mouse.row).into())
-                {
-                    s.workspace.active_window = Some(w);
-                }
+                let Some(window) = s.workspace.get_window((mouse.column, mouse.row).into()) else {
+                    return Vec::new();
+                };
 
                 for handler in &mut self.mouse_handlers {
-                    if let Some(cmds) = handler.mouse(s, mouse) {
+                    if let Some(cmds) = handler.mouse(s, window, mouse) {
                         return cmds;
                     }
                 }

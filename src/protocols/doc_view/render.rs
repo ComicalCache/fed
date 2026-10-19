@@ -9,7 +9,6 @@ use crate::{
         Pos,
         render::{Cell, Renderer, Viewport, WindowId},
     },
-    util::debug_panic,
 };
 
 pub struct DocViewRenderer {
@@ -46,11 +45,8 @@ impl Renderer for DocViewRenderer {
             return;
         }
 
-        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, self.view)
-        else {
-            debug_panic!();
-            return;
-        };
+        let (vse, dse) =
+            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, self.view).unwrap();
 
         let layout = vse.layout(dse);
 

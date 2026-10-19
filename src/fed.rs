@@ -28,7 +28,7 @@ use crate::{
         Pos, RectSplit,
         render::{Screen, WindowId},
     },
-    util::{self, debug_panic},
+    util,
 };
 
 #[allow(unused)]
@@ -142,10 +142,7 @@ impl Fed {
             raw: false,
             tx: Some(vw_tx),
         }));
-        let Ok(Some((view, window))) = vw_rx.await else {
-            debug_panic!();
-            return;
-        };
+        let (view, window) = vw_rx.await.unwrap();
 
         let _ = tx.send(FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) }));
 

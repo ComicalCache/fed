@@ -1,3 +1,4 @@
+use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use piece_table::Slice;
 use tokio::sync::oneshot;
 
@@ -10,12 +11,47 @@ use crate::{
         view::ViewCmd,
     },
     state::{DocId, State, ViewId},
-    types::{Motion, Pos, RectSplit},
-    util::{self, debug_panic},
+    types::{Motion, Pos, RectSplit, render::WindowId},
+    util,
 };
 
+pub fn click(s: &State, window: WindowId, view: ViewId, event: MouseEvent) -> Vec<FCmd> {
+    if event.kind != MouseEventKind::Down(MouseButton::Left) {
+        return Vec::new();
+    }
+
+    let rect = s.workspace.get_rect(window).unwrap();
+    let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
+
+    let mut cmds = vec![FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) })];
+
+    let content = vse.layout(dse).content;
+    let mut pos = Pos::from((event.column, event.row)).saturating_sub(rect.pos);
+    if !content.contains(pos) {
+        return cmds;
+    }
+
+    pos = pos.saturating_sub(content.pos) + *vse.scroll;
+
+    if event.modifiers.contains(KeyModifiers::ALT) {
+        match dse.max_cursors {
+            Some(max) => {
+                if vse.cursors.list.len() < max {
+                    cmds.push(FCmd::Action(ActionCmd::CreateCursorAtPos { view, pos }));
+                }
+            }
+            None => cmds.push(FCmd::Action(ActionCmd::CreateCursorAtPos { view, pos })),
+        }
+    } else {
+        cmds.push(FCmd::Action(ActionCmd::MoveCursorToPos { view, pos, move_anchor: true }));
+    };
+
+    cmds
+}
+
 pub fn quit(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
-    let fallback = s.workspace.tiles().into_iter().find(|&w| Some(w) != s.workspace.active_window);
+    let window = s.index.view_to_window(view)?;
+    let fallback = s.workspace.tiles().into_iter().find(|&w| w != window);
 
     fallback.map_or_else(
         || Some(vec![FCmd::Quit]),
@@ -29,10 +65,7 @@ pub fn quit(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
 }
 
 pub fn scroll_view(s: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>> {
-    let Some(vse) = s.view_store.get(&view) else {
-        debug_panic!();
-        return None;
-    };
+    let vse = s.view_store.get(&view).unwrap();
 
     let mut scroll = *vse.scroll;
 
@@ -48,10 +81,7 @@ pub fn scroll_view(s: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>>
 }
 
 pub fn jump(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
-    let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view) else {
-        debug_panic!();
-        return None;
-    };
+    let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
     let cursor = vse.cursors.list.first()?;
 
     let pos = util::offset_to_pos(cursor.offset, vse, dse);
@@ -97,10 +127,7 @@ pub fn focus_window(s: &State, motion: Motion) -> Option<Vec<FCmd>> {
 }
 
 pub fn yank(s: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>> {
-    let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view) else {
-        debug_panic!();
-        return None;
-    };
+    let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
     let offsets = util::motion::offsets(motion, vse, dse);
     if offsets.is_empty() {
@@ -126,10 +153,7 @@ pub fn yank(s: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>> {
 }
 
 pub fn yank_line(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
-    let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view) else {
-        debug_panic!();
-        return None;
-    };
+    let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
     let mut lines: Vec<_> =
         vse.cursors.list.iter().map(|c| dse.doc.data.get_line_of_byte(c.offset)).collect();
@@ -175,10 +199,7 @@ pub fn swap_lines(
         return None;
     }
 
-    let Some((_vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view) else {
-        debug_panic!();
-        return None;
-    };
+    let (_, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
     let doc_lines = dse.doc.data.lines();
 
@@ -332,18 +353,12 @@ pub fn remove_offsets(view: ViewId, offsets: Vec<(usize, usize)>) -> Vec<FCmd> {
 }
 
 pub fn split_window(s: &State, doc: DocId, direction: RectSplit) -> Option<Vec<FCmd>> {
-    let Some(window) = s.workspace.active_window else {
-        debug_panic!();
-        return None;
-    };
+    let window = s.workspace.active_window?;
 
     let (tx, rx) = oneshot::channel();
     let async_fcmd_tx = s.async_fcmd_tx.clone();
     tokio::spawn(async move {
-        let Ok(Some((_, window))) = rx.await else {
-            debug_panic!();
-            return;
-        };
+        let (_, window) = rx.await.unwrap();
 
         let _ =
             async_fcmd_tx.send(FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) }));

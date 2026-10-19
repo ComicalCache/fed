@@ -6,7 +6,6 @@ use crate::{
     fed::FCmd,
     protocols::{action::ActionCmd, mp::MpCmd},
     state::{DocId, State, ViewId, ViewStoreTypes},
-    util::debug_panic,
 };
 
 pub fn start_search(view: ViewId, doc: DocId, bounds: Option<Vec<(usize, usize)>>) -> Vec<FCmd> {
@@ -21,10 +20,7 @@ pub fn start_search(view: ViewId, doc: DocId, bounds: Option<Vec<(usize, usize)>
             return;
         }
 
-        let Some(dse) = s.doc_store.get(&doc) else {
-            debug_panic!();
-            return;
-        };
+        let dse = s.doc_store.get(&doc).unwrap();
 
         // TODO: somehow don't require copying the entire doc anymore?
         let text = dse.doc.data.slice(0..dse.doc.data.len());

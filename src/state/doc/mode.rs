@@ -7,7 +7,12 @@ pub enum Mode {
     Mp,
     Dir,
     Manage,
+
     Read,
+}
+
+impl Mode {
+    pub const fn singleton(self) -> bool { matches!(self, Self::Mp | Self::Dir | Self::Manage) }
 }
 
 impl Display for Mode {

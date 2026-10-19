@@ -10,7 +10,6 @@ use crate::{
         Rect, RectSplit,
         render::{WindowId, ZLayer},
     },
-    util::debug_panic,
 };
 
 pub struct DocViewProtocol {}
@@ -33,37 +32,23 @@ impl DocViewProtocol {
 
     pub fn create_tile(
         s: &mut State, doc: DocId, view: Option<ViewId>, split_window: WindowId,
-        direction: RectSplit, raw: bool, tx: Option<oneshot::Sender<Option<(ViewId, WindowId)>>>,
-    ) -> Option<(ViewId, WindowId)> {
+        direction: RectSplit, raw: bool, tx: Option<oneshot::Sender<(ViewId, WindowId)>>,
+    ) -> (ViewId, WindowId) {
         let view = Self::prepare_view(s, doc, view, raw);
-
         let window = s.workspace.create_tile(
             split_window,
             direction,
             Box::new(DocViewRenderer::new(view, raw)),
         );
-
-        let Some(window) = window else {
-            Self::destroy_view(s, view);
-
-            debug_panic!();
-
-            if let Some(tx) = tx {
-                let _ = tx.send(None);
-            }
-
-            return None;
-        };
-
         s.attach_view(window, view);
 
         ViewProtocol::resize(s);
 
         if let Some(tx) = tx {
-            let _ = tx.send(Some((view, window)));
+            let _ = tx.send((view, window));
         }
 
-        Some((view, window))
+        (view, window)
     }
 
     pub fn create_floating(
@@ -71,11 +56,9 @@ impl DocViewProtocol {
         tx: Option<oneshot::Sender<(ViewId, WindowId)>>,
     ) -> (ViewId, WindowId) {
         let view = Self::prepare_view(s, doc, view, raw);
-
         let window =
             s.workspace.create_floating(rect, z, Box::new(DocViewRenderer::new(view, raw)));
         s.attach_view(window, view);
-
         ViewProtocol::resize(s);
 
         if let Some(tx) = tx {
@@ -90,11 +73,7 @@ impl DocViewProtocol {
         tx: Option<oneshot::Sender<ViewId>>,
     ) -> ViewId {
         let view = Self::prepare_view(s, doc, view, raw);
-
-        s.index.unlink_window(window);
-        s.workspace.replace_renderer(window, Box::new(DocViewRenderer::new(view, raw)));
-        s.attach_view(window, view);
-
+        s.replace_view(window, view, Box::new(DocViewRenderer::new(view, raw)));
         ViewProtocol::resize(s);
 
         if let Some(tx) = tx {
@@ -105,15 +84,7 @@ impl DocViewProtocol {
     }
 
     pub fn destroy_view(s: &mut State, view: ViewId) {
-        if let Some(window) = s.destroy_view(view) {
-            if s.index.window_to_views(window).is_none() {
-                s.workspace.destroy_window(window);
-
-                if s.workspace.active_window == Some(window) {
-                    s.workspace.active_window = None;
-                }
-            }
-
+        if s.destroy_view(view).is_some() {
             ViewProtocol::resize(s);
         }
     }

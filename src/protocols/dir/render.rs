@@ -9,7 +9,6 @@ use crate::{
         Pos,
         render::{Cell, Renderer, Viewport, WindowId},
     },
-    util::debug_panic,
 };
 
 pub struct DirRenderer {
@@ -38,12 +37,8 @@ impl Renderer for DirRenderer {
             return;
         }
 
-        let Some((vse, dse)) =
-            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.dir.view)
-        else {
-            debug_panic!();
-            return;
-        };
+        let (vse, dse) =
+            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.dir.view).unwrap();
 
         let layout = vse.layout(dse);
 

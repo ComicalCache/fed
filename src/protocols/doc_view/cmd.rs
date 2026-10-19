@@ -16,7 +16,7 @@ pub enum DocViewCmd {
         split_window: WindowId,
         direction: RectSplit,
         raw: bool,
-        tx: Option<oneshot::Sender<Option<(ViewId, WindowId)>>>,
+        tx: Option<oneshot::Sender<(ViewId, WindowId)>>,
     },
     CreateFloating {
         doc: DocId,

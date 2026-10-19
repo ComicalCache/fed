@@ -10,7 +10,6 @@ use crate::{
     protocols::{action::ActionCmd, dir::DirCmd, manage::ManageCmd},
     state::{DocStoreTypes, State, ViewId, ViewStoreTypes},
     types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
-    util::debug_panic,
 };
 
 pub struct ReadKeyInput {
@@ -27,10 +26,7 @@ impl ReadKeyInput {
 
     fn exec(s: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;
-        let Some(doc) = s.index.view_to_doc(view) else {
-            debug_panic!();
-            return None;
-        };
+        let doc = s.index.view_to_doc(view).unwrap();
 
         match cmd {
             Cmd::Move(motion) => {
@@ -43,19 +39,11 @@ impl ReadKeyInput {
             Cmd::SplitWindow(direction) => common::split_window(s, doc, direction),
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),
             Cmd::EnterManageMode => {
-                let Some(window) = s.workspace.active_window else {
-                    debug_panic!();
-                    return None;
-                };
-
+                let window = s.workspace.active_window?;
                 Some(vec![FCmd::Manage(ManageCmd::ReplaceWindow { window })])
             }
             Cmd::EnterDirMode => {
-                let Some(window) = s.workspace.active_window else {
-                    debug_panic!();
-                    return None;
-                };
-
+                let window = s.workspace.active_window?;
                 Some(vec![FCmd::Dir(DirCmd::ReplaceWindow { window, path: None })])
             }
 
@@ -74,10 +62,7 @@ impl KeyInputHandler for ReadKeyInput {
 
     fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;
-        let Some((_, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view) else {
-            debug_panic!();
-            return None;
-        };
+        let (_, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         if dse.mode != DocStoreTypes::Mode::Read {
             return None;

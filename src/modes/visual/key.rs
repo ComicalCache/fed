@@ -11,7 +11,6 @@ use crate::{
     protocols::action::ActionCmd,
     state::{DocId, State, ViewId, ViewStoreTypes},
     types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
-    util::debug_panic,
 };
 
 pub struct VisualKeyInput {
@@ -29,14 +28,8 @@ impl VisualKeyInput {
 
     fn exec(s: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;
-        let Some(doc) = s.index.view_to_doc(view) else {
-            debug_panic!();
-            return None;
-        };
-        let Some(dse) = s.doc_store.get(&doc) else {
-            debug_panic!();
-            return None;
-        };
+        let doc = s.index.view_to_doc(view).unwrap();
+        let dse = s.doc_store.get(&doc).unwrap();
 
         match cmd {
             Cmd::Move(motion) => Some(vec![FCmd::Action(ActionCmd::MoveCursors {
@@ -65,11 +58,7 @@ impl VisualKeyInput {
     }
 
     fn swap_operation(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return None;
-        };
+        let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         let doc_lines = dse.doc.data.lines();
 
@@ -96,11 +85,7 @@ impl VisualKeyInput {
     }
 
     fn enter_search_mode(s: &State, view: ViewId, doc: DocId) -> Option<Vec<FCmd>> {
-        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return None;
-        };
+        let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         let mut offsets = Vec::new();
         for cursor in &vse.cursors.list {
@@ -133,11 +118,7 @@ impl VisualKeyInput {
     }
 
     fn operator(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return None;
-        };
+        let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         let mut offsets = Vec::new();
         for cursor in &vse.cursors.list {
@@ -201,10 +182,7 @@ impl KeyInputHandler for VisualKeyInput {
 
     fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;
-        let Some(vse) = s.view_store.get(&view) else {
-            debug_panic!();
-            return None;
-        };
+        let vse = s.view_store.get(&view).unwrap();
 
         if vse.mode() != ViewStoreTypes::Mode::Visual {
             return None;

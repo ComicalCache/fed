@@ -6,14 +6,10 @@ use crate::{
     fed::FCmd,
     protocols::mp::{MpCmd, MpProtocol},
     state::State,
-    util::debug_panic,
 };
 
 pub fn message(s: &mut State, message: String, duration: Duration) {
-    let Some(id) = MpProtocol::message(s, message, None) else {
-        debug_panic!();
-        return;
-    };
+    let Some(id) = MpProtocol::message(s, message, None) else { return };
 
     let tx = s.async_fcmd_tx.clone();
     tokio::spawn(async move {

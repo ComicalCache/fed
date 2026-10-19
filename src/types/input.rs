@@ -1,6 +1,6 @@
 use crossterm::event::{KeyEvent, MouseEvent};
 
-use crate::{fed::FCmd, state::State};
+use crate::{fed::FCmd, state::State, types::render::WindowId};
 
 pub trait KeyInputHandler {
     /// The _static_ priority of the handler. This determines in which order
@@ -19,7 +19,7 @@ pub trait MouseInputHandler {
 
     /// Processes, or ignores, an input `Event::Mouse`. If the handler consumes
     /// the event, `Some` is to be returned, `None` otherwise.
-    fn mouse(&mut self, _: &State, _: MouseEvent) -> Option<Vec<FCmd>>;
+    fn mouse(&mut self, _: &State, _: WindowId, _: MouseEvent) -> Option<Vec<FCmd>>;
 }
 
 pub trait PasteInputHandler {

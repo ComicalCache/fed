@@ -9,7 +9,6 @@ use crate::{
         Pos,
         render::{Cell, Renderer, Viewport, WindowId},
     },
-    util::debug_panic,
 };
 
 pub struct ManageRenderer {
@@ -37,12 +36,8 @@ impl Renderer for ManageRenderer {
             return;
         }
 
-        let Some((vse, dse)) =
-            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.manage.view)
-        else {
-            debug_panic!();
-            return;
-        };
+        let (vse, dse) =
+            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.manage.view).unwrap();
 
         let layout = vse.layout(dse);
 

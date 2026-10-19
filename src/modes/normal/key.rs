@@ -21,7 +21,7 @@ use crate::{
     },
     state::{DocId, State, ViewId, ViewStoreTypes},
     types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, Motion, ParseResult},
-    util::{self, debug_panic},
+    util,
 };
 
 pub struct NormalKeyInput {
@@ -40,14 +40,8 @@ impl NormalKeyInput {
 
     fn exec(&mut self, s: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;
-        let Some(doc) = s.index.view_to_doc(view) else {
-            debug_panic!();
-            return None;
-        };
-        let Some(dse) = s.doc_store.get(&doc) else {
-            debug_panic!();
-            return None;
-        };
+        let doc = s.index.view_to_doc(view).unwrap();
+        let dse = s.doc_store.get(&doc).unwrap();
 
         match cmd {
             Cmd::Move(motion) => {
@@ -144,19 +138,11 @@ impl NormalKeyInput {
             Cmd::SplitWindow(direction) => common::split_window(s, doc, direction),
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),
             Cmd::EnterDirMode => {
-                let Some(window) = s.workspace.active_window else {
-                    debug_panic!();
-                    return None;
-                };
-
+                let window = s.workspace.active_window?;
                 Some(vec![FCmd::Dir(DirCmd::ReplaceWindow { window, path: None })])
             }
             Cmd::EnterManageMode => {
-                let Some(window) = s.workspace.active_window else {
-                    debug_panic!();
-                    return None;
-                };
-
+                let window = s.workspace.active_window?;
                 Some(vec![FCmd::Manage(ManageCmd::ReplaceWindow { window })])
             }
             Cmd::EnterInsertMode => {
@@ -184,11 +170,7 @@ impl NormalKeyInput {
     fn motion(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
         let (Cmd::Delete(motion) | Cmd::Change(motion)) = cmd else { unreachable!() };
 
-        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return None;
-        };
+        let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         let offsets = util::motion::offsets(motion, vse, dse);
         if offsets.is_empty() {
@@ -212,11 +194,7 @@ impl NormalKeyInput {
     }
 
     fn line_operation(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return None;
-        };
+        let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         let mut lines: Vec<_> =
             vse.cursors.list.iter().map(|c| dse.doc.data.get_line_of_byte(c.offset)).collect();
@@ -358,11 +336,7 @@ impl NormalKeyInput {
     }
 
     fn swap_operation(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
-        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return None;
-        };
+        let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         let lines: Vec<_> =
             vse.cursors.list.iter().map(|c| dse.doc.data.get_line_of_byte(c.offset)).collect();
@@ -371,11 +345,7 @@ impl NormalKeyInput {
     }
 
     fn replace_char(s: &State, view: ViewId, doc: DocId, ch: char) -> Option<Vec<FCmd>> {
-        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return None;
-        };
+        let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         let mut edits = Vec::new();
         for cursor in &vse.cursors.list {
@@ -417,10 +387,7 @@ impl NormalKeyInput {
     }
 
     fn save_file(s: &State, doc: DocId) -> Option<Vec<FCmd>> {
-        let Some(dse) = s.doc_store.get(&doc) else {
-            debug_panic!();
-            return None;
-        };
+        let dse = s.doc_store.get(&doc).unwrap();
 
         let path = dse.doc.path.as_ref().map_or_else(
             || {
@@ -438,10 +405,7 @@ impl NormalKeyInput {
                 return;
             }
 
-            let Some(dse) = s.doc_store.get(&doc) else {
-                debug_panic!();
-                return;
-            };
+            let dse = s.doc_store.get(&doc).unwrap();
 
             let path = util::path::normalize(res);
             let data = dse.doc.data.slice(0..dse.doc.data.len());
@@ -496,10 +460,7 @@ impl KeyInputHandler for NormalKeyInput {
 
     fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;
-        let Some(vse) = s.view_store.get(&view) else {
-            debug_panic!();
-            return None;
-        };
+        let vse = s.view_store.get(&view).unwrap();
 
         if vse.mode() != ViewStoreTypes::Mode::Normal {
             return None;

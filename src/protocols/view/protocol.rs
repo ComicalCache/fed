@@ -4,7 +4,7 @@ use crate::{
     protocols::view::ViewCmd,
     state::{DocStoreTypes, State, ViewId, ViewStoreTypes},
     types::{Pos, Rect},
-    util::{self, debug_panic},
+    util,
 };
 
 pub struct ViewProtocol {}
@@ -30,9 +30,7 @@ impl ViewProtocol {
             | DocStoreTypes::Event::PathChanged { id, .. } => id,
         };
 
-        let views: Vec<_> =
-            s.index.doc_to_views(*doc).map_or_default(|views| views.iter().cloned().collect());
-        for view in views {
+        for view in s.index.doc_to_views(*doc).cloned().unwrap_or_default() {
             Self::update(s, view);
         }
     }
@@ -53,12 +51,8 @@ impl ViewProtocol {
     }
 
     pub fn update(s: &mut State, view: ViewId) {
-        let Some((vse, dse)) =
-            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return;
-        };
+        let (vse, dse) =
+            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view).unwrap();
 
         let start = dse.doc.data.get_line_start_byte(vse.scroll.y);
         let end = dse.doc.data.get_line_end_byte(vse.scroll.y + vse.layout(dse).content.height);
@@ -77,10 +71,7 @@ impl ViewProtocol {
     }
 
     pub fn scroll_to(s: &mut State, view: ViewId, pos: Pos) {
-        let Some(vse) = s.view_store.get_mut(&view) else {
-            debug_panic!();
-            return;
-        };
+        let vse = s.view_store.get_mut(&view).unwrap();
 
         vse.scroll = ViewStoreTypes::Scroll(pos);
 
@@ -92,10 +83,7 @@ impl ViewProtocol {
         windows.extend(s.workspace.floatings());
 
         for window in windows {
-            let Some(views) = s.index.window_to_views(window) else {
-                debug_panic!();
-                continue;
-            };
+            let views = s.index.window_to_views(window).unwrap();
 
             // Resizing for windows with multiple views must be done by the
             // entity that manages that window composition.
@@ -103,16 +91,10 @@ impl ViewProtocol {
                 continue;
             }
 
-            let Some(rect) = s.workspace.get_rect(window) else {
-                debug_panic!();
-                continue;
-            };
+            let rect = s.workspace.get_rect(window).unwrap();
 
-            let view = *views.iter().next().unwrap();
-            let Some(vse) = s.view_store.get_mut(&view) else {
-                debug_panic!();
-                continue;
-            };
+            let view = views[0];
+            let vse = s.view_store.get_mut(&view).unwrap();
 
             vse.rect = Rect::new(Pos::default(), rect.width, rect.height);
 
@@ -128,15 +110,8 @@ impl ViewProtocol {
             return;
         }
 
-        let Some((vse, dse)) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)
-        else {
-            debug_panic!();
-            return;
-        };
-        let Some(cursor) = vse.cursors.list.first() else {
-            debug_panic!();
-            return;
-        };
+        let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
+        let cursor = vse.cursors.list.first().unwrap();
 
         let content = vse.layout(dse).content;
         if content.width == 0 || content.height == 0 {
@@ -164,10 +139,7 @@ impl ViewProtocol {
         }
 
         if scroll_needed {
-            let Some(vse) = s.view_store.get_mut(&view) else {
-                debug_panic!();
-                return;
-            };
+            let vse = s.view_store.get_mut(&view).unwrap();
 
             vse.scroll = scroll;
 

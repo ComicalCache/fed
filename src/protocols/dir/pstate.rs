@@ -33,6 +33,7 @@ pub struct DirPState {
 
     pub pwd: PathBuf,
     pub entries: Vec<DirEntry>,
+    pub revision: usize,
 }
 
 pub struct PrintableDirEntry {

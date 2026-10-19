@@ -2,8 +2,6 @@ use std::collections::HashMap;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::util::debug_panic;
-
 pub enum ParseResult<Command: Clone> {
     Exact(Command),
     Prefix,
@@ -47,8 +45,7 @@ impl<Command: Clone> Keymap<Command> {
                 if let KeyNode::Prefix(next_map) = node {
                     curr = next_map;
                 } else {
-                    debug_panic!();
-                    return;
+                    panic!();
                 }
             }
         }
@@ -65,7 +62,7 @@ impl<Command: Clone> Keymap<Command> {
                 } else if let KeyNode::Prefix(next_map) = node {
                     curr = next_map;
                 } else {
-                    debug_panic!();
+                    return ParseResult::Invalid;
                 }
             } else {
                 return ParseResult::Invalid;
