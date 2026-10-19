@@ -110,6 +110,10 @@ impl ViewProtocol {
             return;
         }
 
+        Self::scroll_if_needed(s, view);
+    }
+
+    pub fn scroll_if_needed(s: &mut State, view: ViewId) {
         let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
         let cursor = vse.cursors.list.first().unwrap();
 

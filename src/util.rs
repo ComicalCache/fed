@@ -5,6 +5,7 @@ mod macros;
 pub mod motion;
 pub mod mp;
 pub mod path;
+pub mod text;
 
 pub(crate) use macros::newtype;
 

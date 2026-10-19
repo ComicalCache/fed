@@ -63,7 +63,6 @@ impl KeyInputHandler for MpKeyInput {
 
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
-                // Always treat entering execute as consuming the key.
                 let cmds = Some(Self::exec(s, cmd));
                 self.pending_keys.clear();
 

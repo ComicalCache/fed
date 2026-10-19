@@ -61,6 +61,7 @@ impl State {
         modes::mp::setup::setup(&mut s);
         modes::dir::setup::setup(&mut s);
         modes::manage::setup::setup(&mut s);
+        modes::picker::setup::setup(&mut s);
 
         s
     }

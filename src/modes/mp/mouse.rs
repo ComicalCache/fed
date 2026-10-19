@@ -30,6 +30,6 @@ impl MouseInputHandler for MpMouseInput {
             return Some(Vec::new());
         }
 
-        Some(common::click(s, window, s.p.mp.view, event))
+        Some(common::mouse(s, window, s.p.mp.view, event))
     }
 }

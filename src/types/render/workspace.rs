@@ -131,6 +131,8 @@ impl Workspace {
         Self { rect, active_window: None, root: None, floating: Vec::new(), next_window_id: 0 }
     }
 
+    pub const fn rect(&self) -> Rect { self.rect }
+
     pub fn resize(&mut self, width: usize, height: usize) {
         self.rect = Rect::new(Pos::default(), width, height);
     }

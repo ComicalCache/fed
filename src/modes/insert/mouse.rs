@@ -21,6 +21,6 @@ impl MouseInputHandler for InsertMouseInput {
         }
         assert!(!dse.read_only);
 
-        Some(common::click(s, window, view, event))
+        Some(common::mouse(s, window, view, event))
     }
 }

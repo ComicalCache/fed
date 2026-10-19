@@ -5,6 +5,7 @@ pub mod manage;
 mod motions;
 pub mod mp;
 pub mod normal;
+pub mod picker;
 pub mod read;
 pub mod search;
 pub mod visual;

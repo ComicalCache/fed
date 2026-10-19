@@ -3,6 +3,7 @@ use crate::{
     protocols::{action::ActionCmd, mp::MpKind},
     state::State,
     types::{PasteInputHandler, PasteInputPriority},
+    util::text::sanitize,
 };
 
 pub struct MpPasteInput {}
@@ -18,7 +19,7 @@ impl PasteInputHandler for MpPasteInput {
             return Some(Vec::new());
         }
 
-        let text: String = text.chars().filter(|&ch| !ch.is_control() || ch == '\t').collect();
+        let text = sanitize(text, |ch| ch == '\t');
         if text.is_empty() {
             return Some(Vec::new());
         }

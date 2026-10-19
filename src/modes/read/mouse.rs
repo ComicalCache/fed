@@ -20,6 +20,6 @@ impl MouseInputHandler for ReadMouseInput {
             return None;
         }
 
-        Some(common::click(s, window, view, event))
+        Some(common::mouse(s, window, view, event))
     }
 }

@@ -56,6 +56,7 @@ impl ManageProtocol {
                         DocStoreTypes::Mode::Mp => "MP",
                         DocStoreTypes::Mode::Dir => "DIR",
                         DocStoreTypes::Mode::Manage => "MANAGE",
+                        DocStoreTypes::Mode::Picker => "PICKER",
                         DocStoreTypes::Mode::Read => "READ",
                     }
                     .to_string()
@@ -97,6 +98,7 @@ impl ManageProtocol {
         ActionProtocol::move_cursor_to_pos(s, s.p.manage.view, pos, true);
         ActionProtocol::saved(s, s.p.manage.doc);
 
+        // Reset the read only flag after the modifications.
         s.doc_store.get_mut(&s.p.manage.doc).unwrap().read_only = true;
     }
 
@@ -132,7 +134,10 @@ impl ManageProtocol {
 
         let dse = s.doc_store.get(&doc).unwrap();
 
-        if matches!(dse.mode, DocStoreTypes::Mode::Mp | DocStoreTypes::Mode::Manage) {
+        if matches!(
+            dse.mode,
+            DocStoreTypes::Mode::Mp | DocStoreTypes::Mode::Manage | DocStoreTypes::Mode::Picker
+        ) {
             return;
         }
 
@@ -149,7 +154,9 @@ impl ManageProtocol {
                 DocViewProtocol::replace_window(s, doc, view, window, false, None);
             }
             DocStoreTypes::Mode::Dir => DirProtocol::replace_window(s, window),
-            DocStoreTypes::Mode::Mp | DocStoreTypes::Mode::Manage => unreachable!(),
+            DocStoreTypes::Mode::Mp | DocStoreTypes::Mode::Manage | DocStoreTypes::Mode::Picker => {
+                unreachable!()
+            }
         }
     }
 

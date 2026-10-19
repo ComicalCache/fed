@@ -49,6 +49,7 @@ pub trait ResizeInputHandler {
 pub enum KeyInputPriority {
     // Needs the highest priority for intercepting with active mini buffer.
     MpMode = 0,
+    PickerMode,
     SearchMode,
     VisualMode,
     ReadMode,
@@ -63,6 +64,7 @@ pub enum KeyInputPriority {
 pub enum MouseInputPriority {
     // Needs the highest priority for intercepting with active mini buffer.
     MpMode = 0,
+    PickerMode,
     SearchMode,
     VisualMode,
     ReadMode,
@@ -77,6 +79,7 @@ pub enum MouseInputPriority {
 pub enum PasteInputPriority {
     // Needs the highest priority for intercepting with active mini buffer.
     MpMode = 0,
+    PickerMode,
     VisualMode,
     InsertMode,
     NormalMode,
@@ -87,6 +90,7 @@ pub enum PasteInputPriority {
 pub enum ResizeInputPriority {
     // Needs the highest priority for resizing the screen buffer.
     ScreenProtocol = 0,
+    PickerProtocol,
     MpProtocol,
     ViewProtocol,
 }

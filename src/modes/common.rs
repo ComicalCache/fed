@@ -15,9 +15,14 @@ use crate::{
     util,
 };
 
-pub fn click(s: &State, window: WindowId, view: ViewId, event: MouseEvent) -> Vec<FCmd> {
-    if event.kind != MouseEventKind::Down(MouseButton::Left) {
-        return Vec::new();
+pub fn mouse(s: &State, window: WindowId, view: ViewId, event: MouseEvent) -> Vec<FCmd> {
+    match event.kind {
+        MouseEventKind::ScrollUp => return scroll_view(s, view, Motion::Up),
+        MouseEventKind::ScrollDown => return scroll_view(s, view, Motion::Down),
+        MouseEventKind::ScrollLeft => return scroll_view(s, view, Motion::Left),
+        MouseEventKind::ScrollRight => return scroll_view(s, view, Motion::Right),
+        MouseEventKind::Down(MouseButton::Left) => {}
+        _ => return Vec::new(),
     }
 
     let rect = s.workspace.get_rect(window).unwrap();

@@ -1,0 +1,32 @@
+use std::{any::Any, fmt::Display};
+
+use crate::{
+    state::{DocId, State, ViewId},
+    types::render::WindowId,
+};
+
+pub trait PickerEntry: Display + Send + 'static {
+    fn as_any(&self) -> &dyn Any;
+
+    fn into_any(self: Box<Self>) -> Box<dyn Any + Send>;
+}
+
+pub type PCallback = Box<dyn FnOnce(&mut State, Option<Box<dyn PickerEntry>>) + Send>;
+
+#[derive(Default)]
+pub struct PickerPState {
+    pub input_doc: DocId,
+    pub input_view: ViewId,
+    pub list_doc: DocId,
+    pub list_view: ViewId,
+
+    pub pref_width: usize,
+    pub pref_height: usize,
+
+    pub window: Option<WindowId>,
+    pub prev_window: Option<WindowId>,
+
+    pub entries: Vec<Box<dyn PickerEntry>>,
+    pub filtered: Vec<usize>,
+    pub pcallback: Option<PCallback>,
+}

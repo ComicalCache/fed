@@ -19,6 +19,7 @@ use crate::{
         io::{IoCmd, IoProtocol},
         manage::{ManageCmd, ManageProtocol},
         mp::MpCmd,
+        picker::PickerCmd,
         quit::QuitProtocol,
         screen::{ScreenCmd, ScreenProtocol},
         view::{ViewCmd, ViewProtocol},
@@ -42,6 +43,7 @@ pub enum FCmd {
     DocView(DocViewCmd),
     Dir(DirCmd),
     Manage(ManageCmd),
+    Picker(PickerCmd),
 }
 
 #[allow(unused)]
