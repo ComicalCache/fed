@@ -75,6 +75,10 @@ impl PieceTable {
         let str = str.as_ref();
         assert!(!str.is_empty(), "Inserted string must not be empty");
 
+        if let Some(commit) = &mut self.active_commit {
+            commit.logical_changes.push((pos, Kind::Insertion, str.to_string()));
+        }
+
         let update_pos = pos;
 
         let mut idx = 0;
@@ -173,6 +177,11 @@ impl PieceTable {
         let end = pos + n;
         assert!(end <= self.total_length, "Removed string must be within the text");
         assert!(n != 0, "Must remove at least 1 character");
+
+        if self.active_commit.is_some() {
+            let data = self.__slice(pos, end);
+            self.active_commit.as_mut().unwrap().logical_changes.push((pos, Kind::Deletion, data));
+        }
 
         let mut remove = Vec::new();
         let mut len = 0;
@@ -279,37 +288,37 @@ impl PieceTable {
     pub const fn is_empty(&self) -> bool { self.total_length == 0 }
 
     /// Reverts the piece table to the state *before* the last changes. Returns
-    /// a vector of the changes (offset, kind, data).
+    /// logical edits (document byte offset, kind, data) in reverse operation
+    /// order with inverted kinds. Offsets apply sequentially during undo.
     pub fn undo(&mut self) -> Vec<(usize, Kind, String)> {
         let Some(commit) = self.history.undo() else {
             return Vec::new();
         };
 
-        let mut changes = Vec::with_capacity(commit.changes.len());
         for change in commit.changes.iter().rev() {
-            let offset: usize = self.pieces[..change.pos].iter().map(|p| p.length).sum();
-            let data = {
-                let source = match change.piece.source {
-                    Source::Original => &self.original,
-                    Source::Addition => &self.addition,
-                };
-                source[change.piece.offset..change.piece.offset + change.piece.length].to_string()
-            };
-
             match change.kind {
                 Kind::Deletion => {
                     self.pieces.insert(change.pos, change.piece);
                     self.total_length += change.piece.length;
-
-                    changes.push((offset, Kind::Insertion, data));
                 }
                 Kind::Insertion => {
                     self.total_length -= self.pieces.remove(change.pos).length;
-
-                    changes.push((offset, Kind::Deletion, data));
                 }
             }
         }
+
+        let changes = commit
+            .logical_changes
+            .iter()
+            .rev()
+            .map(|(pos, kind, data)| {
+                let kind = match kind {
+                    Kind::Deletion => Kind::Insertion,
+                    Kind::Insertion => Kind::Deletion,
+                };
+                (*pos, kind, data.clone())
+            })
+            .collect();
 
         self.rebuild_lines();
 
@@ -317,7 +326,8 @@ impl PieceTable {
     }
 
     /// Restores the piece table to the "hot" state *after* the last undo.
-    /// Returns a vector of the changes (offset, kind, data).
+    /// Returns logical edits (document byte offset, kind, data) in original
+    /// operation order. Offsets apply sequentially during redo.
     ///
     /// Hot state means the state the head was last at (e.g. at a fork in the
     /// history it can quickly be redone to the last head position without
@@ -327,31 +337,19 @@ impl PieceTable {
             return Vec::new();
         };
 
-        let mut changes = Vec::with_capacity(commit.changes.len());
         for change in &commit.changes {
-            let offset: usize = self.pieces[..change.pos].iter().map(|p| p.length).sum();
-            let data = {
-                let source = match change.piece.source {
-                    Source::Original => &self.original,
-                    Source::Addition => &self.addition,
-                };
-                source[change.piece.offset..change.piece.offset + change.piece.length].to_string()
-            };
-
             match change.kind {
                 Kind::Deletion => {
                     self.total_length -= self.pieces.remove(change.pos).length;
-
-                    changes.push((offset, Kind::Deletion, data));
                 }
                 Kind::Insertion => {
                     self.pieces.insert(change.pos, change.piece);
                     self.total_length += change.piece.length;
-
-                    changes.push((offset, Kind::Insertion, data));
                 }
             }
         }
+
+        let changes = commit.logical_changes.clone();
 
         self.rebuild_lines();
 

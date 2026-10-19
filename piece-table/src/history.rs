@@ -1,5 +1,6 @@
 use crate::piece_table::Piece;
 
+#[derive(Clone, Copy)]
 pub enum Kind {
     Deletion,
     Insertion,
@@ -18,10 +19,11 @@ impl Change {
 
 pub struct Commit {
     pub changes: Vec<Change>,
+    pub logical_changes: Vec<(usize, Kind, String)>,
 }
 
 impl Commit {
-    pub const fn new() -> Self { Self { changes: Vec::new() } }
+    pub const fn new() -> Self { Self { changes: Vec::new(), logical_changes: Vec::new() } }
 
     pub fn add_change(&mut self, pos: usize, piece: Piece, kind: Kind) {
         self.changes.push(Change::new(pos, piece, kind));
