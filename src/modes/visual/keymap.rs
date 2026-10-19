@@ -15,6 +15,7 @@ pub fn keymap() -> Keymap<Cmd> {
     keymap.bind(&[KeyChord::new(KeyCode::Char('d'), KeyModifiers::empty())], Cmd::Delete);
     keymap.bind(&[KeyChord::new(KeyCode::Char('c'), KeyModifiers::empty())], Cmd::Change);
     keymap.bind(&[KeyChord::new(KeyCode::Char('y'), KeyModifiers::empty())], Cmd::Yank);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('p'), KeyModifiers::empty())], Cmd::Paste);
 
     keymap.bind(&[KeyChord::new(KeyCode::Char('j'), KeyModifiers::ALT)], Cmd::SwapLineDown);
     keymap.bind(&[KeyChord::new(KeyCode::Char('k'), KeyModifiers::ALT)], Cmd::SwapLineUp);

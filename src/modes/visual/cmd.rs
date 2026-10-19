@@ -6,6 +6,7 @@ pub enum Cmd {
     Delete,
     Change,
     Yank,
+    Paste,
     SwapLineDown,
     SwapLineUp,
     EnterSearchMode,

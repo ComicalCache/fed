@@ -6,11 +6,11 @@ use crate::{
     fed::FCmd,
     modes::{
         common, search,
-        visual::{cmd::Cmd, keymap},
+        visual::{VisualPasteInput, cmd::Cmd, keymap},
     },
     protocols::action::ActionCmd,
     state::{DocId, State, ViewId, ViewStoreTypes},
-    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
+    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult, PasteInputHandler},
 };
 
 pub struct VisualKeyInput {
@@ -45,6 +45,13 @@ impl VisualKeyInput {
                 Some(Self::operator(s, view, doc, cmd))
             }
             Cmd::Yank => Some(Self::operator(s, view, doc, cmd)),
+            Cmd::Paste => {
+                if dse.read_only {
+                    return None;
+                }
+
+                VisualPasteInput {}.paste(s, &arboard::Clipboard::new().ok()?.get_text().ok()?)
+            }
             Cmd::SwapLineDown | Cmd::SwapLineUp => {
                 if dse.read_only {
                     return None;

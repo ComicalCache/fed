@@ -10,7 +10,7 @@ use crate::{
         mp::MpCmd,
         view::ViewCmd,
     },
-    state::{DocId, State, ViewId},
+    state::{DocId, State, ViewId, ViewStoreTypes},
     types::{Motion, Pos, RectSplit, render::WindowId},
     util,
 };
@@ -44,6 +44,28 @@ pub fn click(s: &State, window: WindowId, view: ViewId, event: MouseEvent) -> Ve
         }
     } else {
         cmds.push(FCmd::Action(ActionCmd::MoveCursorToPos { view, pos, move_anchor: true }));
+    }
+
+    cmds
+}
+
+pub fn paste(s: &State, view: ViewId, text: &str) -> Vec<FCmd> {
+    let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
+    if text.is_empty() || dse.read_only {
+        return Vec::new();
+    }
+
+    let doc = s.index.view_to_doc(view).unwrap();
+
+    let mut cmds = vec![
+        FCmd::Action(ActionCmd::EndCommit { doc }),
+        FCmd::Action(ActionCmd::StartCommit { doc }),
+        FCmd::Action(ActionCmd::Insert { view, text: text.to_string() }),
+        FCmd::Action(ActionCmd::EndCommit { doc }),
+    ];
+
+    if vse.mode() == ViewStoreTypes::Mode::Insert {
+        cmds.push(FCmd::Action(ActionCmd::StartCommit { doc }));
     }
 
     cmds

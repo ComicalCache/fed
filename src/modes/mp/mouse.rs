@@ -30,11 +30,6 @@ impl MouseInputHandler for MpMouseInput {
             return Some(Vec::new());
         }
 
-        let view = s.p.mp.view;
-        let (_, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
-
-        assert!(!dse.read_only);
-
-        Some(common::click(s, window, view, event))
+        Some(common::click(s, window, s.p.mp.view, event))
     }
 }

@@ -22,7 +22,10 @@ use std::{
 
 use crossterm::{
     cursor::{Hide, Show},
-    event::{DisableMouseCapture, EnableMouseCapture, Event, EventStream},
+    event::{
+        DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+        Event, EventStream,
+    },
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -69,6 +72,7 @@ async fn main() -> std::io::Result<()> {
         let mut stdout = stdout();
         let _ = execute!(stdout, Show);
         let _ = execute!(stdout, DisableMouseCapture);
+        let _ = execute!(stdout, DisableBracketedPaste);
         let _ = execute!(stdout, LeaveAlternateScreen);
         let _ = disable_raw_mode();
 
@@ -104,6 +108,7 @@ async fn main() -> std::io::Result<()> {
     let mut stdout = stdout();
     execute!(stdout, EnterAlternateScreen)?;
     execute!(stdout, EnableMouseCapture)?;
+    execute!(stdout, EnableBracketedPaste)?;
     execute!(stdout, Hide)?;
 
     let (input_tx, input_rx) = unbounded_channel();
@@ -121,6 +126,7 @@ async fn main() -> std::io::Result<()> {
 
     execute!(stdout, Show)?;
     execute!(stdout, DisableMouseCapture)?;
+    execute!(stdout, DisableBracketedPaste)?;
     execute!(stdout, LeaveAlternateScreen)?;
 
     disable_raw_mode()

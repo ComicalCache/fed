@@ -4,13 +4,13 @@ use crate::{
     fed::FCmd,
     modes::{
         dir::{DirKeyInput, DirMouseInput},
-        insert::{InsertKeyInput, InsertMouseInput},
+        insert::{InsertKeyInput, InsertMouseInput, InsertPasteInput},
         manage::{ManageKeyInput, ManageMouseInput},
-        mp::{MpKeyInput, MpMouseInput},
-        normal::{NormalKeyInput, NormalMouseInput},
+        mp::{MpKeyInput, MpMouseInput, MpPasteInput},
+        normal::{NormalKeyInput, NormalMouseInput, NormalPasteInput},
         read::{ReadKeyInput, ReadMouseInput},
         search::{SearchKeyInput, SearchMouseInput},
-        visual::{VisualKeyInput, VisualMouseInput},
+        visual::{VisualKeyInput, VisualMouseInput, VisualPasteInput},
     },
     protocols::{mp::MpResizeInput, screen::ScreenResizeInput, view::ViewResizeInput},
     state::State,
@@ -94,7 +94,12 @@ impl Default for InputRouter {
             Box::new(InsertMouseInput {}),
             Box::new(NormalMouseInput {}),
         ];
-        let mut paste_handlers: Vec<Box<dyn PasteInputHandler>> = vec![];
+        let mut paste_handlers: Vec<Box<dyn PasteInputHandler>> = vec![
+            Box::new(MpPasteInput {}),
+            Box::new(VisualPasteInput {}),
+            Box::new(InsertPasteInput {}),
+            Box::new(NormalPasteInput {}),
+        ];
         let mut resize_handlers: Vec<Box<dyn ResizeInputHandler>> = vec![
             Box::new(ScreenResizeInput {}),
             Box::new(MpResizeInput {}),

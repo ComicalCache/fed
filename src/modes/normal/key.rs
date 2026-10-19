@@ -97,11 +97,7 @@ impl NormalKeyInput {
                     && let Ok(mut clipboard) = arboard::Clipboard::new()
                     && let Ok(text) = clipboard.get_text()
                 {
-                    Some(vec![
-                        FCmd::Action(ActionCmd::StartCommit { doc }),
-                        FCmd::Action(ActionCmd::Insert { view, text }),
-                        FCmd::Action(ActionCmd::EndCommit { doc }),
-                    ])
+                    Some(common::paste(s, view, &text))
                 } else {
                     None
                 }

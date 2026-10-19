@@ -52,15 +52,10 @@ impl KeyInputHandler for MpKeyInput {
             return Some(Vec::new());
         }
 
-        let dse = s.doc_store.get(&s.p.mp.doc).unwrap();
-        assert!(!dse.read_only);
-
-        let view = s.p.mp.view;
-
-        if self.last_view != Some(view) {
+        if self.last_view != Some(s.p.mp.view) {
             self.pending_keys.clear();
 
-            self.last_view = Some(view);
+            self.last_view = Some(s.p.mp.view);
         }
 
         let chord = KeyChord::from(event);

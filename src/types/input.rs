@@ -74,7 +74,13 @@ pub enum MouseInputPriority {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 #[allow(clippy::empty_enums)]
-pub enum PasteInputPriority {}
+pub enum PasteInputPriority {
+    // Needs the highest priority for intercepting with active mini buffer.
+    MpMode = 0,
+    VisualMode,
+    InsertMode,
+    NormalMode,
+}
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 #[allow(clippy::empty_enums)]
