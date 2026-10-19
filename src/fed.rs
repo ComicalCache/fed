@@ -86,7 +86,7 @@ impl Fed {
         loop {
             tokio::select! {
                 Some(event) = self.input_rx.recv() => {
-                    for cmd in self.input_router.exec(&mut self.s, event) {
+                    for cmd in self.input_router.exec(&self.s, event) {
                         ProtocolRouter::exec(&mut self.s, &mut self.screen, cmd);
                         self.process_events();
                     }

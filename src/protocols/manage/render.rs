@@ -42,10 +42,10 @@ impl Renderer for ManageRenderer {
         let layout = vse.layout(dse);
 
         let mut gutter = viewport.sub_view(layout.gutter);
-        self.render_gutter(s, &mut gutter, layout.gutter.width);
+        Self::render_gutter(s, &mut gutter, layout.gutter.width);
 
         let mut mode_line = viewport.sub_view(layout.mode_line);
-        self.render_mode_line(s, &mut mode_line);
+        Self::render_mode_line(s, &mut mode_line);
 
         let mut content = viewport.sub_view(layout.content);
         self.inner.render(s, &mut content, s.p.manage.view);
@@ -53,7 +53,7 @@ impl Renderer for ManageRenderer {
 }
 
 impl ManageRenderer {
-    fn render_gutter(&self, s: &State, viewport: &mut Viewport, width: usize) {
+    fn render_gutter(s: &State, viewport: &mut Viewport, width: usize) {
         // The render function checks for existance.
         let (vse, dse) =
             State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.manage.view).unwrap();
@@ -79,7 +79,7 @@ impl ManageRenderer {
         }
     }
 
-    fn render_mode_line(&self, s: &State, viewport: &mut Viewport) {
+    fn render_mode_line(s: &State, viewport: &mut Viewport) {
         // The render function checks for existance.
         let (vse, dse) =
             State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.manage.view).unwrap();

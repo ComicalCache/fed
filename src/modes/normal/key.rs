@@ -63,7 +63,7 @@ impl NormalKeyInput {
 
                 Self::line_operation(s, view, doc, cmd)
             }
-            Cmd::ScrollView(motion) => common::scroll_view(s, view, motion),
+            Cmd::ScrollView(motion) => Some(common::scroll_view(s, view, motion)),
             Cmd::Undo => {
                 if dse.read_only {
                     return None;
@@ -83,7 +83,7 @@ impl NormalKeyInput {
                     return None;
                 }
 
-                Self::insert(view, doc, cmd)
+                Some(Self::insert(view, doc, cmd))
             }
             Cmd::SwapLineDown | Cmd::SwapLineUp => {
                 if dse.read_only {
@@ -133,7 +133,7 @@ impl NormalKeyInput {
 
                 Self::replace_char(s, view, doc, ch)
             }
-            Cmd::SaveFile => Self::save_file(s, doc),
+            Cmd::SaveFile => Some(Self::save_file(s, doc)),
             Cmd::Jump => common::jump(s, view),
             Cmd::SplitWindow(direction) => common::split_window(s, doc, direction),
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),
@@ -285,7 +285,7 @@ impl NormalKeyInput {
         Some(cmds)
     }
 
-    fn insert(view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
+    fn insert(view: ViewId, doc: DocId, cmd: Cmd) -> Vec<FCmd> {
         let mut cmds = vec![FCmd::Action(ActionCmd::StartCommit { doc })];
 
         match cmd {
@@ -332,7 +332,7 @@ impl NormalKeyInput {
             mode: ViewStoreTypes::Mode::Insert,
         }));
 
-        Some(cmds)
+        cmds
     }
 
     fn swap_operation(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
@@ -386,7 +386,7 @@ impl NormalKeyInput {
         Some(cmds)
     }
 
-    fn save_file(s: &State, doc: DocId) -> Option<Vec<FCmd>> {
+    fn save_file(s: &State, doc: DocId) -> Vec<FCmd> {
         let dse = s.doc_store.get(&doc).unwrap();
 
         let path = dse.doc.path.as_ref().map_or_else(
@@ -421,12 +421,12 @@ impl NormalKeyInput {
             IoProtocol::write(s, path, data, wcallback);
         });
 
-        Some(vec![FCmd::Mp(MpCmd::Prompt {
+        vec![FCmd::Mp(MpCmd::Prompt {
             prompt: "Save file: ".to_string(),
             initial_text: if path.is_empty() { None } else { Some(path) },
             pcallback,
             tx: None,
-        })])
+        })]
     }
 
     fn save_file_completion(

@@ -42,9 +42,9 @@ impl DirKeyInput {
             }
             Cmd::Yank(motion) => common::yank(s, view, motion),
             Cmd::YankLine => common::yank_line(s, view),
-            Cmd::ScrollView(motion) => common::scroll_view(s, view, motion),
+            Cmd::ScrollView(motion) => Some(common::scroll_view(s, view, motion)),
             Cmd::Jump => common::jump(s, view),
-            Cmd::Create => Self::create(s),
+            Cmd::Create => Some(Self::create(s)),
             Cmd::Rename => Self::rename(s, view),
             Cmd::Delete => Self::delete(s, view, false),
             Cmd::DeleteRecursive => Self::delete(s, view, true),
@@ -63,7 +63,7 @@ impl DirKeyInput {
         }
     }
 
-    fn create(s: &State) -> Option<Vec<FCmd>> {
+    fn create(s: &State) -> Vec<FCmd> {
         let mut initial_text = s.p.dir.pwd.display().to_string();
 
         if !initial_text.ends_with(std::path::MAIN_SEPARATOR) {
@@ -79,12 +79,12 @@ impl DirKeyInput {
             }
         });
 
-        Some(vec![FCmd::Mp(MpCmd::Prompt {
+        vec![FCmd::Mp(MpCmd::Prompt {
             prompt: "New entry (trailing '/' for directory): ".to_string(),
             initial_text: Some(initial_text),
             pcallback,
             tx: None,
-        })])
+        })]
     }
 
     fn rename(s: &State, view: ViewId) -> Option<Vec<FCmd>> {

@@ -25,7 +25,7 @@ pub struct InputRouter {
 }
 
 impl InputRouter {
-    pub fn exec(&mut self, s: &mut State, event: Event) -> Vec<FCmd> {
+    pub fn exec(&mut self, s: &State, event: Event) -> Vec<FCmd> {
         match event {
             Event::Key(key) => {
                 for handler in &mut self.key_handlers {

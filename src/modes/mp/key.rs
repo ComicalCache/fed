@@ -24,19 +24,19 @@ impl MpKeyInput {
         Self { keymap, pending_keys: Vec::new(), last_view: None }
     }
 
-    fn exec(s: &State, cmd: Cmd) -> Option<Vec<FCmd>> {
+    fn exec(s: &State, cmd: Cmd) -> Vec<FCmd> {
         let id = s.p.mp.id;
         let view = s.p.mp.view;
 
         match cmd {
-            Cmd::Input(text) => Some(vec![FCmd::Action(ActionCmd::Insert { view, text })]),
+            Cmd::Input(text) => vec![FCmd::Action(ActionCmd::Insert { view, text })],
             Cmd::Move(motion) => {
-                Some(vec![FCmd::Action(ActionCmd::MoveCursors { view, motion, move_anchor: true })])
+                vec![FCmd::Action(ActionCmd::MoveCursors { view, motion, move_anchor: true })]
             }
-            Cmd::Backspace => Some(vec![FCmd::Action(ActionCmd::Backspace { view })]),
-            Cmd::Delete => Some(vec![FCmd::Action(ActionCmd::Delete { view })]),
-            Cmd::Submit => Some(vec![FCmd::Mp(MpCmd::Submit)]),
-            Cmd::Close => Some(vec![FCmd::Mp(MpCmd::Close { id })]),
+            Cmd::Backspace => vec![FCmd::Action(ActionCmd::Backspace { view })],
+            Cmd::Delete => vec![FCmd::Action(ActionCmd::Delete { view })],
+            Cmd::Submit => vec![FCmd::Mp(MpCmd::Submit)],
+            Cmd::Close => vec![FCmd::Mp(MpCmd::Close { id })],
         }
     }
 }
@@ -69,7 +69,7 @@ impl KeyInputHandler for MpKeyInput {
         match self.keymap.parse(&self.pending_keys) {
             ParseResult::Exact(cmd) => {
                 // Always treat entering execute as consuming the key.
-                let cmds = Some(Self::exec(s, cmd).unwrap_or_default());
+                let cmds = Some(Self::exec(s, cmd));
                 self.pending_keys.clear();
 
                 cmds
@@ -96,14 +96,9 @@ impl KeyInputHandler for MpKeyInput {
                     .join("-");
 
                 if modifiers.is_empty() {
-                    // Always treat entering execute as consuming the key.
-                    let cmds = Self::exec(s, Cmd::Input(ch.to_string())).unwrap_or_default();
-                    Some(cmds)
+                    Some(Self::exec(s, Cmd::Input(ch.to_string())))
                 } else {
-                    // Always treat entering execute as consuming the key.
-                    let cmds = Self::exec(s, Cmd::Input(format!("<{modifiers}-{ch}>")))
-                        .unwrap_or_default();
-                    Some(cmds)
+                    Some(Self::exec(s, Cmd::Input(format!("<{modifiers}-{ch}>"))))
                 }
             }
         }

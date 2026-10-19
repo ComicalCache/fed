@@ -44,7 +44,7 @@ impl DirProtocol {
         }
     }
 
-    pub fn init(s: &mut State) {
+    pub fn init(s: &State) {
         tokio::spawn(Self::fetch_entries(s.p.dir.pwd.clone(), s.async_fcmd_tx.clone()));
     }
 

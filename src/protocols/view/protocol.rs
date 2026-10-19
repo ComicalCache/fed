@@ -38,7 +38,7 @@ impl ViewProtocol {
     pub fn exec_view_event(s: &mut State, event: &ViewStoreTypes::Event) {
         match event {
             ViewStoreTypes::Event::Created { id } | ViewStoreTypes::Event::Resized { id } => {
-                Self::update(s, *id)
+                Self::update(s, *id);
             }
             ViewStoreTypes::Event::CursorsMoved { view } => Self::cursor_moved(s, *view),
             ViewStoreTypes::Event::CursorsChanged { .. }

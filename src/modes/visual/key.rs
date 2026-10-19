@@ -42,9 +42,9 @@ impl VisualKeyInput {
                     return None;
                 }
 
-                Self::operator(s, view, doc, cmd)
+                Some(Self::operator(s, view, doc, cmd))
             }
-            Cmd::Yank => Self::operator(s, view, doc, cmd),
+            Cmd::Yank => Some(Self::operator(s, view, doc, cmd)),
             Cmd::SwapLineDown | Cmd::SwapLineUp => {
                 if dse.read_only {
                     return None;
@@ -52,7 +52,7 @@ impl VisualKeyInput {
 
                 Self::swap_operation(s, view, doc, cmd)
             }
-            Cmd::EnterSearchMode => Self::enter_search_mode(s, view, doc),
+            Cmd::EnterSearchMode => Some(Self::enter_search_mode(s, view, doc)),
             Cmd::Escape => Some(Self::escape(view)),
         }
     }
@@ -84,7 +84,7 @@ impl VisualKeyInput {
         common::swap_lines(s, view, doc, lines, matches!(cmd, Cmd::SwapLineDown))
     }
 
-    fn enter_search_mode(s: &State, view: ViewId, doc: DocId) -> Option<Vec<FCmd>> {
+    fn enter_search_mode(s: &State, view: ViewId, doc: DocId) -> Vec<FCmd> {
         let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         let mut offsets = Vec::new();
@@ -114,10 +114,10 @@ impl VisualKeyInput {
             bounds.push((start, end));
         }
 
-        Some(search::util::start_search(view, doc, Some(bounds)))
+        search::util::start_search(view, doc, Some(bounds))
     }
 
-    fn operator(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
+    fn operator(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Vec<FCmd> {
         let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         let mut offsets = Vec::new();
@@ -149,7 +149,7 @@ impl VisualKeyInput {
                 let _ = clipboard.set_text(yanked);
             }
 
-            return Some(Self::escape(view));
+            return Self::escape(view);
         }
 
         let mut cmds = vec![FCmd::Action(ActionCmd::StartCommit { doc })];
@@ -166,7 +166,7 @@ impl VisualKeyInput {
             cmds.extend(Self::escape(view));
         }
 
-        Some(cmds)
+        cmds
     }
 
     fn escape(view: ViewId) -> Vec<FCmd> {

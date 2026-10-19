@@ -44,7 +44,7 @@ pub fn click(s: &State, window: WindowId, view: ViewId, event: MouseEvent) -> Ve
         }
     } else {
         cmds.push(FCmd::Action(ActionCmd::MoveCursorToPos { view, pos, move_anchor: true }));
-    };
+    }
 
     cmds
 }
@@ -64,7 +64,7 @@ pub fn quit(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
     )
 }
 
-pub fn scroll_view(s: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>> {
+pub fn scroll_view(s: &State, view: ViewId, motion: Motion) -> Vec<FCmd> {
     let vse = s.view_store.get(&view).unwrap();
 
     let mut scroll = *vse.scroll;
@@ -77,7 +77,7 @@ pub fn scroll_view(s: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>>
         _ => {}
     }
 
-    Some(vec![FCmd::View(ViewCmd::ScrollTo { view, pos: scroll })])
+    vec![FCmd::View(ViewCmd::ScrollTo { view, pos: scroll })]
 }
 
 pub fn jump(s: &State, view: ViewId) -> Option<Vec<FCmd>> {

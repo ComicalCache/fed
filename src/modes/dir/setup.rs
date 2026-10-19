@@ -11,7 +11,7 @@ use crate::{
 };
 
 pub fn setup(s: &mut State) {
-    s.p.dir.pwd = std::env::current_dir().map(util::path::normalize).unwrap_or_default();
+    s.p.dir.pwd = std::env::current_dir().map_or_default(util::path::normalize);
     s.p.dir.doc = s.create_doc(None).unwrap();
     let dse = s.doc_store.get_mut(&s.p.dir.doc).unwrap();
     dse.mode = DocStoreTypes::Mode::Dir;

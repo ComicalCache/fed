@@ -34,7 +34,7 @@ impl ReadKeyInput {
             }
             Cmd::Yank(motion) => common::yank(s, view, motion),
             Cmd::YankLine => common::yank_line(s, view),
-            Cmd::ScrollView(motion) => common::scroll_view(s, view, motion),
+            Cmd::ScrollView(motion) => Some(common::scroll_view(s, view, motion)),
             Cmd::Jump => common::jump(s, view),
             Cmd::SplitWindow(direction) => common::split_window(s, doc, direction),
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),

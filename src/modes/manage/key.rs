@@ -34,7 +34,7 @@ impl ManageKeyInput {
             }
             Cmd::Yank(motion) => common::yank(s, view, motion),
             Cmd::YankLine => common::yank_line(s, view),
-            Cmd::ScrollView(motion) => common::scroll_view(s, view, motion),
+            Cmd::ScrollView(motion) => Some(common::scroll_view(s, view, motion)),
             Cmd::Jump => common::jump(s, view),
             Cmd::Select => Some(vec![FCmd::Manage(ManageCmd::Select)]),
             Cmd::Close => Some(vec![FCmd::Manage(ManageCmd::Close)]),
