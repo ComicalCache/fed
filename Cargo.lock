@@ -204,7 +204,7 @@ dependencies = [
 
 [[package]]
 name = "fed"
-version = "3.5.0"
+version = "3.5.1"
 dependencies = [
  "anstyle-parse",
  "arboard",
@@ -595,7 +595,7 @@ dependencies = [
 
 [[package]]
 name = "piece-table"
-version = "1.5.0"
+version = "1.6.0"
 
 [[package]]
 name = "pin-project-lite"

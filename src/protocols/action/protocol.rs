@@ -197,103 +197,21 @@ impl ActionProtocol {
     }
 
     pub fn undo(s: &mut State, view: ViewId) {
-        let (vse, dse) =
-            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view).unwrap();
         let doc = s.index.view_to_doc(view).unwrap();
-
+        let dse = s.doc_store.get_mut(&doc).unwrap();
         assert!(!dse.read_only);
 
         let edits = dse.doc.data.undo();
-        dse.doc.modified = true;
-
-        let len = dse.doc.data.len();
-        for cursor in &mut vse.cursors.list {
-            cursor.offset = cursor.offset.min(len);
-            cursor.anchor = cursor.anchor.min(len);
-        }
-
-        for (offset, kind, data) in &edits {
-            let (remove, insert) = match kind {
-                Kind::Deletion => (data.len(), 0),
-                Kind::Insertion => (0, data.len()),
-            };
-
-            dse.decs.edit(*offset, remove, insert);
-            vse.decs.edit(*offset, remove, insert);
-        }
-
-        for (offset, kind, data) in edits {
-            match kind {
-                Kind::Deletion => {
-                    let _ = s.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Removed {
-                        id: doc,
-                        pos: offset,
-                        n: data.len(),
-                        str: data,
-                    }));
-                }
-                Kind::Insertion => {
-                    let _ = s.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Inserted {
-                        id: doc,
-                        pos: offset,
-                        n: data.len(),
-                        str: data,
-                    }));
-                }
-            }
-        }
-
-        let _ = s.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorsChanged { view }));
+        Self::process_edits(s, doc, edits);
     }
 
     pub fn hot_redo(s: &mut State, view: ViewId) {
-        let (vse, dse) =
-            State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view).unwrap();
         let doc = s.index.view_to_doc(view).unwrap();
-
+        let dse = s.doc_store.get_mut(&doc).unwrap();
         assert!(!dse.read_only);
 
         let edits = dse.doc.data.hot_redo();
-        dse.doc.modified = true;
-
-        let len = dse.doc.data.len();
-        for cursor in &mut vse.cursors.list {
-            cursor.offset = cursor.offset.min(len);
-            cursor.anchor = cursor.anchor.min(len);
-        }
-
-        for (offset, kind, data) in &edits {
-            let (remove, insert) = match kind {
-                Kind::Deletion => (data.len(), 0),
-                Kind::Insertion => (0, data.len()),
-            };
-
-            dse.decs.edit(*offset, remove, insert);
-            vse.decs.edit(*offset, remove, insert);
-        }
-
-        for (offset, kind, data) in edits {
-            match kind {
-                Kind::Deletion => {
-                    let _ = s.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Removed {
-                        id: doc,
-                        pos: offset,
-                        n: data.len(),
-                        str: data,
-                    }));
-                }
-                Kind::Insertion => {
-                    let _ = s.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Inserted {
-                        id: doc,
-                        pos: offset,
-                        n: data.len(),
-                        str: data,
-                    }));
-                }
-            }
-        }
-
-        let _ = s.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorsChanged { view }));
+        Self::process_edits(s, doc, edits);
     }
 
     pub fn saved(s: &mut State, doc: DocId) {
@@ -502,86 +420,108 @@ impl ActionProtocol {
 
         assert!(!dse.read_only);
 
-        let mut cursors = vse.cursors.clone();
         let tab_width = vse.layout.tab_width;
 
-        let mut edits = edits(&mut dse.doc.data, &cursors.list, tab_width);
+        let mut edits = edits(&mut dse.doc.data, &vse.cursors.list, tab_width);
         edits.sort_by_key(|e| std::cmp::Reverse(e.offset));
         edits.dedup_by_key(|e| e.offset);
 
-        for edit in &edits {
+        let mut changes = Vec::new();
+        for edit in edits {
             if edit.remove > 0 {
-                let str = dse.doc.data.slice(edit.offset..edit.offset + edit.remove);
-
+                let data = dse.doc.data.slice(edit.offset..edit.offset + edit.remove);
                 dse.doc.data.remove(edit.offset, edit.remove);
-                dse.doc.modified = true;
-
-                let _ = s.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Removed {
-                    id: doc,
-                    pos: edit.offset,
-                    n: edit.remove,
-                    str,
-                }));
+                changes.push((edit.offset, Kind::Deletion, data));
             }
-
             if !edit.insert.is_empty() {
                 dse.doc.data.insert(edit.offset, &edit.insert);
-                dse.doc.modified = true;
-
-                let _ = s.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Inserted {
-                    id: doc,
-                    pos: edit.offset,
-                    n: edit.insert.len(),
-                    str: edit.insert.clone(),
-                }));
-            }
-
-            dse.decs.edit(edit.offset, edit.remove, edit.insert.len());
-            vse.decs.edit(edit.offset, edit.remove, edit.insert.len());
-        }
-
-        for cursor in &mut cursors.list {
-            for edit in &edits {
-                if edit.offset < cursor.offset {
-                    // Before cursor.
-                    if cursor.offset < edit.offset + edit.remove {
-                        cursor.offset = edit.offset;
-                    } else {
-                        cursor.offset = cursor.offset + edit.insert.len() - edit.remove;
-                    }
-                } else if edit.offset == cursor.offset {
-                    // On cursor.
-                    cursor.offset += edit.insert.len();
-                }
-
-                if edit.offset < cursor.anchor {
-                    if cursor.anchor < edit.offset + edit.remove {
-                        cursor.anchor = edit.offset;
-                    } else {
-                        cursor.anchor = cursor.anchor + edit.insert.len() - edit.remove;
-                    }
-                } else if edit.offset == cursor.anchor {
-                    // On cursor.
-                    cursor.anchor += edit.insert.len();
-                }
+                changes.push((edit.offset, Kind::Insertion, edit.insert));
             }
         }
 
-        cursors.normalize();
+        Self::process_edits(s, doc, changes);
+    }
 
-        assert!(
-            cursors
-                .list
-                .iter()
-                .all(|c| c.offset <= dse.doc.data.len() && c.anchor <= dse.doc.data.len())
-        );
-
-        if cursors.list.is_empty() {
+    fn process_edits(s: &mut State, doc: DocId, edits: Vec<(usize, Kind, String)>) {
+        if edits.is_empty() {
             return;
         }
 
-        vse.cursors = cursors.clone();
+        let dse = s.doc_store.get_mut(&doc).unwrap();
+        dse.doc.modified = true;
+        for (offset, kind, data) in &edits {
+            let (remove, insert) = match kind {
+                Kind::Deletion => (data.len(), 0),
+                Kind::Insertion => (0, data.len()),
+            };
+            dse.decs.edit(*offset, remove, insert);
+        }
 
-        let _ = s.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorsMoved { view }));
+        let views = s.index.doc_to_views(doc).cloned().unwrap_or_default();
+        for &view in &views {
+            let (vse, dse) =
+                State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view)
+                    .unwrap();
+
+            let mut cursors = vse.cursors.clone();
+            for cursor in &mut cursors.list {
+                let mut cursor_moved = false;
+                for (offset, kind, data) in &edits {
+                    cursor_moved |= cursor.offset >= *offset;
+
+                    for position in [&mut cursor.offset, &mut cursor.anchor] {
+                        if *position >= *offset {
+                            match kind {
+                                Kind::Deletion => {
+                                    *position -= data.len().min(*position - *offset);
+                                }
+                                Kind::Insertion => *position += data.len(),
+                            }
+                        }
+                    }
+                }
+
+                if cursor_moved {
+                    cursor.pref_x = util::offset_to_pos(cursor.offset, vse, dse).x;
+                }
+            }
+            cursors.normalize();
+
+            assert!(
+                cursors
+                    .list
+                    .iter()
+                    .all(|c| c.offset <= dse.doc.data.len() && c.anchor <= dse.doc.data.len())
+            );
+
+            vse.cursors = cursors;
+
+            for (offset, kind, data) in &edits {
+                let (remove, insert) = match kind {
+                    Kind::Deletion => (data.len(), 0),
+                    Kind::Insertion => (0, data.len()),
+                };
+                vse.decs.edit(*offset, remove, insert);
+            }
+        }
+
+        for (pos, kind, str) in edits {
+            let event = match kind {
+                Kind::Deletion => DocStoreTypes::Event::Removed { id: doc, pos, n: str.len(), str },
+                Kind::Insertion => {
+                    DocStoreTypes::Event::Inserted { id: doc, pos, n: str.len(), str }
+                }
+            };
+
+            let _ = s.fevent_tx.send(FEvent::Doc(event));
+        }
+
+        for view in views {
+            if s.view_store.get(&view).unwrap().cursors.list.is_empty() {
+                continue;
+            }
+
+            let _ = s.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorsMoved { view }));
+        }
     }
 }
