@@ -60,7 +60,7 @@ impl PickerRenderer {
     fn render_border(&self, s: &State, viewport: &mut Viewport) {
         let width = viewport.width();
         let height = viewport.height();
-        let face = s.theme.mode_line;
+        let face = s.theme.default;
 
         for (y, left, right) in [(0, "┏", "┓"), (2, "┣", "┫"), (height - 1, "┗", "┛")] {
             viewport.set(Pos::new(0, y), Cell::new(left.to_string(), 1, face));

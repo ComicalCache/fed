@@ -131,6 +131,10 @@ impl Fed {
     }
 
     pub async fn stage1(tx: UnboundedSender<FCmd>, doc: DocId, cli: Cli) {
+        if let Ok(path) = std::env::current_dir() {
+            let _ = tx.send(FCmd::Io(IoCmd::Scan { path }));
+        }
+
         let dir = cli.path.clone().is_some_and(|p| p.is_dir());
 
         let (vw_tx, vw_rx) = oneshot::channel();

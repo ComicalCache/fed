@@ -1,6 +1,6 @@
 use crate::protocols::{
-    dir::DirPState, io::IoPState, manage::ManagePState, mp::MpPState, picker::PickerPState,
-    quit::QuitPState,
+    dir::DirPState, doc_view::DocViewPState, io::IoPState, manage::ManagePState, mp::MpPState,
+    picker::PickerPState, quit::QuitPState,
 };
 
 pub struct PState {
@@ -9,6 +9,7 @@ pub struct PState {
     pub quit: QuitPState,
     pub manage: ManagePState,
     pub dir: DirPState,
+    pub doc_view: DocViewPState,
     pub picker: PickerPState,
 }
 
@@ -20,6 +21,7 @@ impl PState {
             quit: QuitPState::default(),
             manage: ManagePState::default(),
             dir: DirPState::default(),
+            doc_view: DocViewPState::default(),
             picker: PickerPState::default(),
         }
     }

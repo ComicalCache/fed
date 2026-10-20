@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Duration};
+use std::{any::Any, path::PathBuf, time::Duration};
 
 use crossterm::event::{KeyCode, KeyEvent};
 use piece_table::Slice;
@@ -13,16 +13,24 @@ use crate::{
         search,
     },
     protocols::{
-        action::ActionCmd,
-        dir::DirCmd,
-        io::{IoFuture, IoProtocol},
+        action::{ActionCmd, ActionProtocol},
+        dir::{DirCmd, DirProtocol},
+        doc_view::{DocViewCmd, DocViewProtocol},
+        io::{IoFuture, IoProtocol, ScanEntry},
         manage::ManageCmd,
         mp::MpCmd,
+        picker::{PickerCmd, PickerEntry},
     },
     state::{DocId, State, ViewId, ViewStoreTypes},
     types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, Motion, ParseResult},
     util,
 };
+
+impl PickerEntry for ScanEntry {
+    fn as_any(&self) -> &dyn Any { self }
+
+    fn into_any(self: Box<Self>) -> Box<dyn Any + Send> { self }
+}
 
 pub struct NormalKeyInput {
     keymap: Keymap<Cmd>,
@@ -130,6 +138,7 @@ impl NormalKeyInput {
                 Self::replace_char(s, view, doc, ch)
             }
             Cmd::SaveFile => Some(Self::save_file(s, doc)),
+            Cmd::FindFile => Some(Self::find_file(s)),
             Cmd::Jump => common::jump(s, view),
             Cmd::SplitWindow(direction) => common::split_window(s, doc, direction),
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),
@@ -380,6 +389,44 @@ impl NormalKeyInput {
         cmds.push(FCmd::Action(ActionCmd::EndCommit { doc }));
 
         Some(cmds)
+    }
+
+    fn find_file(s: &State) -> Vec<FCmd> {
+        let window = s.workspace.active_window.unwrap();
+        let entries =
+            s.p.io
+                .scan_list
+                .iter()
+                .cloned()
+                .map(|entry| Box::new(entry) as Box<dyn PickerEntry>)
+                .collect();
+
+        let callback = Box::new(move |s: &mut State, selected: Option<Box<dyn PickerEntry>>| {
+            if s.workspace.get_rect(window).is_none() {
+                return;
+            }
+
+            let Some(selected) = selected else { return };
+
+            let entry = selected.into_any().downcast::<ScanEntry>().unwrap();
+            ActionProtocol::set_active_window(s, Some(window));
+
+            if entry.dir {
+                DirProtocol::exec(s, DirCmd::ReplaceWindow { window, path: Some(entry.path) });
+            } else {
+                DocViewProtocol::exec(
+                    s,
+                    DocViewCmd::OpenFile { window, path: entry.path, force: true },
+                );
+            }
+        });
+
+        vec![FCmd::Picker(PickerCmd::Open {
+            width: s.workspace.rect().width * 9 / 10,
+            height: s.workspace.rect().height * 9 / 10,
+            entries,
+            callback,
+        })]
     }
 
     fn save_file(s: &State, doc: DocId) -> Vec<FCmd> {

@@ -43,11 +43,6 @@ impl PickerProtocol {
         s.p.picker.pref_width = width;
         s.p.picker.pref_height = height;
 
-        s.p.picker.entries = entries;
-        s.p.picker.pcallback = Some(callback);
-
-        Self::set_text(s, s.p.picker.input_view, String::new());
-
         let window = s.workspace.create_floating(
             Rect::default(),
             ZLayer::Picker,
@@ -60,6 +55,12 @@ impl PickerProtocol {
         s.p.picker.window = Some(window);
 
         s.workspace.active_window = Some(window);
+
+        s.p.picker.entries = entries;
+        s.p.picker.offset = 0;
+        s.p.picker.pcallback = Some(callback);
+
+        Self::set_text(s, s.p.picker.input_view, String::new());
 
         let rect = s.workspace.rect();
         Self::resize(s, rect.width, rect.height);
@@ -88,6 +89,7 @@ impl PickerProtocol {
 
         s.p.picker.entries.clear();
         s.p.picker.filtered.clear();
+        s.p.picker.offset = 0;
 
         for view in [s.p.picker.input_view, s.p.picker.list_view] {
             s.view_store.get_mut(&view).unwrap().rect = Rect::default();
@@ -105,23 +107,22 @@ impl PickerProtocol {
         let dse = s.doc_store.get(&s.p.picker.input_doc).unwrap();
         let query = dse.doc.data.slice(0..dse.doc.data.len()).to_lowercase();
 
-        let mut filtered = Vec::new();
-        let mut text = String::new();
-        for (index, entry) in s.p.picker.entries.iter().enumerate() {
-            let label = entry.to_string().replace('\r', "\\r").replace('\n', "\\n");
-            if label.to_lowercase().contains(&query) {
-                if !filtered.is_empty() {
-                    text.push('\n');
-                }
+        s.p.picker.filtered = if query.is_empty() {
+            (0..s.p.picker.entries.len()).collect()
+        } else {
+            s.p.picker
+                .entries
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, e)| {
+                    let label = e.to_string().replace('\r', "\\r").replace('\n', "\\n");
+                    label.to_lowercase().contains(&query).then_some(idx)
+                })
+                .collect()
+        };
+        s.p.picker.offset = 0;
 
-                text.push_str(&label);
-                filtered.push(index);
-            }
-        }
-
-        s.p.picker.filtered = filtered;
-
-        Self::set_text(s, s.p.picker.list_view, text);
+        Self::update_list(s, 0);
     }
 
     pub fn change_selection(s: &mut State, motion: Motion) {
@@ -129,12 +130,12 @@ impl PickerProtocol {
             return;
         }
 
-        let (vse, dse) =
-            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.picker.list_view)
-                .unwrap();
+        let view = s.p.picker.list_view;
+        let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         let x = vse.scroll.x;
-        let y = dse.doc.data.get_line_of_byte(vse.cursors.list[0].offset);
+        let y = Self::selection(s);
+        let height = vse.layout(dse).content.height;
 
         let last = s.p.picker.filtered.len() - 1;
         let y = match motion {
@@ -143,7 +144,12 @@ impl PickerProtocol {
             _ => return,
         };
 
-        ActionProtocol::move_cursor_to_pos(s, s.p.picker.list_view, Pos::new(x, y), true);
+        let start = s.p.picker.offset;
+        if y < start || y >= start + height {
+            Self::update_list(s, y);
+        } else {
+            ActionProtocol::move_cursor_to_pos(s, view, Pos::new(x, y - start), true);
+        }
     }
 
     pub fn scroll_list(s: &mut State, motion: Motion) {
@@ -166,11 +172,7 @@ impl PickerProtocol {
             return;
         }
 
-        let (vse, dse) =
-            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.picker.list_view)
-                .unwrap();
-
-        let y = dse.doc.data.get_line_of_byte(vse.cursors.list[0].offset);
+        let y = Self::selection(s);
         let Some(&index) = s.p.picker.filtered.get(y) else { return };
 
         let selected = s.p.picker.entries.remove(index);
@@ -179,13 +181,14 @@ impl PickerProtocol {
 
     pub fn resize(s: &mut State, width: usize, height: usize) {
         let Some(window) = s.p.picker.window else { return };
+        let selection = Self::selection(s);
 
         let w = s.p.picker.pref_width.max(3).min(width);
         let h = s.p.picker.pref_height.max(5).min(height);
 
         s.workspace.reposition_floating(
             window,
-            Pos::new(width.saturating_sub(w) / 2, height.saturating_sub(h) / 10),
+            Pos::new(width.saturating_sub(w) / 2, height.saturating_sub(h) / 2),
         );
         s.workspace.resize_floating(window, w, h);
 
@@ -197,11 +200,52 @@ impl PickerProtocol {
 
         s.view_store.get_mut(&s.p.picker.input_view).unwrap().rect = input;
         s.view_store.get_mut(&s.p.picker.list_view).unwrap().rect = list;
+        Self::update_list(s, selection);
 
         for view in [s.p.picker.input_view, s.p.picker.list_view] {
             ViewProtocol::scroll_if_needed(s, view);
             let _ = s.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::Resized { id: view }));
         }
+    }
+
+    fn selection(s: &State) -> usize {
+        let (vse, dse) =
+            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.picker.list_view)
+                .unwrap();
+
+        s.p.picker.offset + dse.doc.data.get_line_of_byte(vse.cursors.list[0].offset)
+    }
+
+    fn update_list(s: &mut State, selection: usize) {
+        let view = s.p.picker.list_view;
+        let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
+
+        let x = vse.scroll.x;
+        let height = vse.layout(dse).content.height;
+
+        let rows = height.max(1);
+        let mut start = s.p.picker.offset.min(s.p.picker.filtered.len().saturating_sub(rows));
+        if selection < start {
+            start = selection;
+        } else if selection >= start + rows {
+            start = selection + 1 - rows;
+        }
+        let end = (start + height).min(s.p.picker.filtered.len());
+
+        let text = s.p.picker.filtered[start..end]
+            .iter()
+            .map(|&index| {
+                s.p.picker.entries[index].to_string().replace('\r', "\\r").replace('\n', "\\n")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        s.p.picker.offset = start;
+
+        Self::set_text(s, view, text);
+
+        ViewProtocol::scroll_to(s, view, Pos::new(x, 0));
+        ActionProtocol::move_cursor_to_pos(s, view, Pos::new(x, selection - start), true);
     }
 
     fn set_text(s: &mut State, view: ViewId, text: String) {

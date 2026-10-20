@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use tokio::sync::oneshot;
 
 use crate::{
@@ -10,6 +12,18 @@ use crate::{
 
 #[allow(unused)]
 pub enum DocViewCmd {
+    OpenFile {
+        window: WindowId,
+        path: PathBuf,
+        force: bool,
+    },
+    OpenFileCompletion {
+        window: WindowId,
+        id: u64,
+        path: PathBuf,
+        force: bool,
+        res: Result<String, String>,
+    },
     CreateTile {
         doc: DocId,
         view: Option<ViewId>,

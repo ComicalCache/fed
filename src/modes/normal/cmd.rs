@@ -25,6 +25,7 @@ pub enum Cmd {
     Replace,
     ReplaceChar(char),
     SaveFile,
+    FindFile,
     Jump,
     SplitWindow(RectSplit),
     FocusWindow(Motion),

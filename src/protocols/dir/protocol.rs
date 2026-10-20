@@ -7,8 +7,7 @@ use crate::{
     protocols::{
         action::ActionProtocol,
         dir::{DirCmd, DirEntry, DirEntryKind, DirRenderer, PrintableDirEntry},
-        doc_view::DocViewProtocol,
-        io::{IoFuture, IoProtocol},
+        doc_view::{DocViewCmd, DocViewProtocol},
         view::ViewProtocol,
     },
     state::State,
@@ -38,9 +37,6 @@ impl DirProtocol {
             DirCmd::Delete { path, recursive } => Self::delete(s, path, recursive),
 
             DirCmd::Select => Self::select(s),
-            DirCmd::SelectCompletion { revision, window, path, res } => {
-                Self::select_completion(s, revision, window, path, res);
-            }
         }
     }
 
@@ -90,7 +86,6 @@ impl DirProtocol {
     }
 
     pub fn replace_window(s: &mut State, window: WindowId) {
-        s.p.dir.revision += 1;
         Self::init(s);
 
         s.replace_view(window, s.p.dir.view, Box::new(DirRenderer::new()));
@@ -175,8 +170,6 @@ impl DirProtocol {
     pub fn select(s: &mut State) {
         let Some(window) = s.index.view_to_window(s.p.dir.view) else { return };
 
-        s.p.dir.revision += 1;
-
         let (vse, dse) =
             State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.dir.view).unwrap();
 
@@ -186,42 +179,9 @@ impl DirProtocol {
         let Some(entry) = s.p.dir.entries.get(y).cloned() else { return };
         match entry.kind {
             DirEntryKind::File => {
-                let path = util::path::normalize(entry.path);
-                let doc = s
-                    .doc_store
-                    .iter()
-                    .find(|(_, dse)| dse.doc.path.as_ref() == Some(&path))
-                    .map(|(&doc, _)| doc);
-
-                if let Some(doc) = doc {
-                    let views = s.index.doc_to_views(doc);
-                    if let Some(window) =
-                        views.and_then(|v| v.iter().find_map(|v| s.index.view_to_window(*v)))
-                    {
-                        ActionProtocol::set_active_window(s, Some(window));
-                        return;
-                    }
-
-                    let view = views.map(|views| views[0]);
-                    DocViewProtocol::replace_window(s, doc, view, window, false, None);
-
-                    return;
-                }
-
-                let revision = s.p.dir.revision;
-                let async_fcmd_tx = s.async_fcmd_tx.clone();
-                IoProtocol::read(
-                    path.clone(),
-                    Box::new(move |res| -> IoFuture {
-                        Box::pin(async move {
-                            let _ = async_fcmd_tx.send(FCmd::Dir(DirCmd::SelectCompletion {
-                                revision,
-                                window,
-                                path,
-                                res,
-                            }));
-                        })
-                    }),
+                DocViewProtocol::exec(
+                    s,
+                    DocViewCmd::OpenFile { window, path: entry.path, force: false },
                 );
             }
             DirEntryKind::Dir => {
@@ -367,48 +327,5 @@ impl DirProtocol {
         }
 
         let _ = async_fcmd_tx.send(FCmd::Dir(DirCmd::InitCompletion { entries, printables }));
-    }
-
-    fn select_completion(
-        s: &mut State, revision: usize, window: WindowId, path: PathBuf,
-        result: Result<String, String>,
-    ) {
-        if revision != s.p.dir.revision {
-            return;
-        }
-
-        if s.index.view_to_window(s.p.dir.view) != Some(window) {
-            return;
-        }
-
-        let text = match result {
-            Ok(text) => text,
-            Err(err) => {
-                util::mp::message(s, format!("Error reading file: {err}"), Duration::from_secs(3));
-                return;
-            }
-        };
-
-        match s.create_doc(Some(path)) {
-            Ok(doc) => {
-                let view = DocViewProtocol::replace_window(s, doc, None, window, false, None);
-
-                ActionProtocol::insert(s, view, text);
-                ActionProtocol::move_cursor_to_pos(s, view, Pos::default(), true);
-                ActionProtocol::saved(s, doc);
-            }
-            Err(doc) => {
-                let views = s.index.doc_to_views(doc);
-                if let Some(window) =
-                    views.and_then(|v| v.iter().find_map(|v| s.index.view_to_window(*v)))
-                {
-                    ActionProtocol::set_active_window(s, Some(window));
-                    return;
-                }
-
-                let view = views.map(|views| views[0]);
-                DocViewProtocol::replace_window(s, doc, view, window, false, None);
-            }
-        }
     }
 }

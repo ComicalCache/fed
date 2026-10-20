@@ -43,7 +43,7 @@ impl MouseInputHandler for PickerMouseInput {
         let list_content = list_vse.layout(list_dse).content;
         if list_content.contains(pos) {
             let row = pos.y - list_content.pos.y + list_vse.scroll.y;
-            if row >= s.p.picker.filtered.len() {
+            if s.p.picker.offset + row >= s.p.picker.filtered.len() {
                 return Some(Vec::new());
             }
 

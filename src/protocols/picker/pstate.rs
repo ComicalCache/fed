@@ -28,5 +28,6 @@ pub struct PickerPState {
 
     pub entries: Vec<Box<dyn PickerEntry>>,
     pub filtered: Vec<usize>,
+    pub offset: usize,
     pub pcallback: Option<PCallback>,
 }
