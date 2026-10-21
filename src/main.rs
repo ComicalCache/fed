@@ -27,7 +27,10 @@ use crossterm::{
         Event, EventStream,
     },
     execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    terminal::{
+        EndSynchronizedUpdate, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
+        enable_raw_mode,
+    },
 };
 use futures::StreamExt;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
@@ -70,6 +73,7 @@ async fn main() -> std::io::Result<()> {
 
         // Try to restore the terminal.
         let mut stdout = stdout();
+        let _ = execute!(stdout, EndSynchronizedUpdate);
         let _ = execute!(stdout, Show);
         let _ = execute!(stdout, DisableMouseCapture);
         let _ = execute!(stdout, DisableBracketedPaste);
@@ -124,6 +128,7 @@ async fn main() -> std::io::Result<()> {
         _ = shutdown_rx.recv() => {}
     }
 
+    execute!(stdout, EndSynchronizedUpdate)?;
     execute!(stdout, Show)?;
     execute!(stdout, DisableMouseCapture)?;
     execute!(stdout, DisableBracketedPaste)?;

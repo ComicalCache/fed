@@ -13,6 +13,7 @@ impl ScreenProtocol {
     }
 
     pub fn render(s: &State, screen: &mut Screen) {
+        screen.begin_frame(s.theme.default);
         s.workspace.render(s, screen);
         screen.render();
     }
