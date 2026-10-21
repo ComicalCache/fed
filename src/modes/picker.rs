@@ -1,4 +1,5 @@
 mod cmd;
+pub mod entries;
 mod key;
 mod keymap;
 mod mouse;

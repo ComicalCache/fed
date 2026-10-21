@@ -1,4 +1,4 @@
-use std::{any::Any, path::PathBuf, time::Duration};
+use std::{path::PathBuf, time::Duration};
 
 use crossterm::event::{KeyCode, KeyEvent};
 use piece_table::Slice;
@@ -10,27 +10,22 @@ use crate::{
     modes::{
         common,
         normal::{cmd::Cmd, keymap},
+        picker::entries::{ScanEntry, ThemeEntry},
         search,
     },
     protocols::{
         action::{ActionCmd, ActionProtocol},
         dir::{DirCmd, DirProtocol},
         doc_view::{DocViewCmd, DocViewProtocol},
-        io::{IoFuture, IoProtocol, ScanEntry},
+        io::{IoFuture, IoProtocol},
         manage::ManageCmd,
         mp::MpCmd,
         picker::{PickerCmd, PickerEntry},
     },
     state::{DocId, State, ViewId, ViewStoreTypes},
-    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, Motion, ParseResult},
+    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, Motion, ParseResult, Theme},
     util,
 };
-
-impl PickerEntry for ScanEntry {
-    fn as_any(&self) -> &dyn Any { self }
-
-    fn into_any(self: Box<Self>) -> Box<dyn Any + Send> { self }
-}
 
 pub struct NormalKeyInput {
     keymap: Keymap<Cmd>,
@@ -139,6 +134,7 @@ impl NormalKeyInput {
             }
             Cmd::SaveFile => Some(Self::save_file(s, doc)),
             Cmd::FindFile => Some(Self::find_file(s)),
+            Cmd::SelectTheme => Some(Self::select_theme()),
             Cmd::Jump => common::jump(s, view),
             Cmd::SplitWindow(direction) => common::split_window(s, doc, direction),
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),
@@ -427,6 +423,22 @@ impl NormalKeyInput {
             entries,
             callback,
         })]
+    }
+
+    fn select_theme() -> Vec<FCmd> {
+        let entries: Vec<Box<dyn PickerEntry>> = vec![
+            Box::new(ThemeEntry { name: "Dark", theme: Theme::dark() }),
+            Box::new(ThemeEntry { name: "Light", theme: Theme::light() }),
+        ];
+
+        let callback = Box::new(|s: &mut State, selected: Option<Box<dyn PickerEntry>>| {
+            let Some(selected) = selected else { return };
+
+            let entry = selected.into_any().downcast::<ThemeEntry>().unwrap();
+            s.theme = entry.theme;
+        });
+
+        vec![FCmd::Picker(PickerCmd::Open { width: 24, height: 9, entries, callback })]
     }
 
     fn save_file(s: &State, doc: DocId) -> Vec<FCmd> {

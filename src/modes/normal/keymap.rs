@@ -83,6 +83,7 @@ pub fn keymap() -> Keymap<Cmd> {
 
     keymap.bind(&[KeyChord::new(KeyCode::Char('s'), KeyModifiers::CONTROL)], Cmd::SaveFile);
     keymap.bind(&[KeyChord::new(KeyCode::Char('f'), KeyModifiers::ALT)], Cmd::FindFile);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('t'), KeyModifiers::ALT)], Cmd::SelectTheme);
     keymap.bind(&[KeyChord::new(KeyCode::Char('j'), KeyModifiers::CONTROL)], Cmd::Jump);
 
     keymap.bind(

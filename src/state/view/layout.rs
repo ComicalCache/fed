@@ -1,5 +1,5 @@
 use crate::{
-    types::{Face, Rect, Rgb},
+    types::{Face, Rect},
     util::newtype,
 };
 
@@ -23,9 +23,9 @@ impl Replacements {
 impl Default for Replacements {
     fn default() -> Self {
         Self {
-            space: Some(('·', Face { fg: Some(Rgb::new(68, 71, 79)), ..Face::default() })),
-            tab: Some((('›', '—'), Face { fg: Some(Rgb::new(68, 71, 79)), ..Face::default() })),
-            newline: Some(('¬', Face { fg: Some(Rgb::new(68, 71, 79)), ..Face::default() })),
+            space: Some(('·', Face::default())),
+            tab: Some((('›', '—'), Face::default())),
+            newline: Some(('¬', Face::default())),
         }
     }
 }

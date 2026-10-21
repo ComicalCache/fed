@@ -40,7 +40,7 @@ impl ViewRenderer {
             }
 
             let (vom, next_offset) = render::layout_vom(line, offset, &decs, &vse.layout);
-            let cells = render::layout_cells(line, offset, &decs, &vse.layout);
+            let cells = render::layout_cells(line, offset, &decs, &vse.layout, &s.theme);
             offset = next_offset;
 
             let mut row = vec![Cell::default(); width];

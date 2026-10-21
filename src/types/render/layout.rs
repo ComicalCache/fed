@@ -3,7 +3,7 @@ use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     state::ViewStoreTypes,
-    types::{Decoration, Face, Span, render::Cell},
+    types::{Decoration, Face, Span, Theme, render::Cell},
 };
 
 pub struct VisualOffsetMapping {
@@ -14,6 +14,7 @@ pub struct VisualOffsetMapping {
 
 pub fn layout_cells(
     line: &str, mut offset: usize, decs: &[Span<Decoration>], layout: &ViewStoreTypes::Layout,
+    theme: &Theme,
 ) -> Vec<Cell> {
     let mut cells = Vec::new();
 
@@ -109,6 +110,7 @@ pub fn layout_cells(
             if ch == "\t" {
                 if let Some(((start, fill), tab_face)) = layout.replacements.tab {
                     let mut face = face;
+                    face.merge(theme.whitespace);
                     face.merge(tab_face);
 
                     cells.push(Cell::new(
@@ -131,6 +133,7 @@ pub fn layout_cells(
             } else if ch == "\n" {
                 if let Some((newline, newline_face)) = layout.replacements.newline {
                     let mut face = face;
+                    face.merge(theme.whitespace);
                     face.merge(newline_face);
 
                     cells.push(Cell::new(
@@ -142,6 +145,7 @@ pub fn layout_cells(
             } else if ch == " " {
                 if let Some((space, space_face)) = layout.replacements.space {
                     let mut face = face;
+                    face.merge(theme.whitespace);
                     face.merge(space_face);
 
                     cells.push(Cell::new(
