@@ -169,7 +169,7 @@ impl PieceTable {
     pub fn remove(&mut self, pos: usize, n: usize) {
         enum Remove {
             End { index: usize, length: usize },
-            Full { index: usize },
+            Full { start: usize, end: usize },
             Start { index: usize, length: usize },
             Slice { index: usize, offset: usize },
         }
@@ -199,7 +199,13 @@ impl PieceTable {
 
             match (remove_start, remove_end) {
                 (false, true) => remove.push(Remove::End { index, length: len - pos }),
-                (true, true) => remove.push(Remove::Full { index }),
+                (true, true) => {
+                    if let Some(Remove::Full { end, .. }) = remove.last_mut() {
+                        *end = index + 1;
+                    } else {
+                        remove.push(Remove::Full { start: index, end: index + 1 });
+                    }
+                }
                 (true, false) => remove.push(Remove::Start { index, length: end - prev_len }),
                 _ if remove_slice => remove.push(Remove::Slice { index, offset: pos - prev_len }),
                 _ => {}
@@ -219,8 +225,10 @@ impl PieceTable {
                     changes.push((*index, old, Kind::Deletion));
                     changes.push((*index, self.pieces[*index], Kind::Insertion));
                 }
-                Remove::Full { index } => {
-                    changes.push((*index, self.pieces.remove(*index), Kind::Deletion));
+                Remove::Full { start, end } => {
+                    for (offset, piece) in self.pieces.drain(*start..*end).enumerate().rev() {
+                        changes.push((*start + offset, piece, Kind::Deletion));
+                    }
                 }
                 Remove::Start { index, length } => {
                     let old = self.pieces[*index];
@@ -307,7 +315,7 @@ impl PieceTable {
             }
         }
 
-        let changes = commit
+        let changes: Vec<_> = commit
             .logical_changes
             .iter()
             .rev()
@@ -320,7 +328,15 @@ impl PieceTable {
             })
             .collect();
 
-        self.rebuild_lines();
+        // Fast forward single changes.
+        if let [(pos, kind, data)] = &changes[..] {
+            match kind {
+                Kind::Deletion => self.update_lines_remove(*pos, data.len()),
+                Kind::Insertion => self.update_lines_insert(*pos, data),
+            }
+        } else {
+            self.rebuild_lines();
+        }
 
         changes
     }
@@ -351,7 +367,15 @@ impl PieceTable {
 
         let changes = commit.logical_changes.clone();
 
-        self.rebuild_lines();
+        // Fast forward single changes.
+        if let [(pos, kind, data)] = &changes[..] {
+            match kind {
+                Kind::Deletion => self.update_lines_remove(*pos, data.len()),
+                Kind::Insertion => self.update_lines_insert(*pos, data),
+            }
+        } else {
+            self.rebuild_lines();
+        }
 
         changes
     }
