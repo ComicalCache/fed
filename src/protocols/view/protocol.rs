@@ -60,6 +60,12 @@ impl ViewProtocol {
         vse.decs.update(start, end);
         dse.decs.update(start, end);
 
+        // Avoid re-populating the cache when the contents didn't change.
+        let revision = Some((dse.doc.revision, start, end));
+        if vse.view_cache.revision == revision {
+            return;
+        }
+
         let data = dse.doc.data.slice(start..end);
 
         let mut lines: Vec<_> = data.split_inclusive('\n').map(String::from).collect();
@@ -67,7 +73,7 @@ impl ViewProtocol {
             lines.push(String::new());
         }
 
-        vse.view_cache = ViewStoreTypes::ViewCache { offset: start, lines };
+        vse.view_cache = ViewStoreTypes::ViewCache { offset: start, lines, revision };
     }
 
     pub fn scroll_to(s: &mut State, view: ViewId, pos: Pos) {

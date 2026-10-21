@@ -56,6 +56,11 @@ impl PickerProtocol {
 
         s.workspace.active_window = Some(window);
 
+        s.p.picker.display_text = entries
+            .iter()
+            .map(|e| e.to_string().replace('\r', "\\r").replace('\n', "\\n"))
+            .collect();
+        s.p.picker.search_text = s.p.picker.display_text.iter().map(|l| l.to_lowercase()).collect();
         s.p.picker.entries = entries;
         s.p.picker.offset = 0;
         s.p.picker.pcallback = Some(callback);
@@ -88,6 +93,8 @@ impl PickerProtocol {
         }
 
         s.p.picker.entries.clear();
+        s.p.picker.display_text.clear();
+        s.p.picker.search_text.clear();
         s.p.picker.filtered.clear();
         s.p.picker.offset = 0;
 
@@ -107,20 +114,21 @@ impl PickerProtocol {
         let dse = s.doc_store.get(&s.p.picker.input_doc).unwrap();
         let query = dse.doc.data.slice(0..dse.doc.data.len()).to_lowercase();
 
-        s.p.picker.filtered = if query.is_empty() {
-            (0..s.p.picker.entries.len()).collect()
+        let picker = &mut s.p.picker;
+        picker.filtered.clear();
+
+        if query.is_empty() {
+            picker.filtered.extend(0..picker.entries.len());
         } else {
-            s.p.picker
-                .entries
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, e)| {
-                    let label = e.to_string().replace('\r', "\\r").replace('\n', "\\n");
-                    label.to_lowercase().contains(&query).then_some(idx)
-                })
-                .collect()
-        };
-        s.p.picker.offset = 0;
+            picker.filtered.extend(
+                picker
+                    .search_text
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(idx, label)| label.contains(&query).then_some(idx)),
+            );
+        }
+        picker.offset = 0;
 
         Self::update_list(s, 0);
     }
@@ -234,9 +242,7 @@ impl PickerProtocol {
 
         let text = s.p.picker.filtered[start..end]
             .iter()
-            .map(|&index| {
-                s.p.picker.entries[index].to_string().replace('\r', "\\r").replace('\n', "\\n")
-            })
+            .map(|&index| s.p.picker.display_text[index].as_str())
             .collect::<Vec<_>>()
             .join("\n");
 

@@ -27,6 +27,8 @@ pub struct PickerPState {
     pub prev_window: Option<WindowId>,
 
     pub entries: Vec<Box<dyn PickerEntry>>,
+    pub display_text: Vec<String>,
+    pub search_text: Vec<String>,
     pub filtered: Vec<usize>,
     pub offset: usize,
     pub pcallback: Option<PCallback>,

@@ -357,17 +357,8 @@ impl ActionProtocol {
                         continue;
                     }
 
-                    let lines = doc_data.lines();
-                    let mut current_y = lines.saturating_sub(1);
-                    for y in 0..lines {
-                        if cursor.offset <= doc_data.get_line_end_byte(y) {
-                            current_y = y;
-
-                            break;
-                        }
-                    }
-
-                    let start = doc_data.get_line_start_byte(current_y);
+                    let y = doc_data.get_line_of_byte(cursor.offset - 1);
+                    let start = doc_data.get_line_start_byte(y);
                     let remove = if cursor.offset == start {
                         1
                     } else {
@@ -385,16 +376,8 @@ impl ActionProtocol {
                         continue;
                     }
 
-                    let lines = doc_data.lines();
-                    let mut current_y = lines.saturating_sub(1);
-                    for y in 0..lines {
-                        if cursor.offset < doc_data.get_line_end_byte(y) || y == lines - 1 {
-                            current_y = y;
-                            break;
-                        }
-                    }
-
-                    let end = doc_data.get_line_end_byte(current_y);
+                    let y = doc_data.get_line_of_byte(cursor.offset);
+                    let end = doc_data.get_line_end_byte(y);
                     let remove = if cursor.offset == end {
                         1
                     } else {
@@ -449,6 +432,8 @@ impl ActionProtocol {
 
         let dse = s.doc_store.get_mut(&doc).unwrap();
         dse.doc.modified = true;
+        dse.doc.revision += 1;
+
         for (offset, kind, data) in &edits {
             let (remove, insert) = match kind {
                 Kind::Deletion => (data.len(), 0),

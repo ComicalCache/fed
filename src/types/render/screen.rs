@@ -20,6 +20,7 @@ pub struct Screen {
     previous: Vec<Cell>,
     dirty: Vec<bool>,
     invalidated: bool,
+    output: Vec<u8>,
 }
 
 impl Screen {
@@ -31,6 +32,7 @@ impl Screen {
             previous: vec![Cell::default(); width * height],
             dirty: vec![false; width * height],
             invalidated: true,
+            output: Vec::new(),
         }
     }
 
@@ -107,7 +109,8 @@ impl Screen {
             }
         }
 
-        let mut output = Vec::new();
+        let output = &mut self.output;
+        output.clear();
         queue!(output, BeginSynchronizedUpdate, SetAttribute(Attribute::Reset)).unwrap();
 
         let mut face = Face::default();
@@ -124,7 +127,7 @@ impl Screen {
                     queue!(output, MoveTo((x + 1) as u16, y as u16)).unwrap();
 
                     for trailing in &self.grid[offset + x + 1..offset + x + cell.width] {
-                        Self::render_face(&mut output, &mut face, &trailing.face);
+                        Self::render_face(output, &mut face, &trailing.face);
                         queue!(output, Print(" ")).unwrap();
                     }
 
@@ -135,7 +138,7 @@ impl Screen {
                     queue!(output, MoveTo(x as u16, y as u16)).unwrap();
                 }
 
-                Self::render_face(&mut output, &mut face, &cell.face);
+                Self::render_face(output, &mut face, &cell.face);
                 queue!(output, Print(&cell.ch)).unwrap();
 
                 // Some characters may not render with the same width as
@@ -148,7 +151,7 @@ impl Screen {
         queue!(output, EndSynchronizedUpdate).unwrap();
 
         let mut stdout = std::io::stdout().lock();
-        stdout.write_all(&output).unwrap();
+        stdout.write_all(output).unwrap();
         stdout.flush().unwrap();
 
         self.previous.clone_from(&self.grid);

@@ -12,14 +12,25 @@ pub struct VisualOffsetMapping {
     pub width: usize,
 }
 
+impl VisualOffsetMapping {
+    pub fn at(mappings: &[Self], visual_x: usize) -> Option<&Self> {
+        let idx = mappings.partition_point(|vo| vo.visual_x + vo.width <= visual_x);
+        mappings.get(idx).filter(|vo| visual_x >= vo.visual_x)
+    }
+}
+
 pub fn layout_cells(
-    line: &str, mut offset: usize, decs: &[Span<Decoration>], layout: &ViewStoreTypes::Layout,
-    theme: &Theme,
+    line: &str, mut offset: usize, end: usize, decs: &[Span<Decoration>],
+    layout: &ViewStoreTypes::Layout, theme: &Theme,
 ) -> Vec<Cell> {
-    let mut cells = Vec::new();
+    let mut cells = Vec::with_capacity(line.len().min(end));
 
     let mut visual_x = 0;
     for ch in line.graphemes(true) {
+        if visual_x >= end {
+            return cells;
+        }
+
         let ch_len = ch.len();
         let mut face = Face::default();
         let mut replace = false;
@@ -40,12 +51,12 @@ pub fn layout_cells(
                 Decoration::Replace { text, face } => {
                     replace = true;
                     if offset == span.start {
-                        replacement = Some((text.clone(), *face));
+                        replacement = Some((text.as_str(), *face));
                     }
                 }
                 Decoration::VirtualText { text, face } => {
                     if offset == span.start {
-                        virtual_texts.push((text.clone(), *face));
+                        virtual_texts.push((text.as_str(), *face));
                     }
                 }
             }
@@ -53,6 +64,10 @@ pub fn layout_cells(
 
         for (text, face) in virtual_texts {
             for ch in text.graphemes(true) {
+                if visual_x >= end {
+                    return cells;
+                }
+
                 let width = ch.width();
                 if width == 0 {
                     break;
@@ -68,6 +83,10 @@ pub fn layout_cells(
             }
         }
 
+        if visual_x >= end {
+            return cells;
+        }
+
         if replace {
             let Some((text, face)) = replacement else {
                 offset += ch_len;
@@ -75,6 +94,10 @@ pub fn layout_cells(
             };
 
             for ch in text.graphemes(true) {
+                if visual_x >= end {
+                    return cells;
+                }
+
                 let width = ch.width();
                 if width == 0 {
                     break;
@@ -118,7 +141,7 @@ pub fn layout_cells(
                         start.width().unwrap_or_default(),
                         face,
                     ));
-                    for _ in 1..ch_width {
+                    for _ in 1..ch_width.min(end - visual_x) {
                         cells.push(Cell::new(
                             fill.to_string(),
                             fill.width().unwrap_or_default(),
@@ -126,7 +149,7 @@ pub fn layout_cells(
                         ));
                     }
                 } else {
-                    for _ in 0..ch_width {
+                    for _ in 0..ch_width.min(end - visual_x) {
                         cells.push(Cell::new(" ".to_string(), 1, face));
                     }
                 }
@@ -184,6 +207,10 @@ pub fn layout_cells(
 
         for (text, &face) in virtual_texts {
             for ch in text.graphemes(true) {
+                if visual_x >= end {
+                    return cells;
+                }
+
                 let width = ch.width();
                 if width == 0 {
                     break;
@@ -194,6 +221,8 @@ pub fn layout_cells(
                 for _ in 1..width {
                     cells.push(Cell::new(String::new(), 0, face));
                 }
+
+                visual_x += width;
             }
         }
     }
@@ -202,12 +231,19 @@ pub fn layout_cells(
 }
 
 pub fn layout_vom(
-    line: &str, mut offset: usize, decs: &[Span<Decoration>], layout: &ViewStoreTypes::Layout,
+    line: &str, mut offset: usize, end: usize, decs: &[Span<Decoration>],
+    layout: &ViewStoreTypes::Layout,
 ) -> (Vec<VisualOffsetMapping>, usize) {
-    let mut vom = Vec::new();
+    let max_offset = offset + line.len();
+
+    let mut vom = Vec::with_capacity(line.len().min(end));
 
     let mut visual_x = 0;
     for ch in line.graphemes(true) {
+        if visual_x >= end {
+            return (vom, max_offset);
+        }
+
         let ch_len = ch.len();
         let mut replace = false;
         let mut replacement_text = None;

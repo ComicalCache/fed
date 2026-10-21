@@ -34,13 +34,14 @@ impl ViewRenderer {
 
         let mut lines_drawn = 0;
         let mut offset = vse.view_cache.offset;
+        let end = vse.scroll.x.saturating_add(width);
         for (y, line) in vse.view_cache.lines.iter().enumerate() {
             if y >= height {
                 break;
             }
 
-            let (vom, next_offset) = render::layout_vom(line, offset, &decs, &vse.layout);
-            let cells = render::layout_cells(line, offset, &decs, &vse.layout, &s.theme);
+            let (vom, next_offset) = render::layout_vom(line, offset, end, &decs, &vse.layout);
+            let cells = render::layout_cells(line, offset, end, &decs, &vse.layout, &s.theme);
             offset = next_offset;
 
             let mut row = vec![Cell::default(); width];

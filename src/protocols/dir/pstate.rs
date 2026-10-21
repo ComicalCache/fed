@@ -3,6 +3,8 @@ use std::{
     path::PathBuf,
 };
 
+use tokio::task::JoinHandle;
+
 use crate::state::{DocId, ViewId};
 
 #[derive(Debug, Default, Clone)]
@@ -33,6 +35,9 @@ pub struct DirPState {
 
     pub pwd: PathBuf,
     pub entries: Vec<DirEntry>,
+    pub revision: u64,
+
+    pub fetch_task: Option<JoinHandle<()>>,
 }
 
 pub struct PrintableDirEntry {

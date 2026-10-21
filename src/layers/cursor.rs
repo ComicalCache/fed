@@ -23,9 +23,7 @@ impl Layer for CursorLayer {
         for (x, cell) in row.iter_mut().enumerate() {
             let visual_x = scroll.x + x;
 
-            let Some(vo) =
-                voms.iter().find(|vo| visual_x >= vo.visual_x && visual_x < vo.visual_x + vo.width)
-            else {
+            let Some(vo) = VisualOffsetMapping::at(voms, visual_x) else {
                 continue;
             };
 

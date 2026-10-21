@@ -53,9 +53,11 @@ impl SearchKeyInput {
         let offset = offsets.first().copied().unwrap_or(0);
 
         let target = if forward {
-            matches.iter().find(|m| m.0 > offset).unwrap_or(&matches[0]).0
+            let next = matches.partition_point(|m| m.0 <= offset);
+            matches.get(next).unwrap_or(&matches[0]).0
         } else {
-            matches.iter().rev().find(|m| m.0 < offset).unwrap_or_else(|| matches.last().unwrap()).0
+            let next = matches.partition_point(|m| m.0 < offset);
+            matches[next.checked_sub(1).unwrap_or(matches.len() - 1)].0
         };
 
         Some(vec![
@@ -79,6 +81,8 @@ impl SearchKeyInput {
 
     fn replace(s: &State, view: ViewId, doc: DocId) -> Option<Vec<FCmd>> {
         let (query, matches, _) = Self::search_state(s, view)?;
+        let query = query.to_owned();
+        let matches = matches.to_vec();
 
         let pcallback = Box::new(move |s: &mut State, replacement: String| {
             let dse = s.doc_store.get(&doc).unwrap();
@@ -144,7 +148,7 @@ impl SearchKeyInput {
         ]
     }
 
-    fn search_state(s: &State, view: ViewId) -> Option<(String, Vec<(usize, usize)>, Vec<usize>)> {
+    fn search_state(s: &State, view: ViewId) -> Option<(&str, &[(usize, usize)], Vec<usize>)> {
         let vse = s.view_store.get(&view).unwrap();
         let decorator = vse.decs.decorators.get(&ViewStoreTypes::DecorationId::Search).unwrap();
         let decorator = decorator.any().downcast_ref::<SearchDecorator>().unwrap();
@@ -153,11 +157,9 @@ impl SearchKeyInput {
             return None;
         }
 
-        let query = decorator.query.clone();
-        let matches = decorator.matches.clone();
         let offsets: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();
 
-        Some((query, matches, offsets))
+        Some((&decorator.query, &decorator.matches, offsets))
     }
 }
 

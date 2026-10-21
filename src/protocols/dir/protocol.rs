@@ -21,8 +21,8 @@ impl DirProtocol {
     pub fn exec(s: &mut State, cmd: DirCmd) {
         match cmd {
             DirCmd::Init => Self::init(s),
-            DirCmd::InitCompletion { entries, printables } => {
-                Self::init_completion(s, entries, printables);
+            DirCmd::InitCompletion { entries, printables, revision } => {
+                Self::init_completion(s, entries, printables, revision);
             }
             DirCmd::ReplaceWindow { window, path } => {
                 if let Some(path) = path {
@@ -40,13 +40,30 @@ impl DirProtocol {
         }
     }
 
-    pub fn init(s: &State) {
-        tokio::spawn(Self::fetch_entries(s.p.dir.pwd.clone(), s.async_fcmd_tx.clone()));
+    pub fn init(s: &mut State) {
+        s.p.dir.revision += 1;
+
+        if let Some(task) = s.p.dir.fetch_task.take() {
+            task.abort();
+        }
+
+        s.p.dir.fetch_task = Some(tokio::spawn(Self::fetch_entries(
+            s.p.dir.pwd.clone(),
+            s.p.dir.revision,
+            s.async_fcmd_tx.clone(),
+        )));
     }
 
     pub fn init_completion(
         s: &mut State, mut entries: Vec<DirEntry>, printables: Vec<PrintableDirEntry>,
+        revision: u64,
     ) {
+        if revision != s.p.dir.revision {
+            return;
+        }
+
+        s.p.dir.fetch_task = None;
+
         let perms = printables.iter().map(|c| c.perms.len()).max().unwrap_or(0);
         let links = printables.iter().map(|c| c.links.len()).max().unwrap_or(0);
         let owner = printables.iter().map(|c| c.owner.len()).max().unwrap_or(0);
@@ -200,7 +217,7 @@ impl DirProtocol {
         }
     }
 
-    async fn fetch_entries(pwd: PathBuf, async_fcmd_tx: UnboundedSender<FCmd>) {
+    async fn fetch_entries(pwd: PathBuf, revision: u64, async_fcmd_tx: UnboundedSender<FCmd>) {
         let mut entries = Vec::new();
         let mut printables: Vec<PrintableDirEntry> = Vec::new();
 
@@ -326,6 +343,7 @@ impl DirProtocol {
             entries.push(DirEntry { path: entry.path(), kind, path_offset: 0 });
         }
 
-        let _ = async_fcmd_tx.send(FCmd::Dir(DirCmd::InitCompletion { entries, printables }));
+        let _ =
+            async_fcmd_tx.send(FCmd::Dir(DirCmd::InitCompletion { entries, printables, revision }));
     }
 }

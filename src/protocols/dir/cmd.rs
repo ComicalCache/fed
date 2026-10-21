@@ -8,7 +8,7 @@ use crate::{
 #[allow(unused)]
 pub enum DirCmd {
     Init,
-    InitCompletion { entries: Vec<DirEntry>, printables: Vec<PrintableDirEntry> },
+    InitCompletion { entries: Vec<DirEntry>, printables: Vec<PrintableDirEntry>, revision: u64 },
     ReplaceWindow { window: WindowId, path: Option<PathBuf> },
 
     Create { path: PathBuf, dir: bool },
