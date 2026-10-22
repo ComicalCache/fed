@@ -23,12 +23,17 @@ impl ViewProtocol {
         let doc = match event {
             DocStoreTypes::Event::Created { .. }
             | DocStoreTypes::Event::Destroyed { .. }
-            | DocStoreTypes::Event::Written { .. }
-            | DocStoreTypes::Event::ModeChanged { .. } => return,
+            | DocStoreTypes::Event::Written { .. } => return,
             DocStoreTypes::Event::Inserted { id, .. }
             | DocStoreTypes::Event::Removed { id, .. }
+            | DocStoreTypes::Event::ModeChanged { id, .. }
             | DocStoreTypes::Event::PathChanged { id, .. } => id,
         };
+
+        // Event may be received after the doc has already been removed again.
+        if !s.doc_store.contains_key(doc) {
+            return;
+        }
 
         for view in s.index.doc_to_views(*doc).cloned().unwrap_or_default() {
             Self::update(s, view);
@@ -36,17 +41,24 @@ impl ViewProtocol {
     }
 
     pub fn exec_view_event(s: &mut State, event: &ViewStoreTypes::Event) {
-        match event {
-            ViewStoreTypes::Event::Created { id } | ViewStoreTypes::Event::Resized { id } => {
-                Self::update(s, *id);
-            }
-            ViewStoreTypes::Event::CursorsMoved { view } => Self::cursor_moved(s, *view),
+        let view = match event {
+            ViewStoreTypes::Event::Created { id }
+            | ViewStoreTypes::Event::Resized { id }
+            | ViewStoreTypes::Event::CursorsMoved { view: id } => *id,
             ViewStoreTypes::Event::CursorsChanged { .. }
             | ViewStoreTypes::Event::ModeChanged { .. }
-            | ViewStoreTypes::Event::Destroyed { .. } => {
-                // The view cache gets deleted when the vse gets deleted,
-                // nothing needs to be done.
-            }
+            | ViewStoreTypes::Event::Destroyed { .. } => return,
+        };
+
+        // Event may be received after the doc has already been removed again.
+        if !s.view_store.contains_key(&view) {
+            return;
+        }
+
+        if matches!(event, ViewStoreTypes::Event::CursorsMoved { .. }) {
+            Self::cursor_moved(s, view);
+        } else {
+            Self::update(s, view);
         }
     }
 

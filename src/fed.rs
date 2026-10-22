@@ -10,7 +10,6 @@ use tokio::sync::{
 use crate::{
     cli::Cli,
     input_router::InputRouter,
-    modes,
     protocol_router::ProtocolRouter,
     protocols::{
         action::ActionCmd,
@@ -46,6 +45,9 @@ pub enum FCmd {
     Picker(PickerCmd),
 }
 
+/// FEvent's are deferred and may only update component owned state. They should
+/// NOT do initialization. The FEvent targets may be destroyed before the event
+/// has been delivered.
 #[allow(unused)]
 pub enum FEvent {
     Doc(DocStoreTypes::Event),
@@ -123,12 +125,10 @@ impl Fed {
         while let Ok(event) = self.fevent_rx.try_recv() {
             match event {
                 FEvent::Doc(event) => {
-                    modes::read::setup::exec_doc_event(&mut self.s, &event);
                     ManageProtocol::exec_doc_event(&mut self.s, &event);
                     ViewProtocol::exec_doc_event(&mut self.s, &event);
                 }
                 FEvent::View(event) => {
-                    modes::read::setup::exec_view_event(&mut self.s, &event);
                     ViewProtocol::exec_view_event(&mut self.s, &event);
                 }
             }

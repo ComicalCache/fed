@@ -272,6 +272,7 @@ impl ActionProtocol {
         }
 
         dse.mode = mode;
+        s.dmode(doc);
 
         let _ = s.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::ModeChanged { id: doc, mode }));
     }
@@ -281,6 +282,7 @@ impl ActionProtocol {
         if vse.modes.last() != Some(&mode) {
             vse.modes.push(mode);
         }
+        s.vmode(view);
 
         let _ =
             s.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::ModeChanged { id: view, mode }));
@@ -296,6 +298,8 @@ impl ActionProtocol {
         }
 
         let mode = vse.mode();
+        s.vmode(view);
+
         let _ =
             s.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::ModeChanged { id: view, mode }));
     }

@@ -87,6 +87,7 @@ impl State {
             ..Default::default()
         };
         self.doc_store.insert(doc, entry);
+        self.dinit(doc);
 
         let _ = self.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Created { id: doc }));
 
@@ -119,11 +120,53 @@ impl State {
         self.view_store.insert(view, entry);
 
         self.index.link_view_to_doc(view, doc);
+        self.vinit(view);
 
         let _ = self.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::Created { id: view }));
 
         view
     }
+
+    fn dinit(&mut self, doc: DocId) {
+        match self.doc_store.get(&doc).unwrap().mode {
+            DocStoreTypes::Mode::Text
+            | DocStoreTypes::Mode::Mp
+            | DocStoreTypes::Mode::Dir
+            | DocStoreTypes::Mode::Manage
+            | DocStoreTypes::Mode::Picker
+            | DocStoreTypes::Mode::Read => {}
+        }
+
+        self.dmode(doc);
+    }
+
+    fn vinit(&mut self, view: ViewId) {
+        let doc = self.index.view_to_doc(view).unwrap();
+
+        match self.doc_store.get(&doc).unwrap().mode {
+            DocStoreTypes::Mode::Read => modes::read::setup::vinit(self, view),
+            DocStoreTypes::Mode::Text
+            | DocStoreTypes::Mode::Mp
+            | DocStoreTypes::Mode::Dir
+            | DocStoreTypes::Mode::Manage
+            | DocStoreTypes::Mode::Picker => {}
+        }
+
+        self.vmode(view);
+    }
+
+    pub fn dmode(&mut self, doc: DocId) {
+        match self.doc_store.get(&doc).unwrap().mode {
+            DocStoreTypes::Mode::Read => modes::read::setup::dmode(self, doc),
+            DocStoreTypes::Mode::Text
+            | DocStoreTypes::Mode::Mp
+            | DocStoreTypes::Mode::Dir
+            | DocStoreTypes::Mode::Manage
+            | DocStoreTypes::Mode::Picker => {}
+        }
+    }
+
+    pub fn vmode(&mut self, _view: ViewId) {}
 
     /// Returns the window which contained the view.
     pub fn destroy_view(&mut self, view: ViewId) -> Option<WindowId> {
