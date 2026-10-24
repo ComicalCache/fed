@@ -1,11 +1,14 @@
-use crate::{
-    state::State,
-    types::{
-        Motion, Pos, Rect, RectSplit,
-        render::{Renderer, Screen, Viewport, ZLayer, workspace::Tile::Dummy},
-    },
-    util::newtype,
-};
+use crate::state::State;
+use crate::types::Motion;
+use crate::types::Pos;
+use crate::types::Rect;
+use crate::types::RectSplit;
+use crate::types::render::Renderer;
+use crate::types::render::Screen;
+use crate::types::render::Viewport;
+use crate::types::render::ZLayer;
+use crate::types::render::workspace::Tile::Dummy;
+use crate::util::newtype;
 
 newtype!(WindowId, u64);
 

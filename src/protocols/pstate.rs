@@ -1,7 +1,10 @@
-use crate::protocols::{
-    dir::DirPState, doc_view::DocViewPState, io::IoPState, manage::ManagePState, mp::MpPState,
-    picker::PickerPState, quit::QuitPState,
-};
+use crate::protocols::dir::DirPState;
+use crate::protocols::doc_view::DocViewPState;
+use crate::protocols::io::IoPState;
+use crate::protocols::manage::ManagePState;
+use crate::protocols::mp::MpPState;
+use crate::protocols::picker::PickerPState;
+use crate::protocols::quit::QuitPState;
 
 pub struct PState {
     pub io: IoPState,

@@ -1,7 +1,6 @@
-use crate::{
-    protocols::picker::{PCallback, PickerEntry},
-    types::Motion,
-};
+use crate::protocols::picker::PCallback;
+use crate::protocols::picker::PickerEntry;
+use crate::types::Motion;
 
 #[allow(unused)]
 pub enum PickerCmd {

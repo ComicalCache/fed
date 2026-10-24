@@ -1,7 +1,6 @@
-use crate::{
-    protocols::{action::ActionProtocol, io::IoProtocol},
-    state::State,
-};
+use crate::protocols::action::ActionProtocol;
+use crate::protocols::io::IoProtocol;
+use crate::state::State;
 
 pub type QuitCallback = fn(&State) -> Result<(), String>;
 

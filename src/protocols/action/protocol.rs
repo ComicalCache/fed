@@ -1,15 +1,23 @@
 use std::path::PathBuf;
 
-use piece_table::{Kind, PieceTable, Slice};
+use piece_table::Kind;
+use piece_table::PieceTable;
+use piece_table::Slice;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::{
-    fed::FEvent,
-    protocols::action::ActionCmd,
-    state::{DocId, DocStoreTypes, State, ViewId, ViewStoreTypes},
-    types::{Cursor, Decorator, Motion, Pos, render::WindowId},
-    util,
-};
+use crate::fed::FEvent;
+use crate::protocols::action::ActionCmd;
+use crate::state::DocId;
+use crate::state::DocStoreTypes;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::state::ViewStoreTypes;
+use crate::types::Cursor;
+use crate::types::Decorator;
+use crate::types::Motion;
+use crate::types::Pos;
+use crate::types::render::WindowId;
+use crate::util;
 
 struct Edit {
     offset: usize,

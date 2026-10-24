@@ -1,11 +1,13 @@
 use piece_table::Slice;
 
-use crate::{
-    protocols::view::ViewCmd,
-    state::{DocStoreTypes, State, ViewId, ViewStoreTypes},
-    types::{Pos, Rect},
-    util,
-};
+use crate::protocols::view::ViewCmd;
+use crate::state::DocStoreTypes;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::state::ViewStoreTypes;
+use crate::types::Pos;
+use crate::types::Rect;
+use crate::util;
 
 pub struct ViewProtocol {}
 

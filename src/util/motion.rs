@@ -1,11 +1,11 @@
 use piece_table::Slice;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::{
-    state::{DocStoreEntry, ViewStoreEntry},
-    types::{Cursor, Motion},
-    util,
-};
+use crate::state::DocStoreEntry;
+use crate::state::ViewStoreEntry;
+use crate::types::Cursor;
+use crate::types::Motion;
+use crate::util;
 
 pub fn offsets(motion: Motion, vse: &ViewStoreEntry, dse: &DocStoreEntry) -> Vec<(usize, usize)> {
     let mut offsets = Vec::new();

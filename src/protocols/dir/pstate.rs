@@ -1,11 +1,12 @@
-use std::{
-    fmt::{Display, Formatter, Result},
-    path::PathBuf,
-};
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Result;
+use std::path::PathBuf;
 
 use tokio::task::JoinHandle;
 
-use crate::state::{DocId, ViewId};
+use crate::state::DocId;
+use crate::state::ViewId;
 
 #[derive(Debug, Default, Clone)]
 pub enum DirEntryKind {

@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
-use crate::{
-    state::{DocId, ViewId},
-    types::render::WindowId,
-};
+use crate::state::DocId;
+use crate::state::ViewId;
+use crate::types::render::WindowId;
 
 /// View lists are nonempty, sorted by ID, and contain no duplicates.
 #[derive(Default)]

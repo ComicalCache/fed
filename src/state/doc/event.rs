@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-use crate::state::{DocId, DocStoreTypes};
+use crate::state::DocId;
+use crate::state::DocStoreTypes;
 
 #[derive(Clone)]
 #[allow(unused)]

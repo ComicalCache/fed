@@ -2,14 +2,21 @@ use crossterm::event::KeyEvent;
 use fancy_regex::Regex;
 use piece_table::Slice;
 
-use crate::{
-    decorators::SearchDecorator,
-    fed::FCmd,
-    modes::search::{cmd::Cmd, keymap},
-    protocols::{action::ActionCmd, mp::MpCmd},
-    state::{DocId, State, ViewId, ViewStoreTypes},
-    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
-};
+use crate::decorators::SearchDecorator;
+use crate::fed::FCmd;
+use crate::modes::search::cmd::Cmd;
+use crate::modes::search::keymap;
+use crate::protocols::action::ActionCmd;
+use crate::protocols::mp::MpCmd;
+use crate::state::DocId;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::state::ViewStoreTypes;
+use crate::types::KeyChord;
+use crate::types::KeyInputHandler;
+use crate::types::KeyInputPriority;
+use crate::types::Keymap;
+use crate::types::ParseResult;
 
 pub struct SearchKeyInput {
     keymap: Keymap<Cmd>,

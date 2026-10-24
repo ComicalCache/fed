@@ -1,16 +1,20 @@
 use std::io::Write;
 
-use crossterm::{
-    cursor::MoveTo,
-    queue,
-    style::{
-        Attribute, Color, Print, SetAttribute, SetBackgroundColor, SetForegroundColor,
-        SetUnderlineColor,
-    },
-    terminal::{BeginSynchronizedUpdate, EndSynchronizedUpdate},
-};
+use crossterm::cursor::MoveTo;
+use crossterm::queue;
+use crossterm::style::Attribute;
+use crossterm::style::Color;
+use crossterm::style::Print;
+use crossterm::style::SetAttribute;
+use crossterm::style::SetBackgroundColor;
+use crossterm::style::SetForegroundColor;
+use crossterm::style::SetUnderlineColor;
+use crossterm::terminal::BeginSynchronizedUpdate;
+use crossterm::terminal::EndSynchronizedUpdate;
 
-use crate::types::{Face, Pos, render::Cell};
+use crate::types::Face;
+use crate::types::Pos;
+use crate::types::render::Cell;
 
 pub struct Screen {
     width: usize,

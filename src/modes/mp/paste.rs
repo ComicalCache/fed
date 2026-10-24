@@ -1,10 +1,10 @@
-use crate::{
-    fed::FCmd,
-    protocols::{action::ActionCmd, mp::MpKind},
-    state::State,
-    types::{PasteInputHandler, PasteInputPriority},
-    util::text::sanitize,
-};
+use crate::fed::FCmd;
+use crate::protocols::action::ActionCmd;
+use crate::protocols::mp::MpKind;
+use crate::state::State;
+use crate::types::PasteInputHandler;
+use crate::types::PasteInputPriority;
+use crate::util::text::sanitize;
 
 pub struct MpPasteInput {}
 

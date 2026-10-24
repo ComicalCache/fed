@@ -1,7 +1,7 @@
-use crate::types::{
-    Pos, Rect,
-    render::{Cell, Screen},
-};
+use crate::types::Pos;
+use crate::types::Rect;
+use crate::types::render::Cell;
+use crate::types::render::Screen;
 
 pub struct Viewport<'a> {
     data: &'a mut Screen,

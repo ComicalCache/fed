@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
 
-use crate::types::{Decoration, Decorator, Span};
+use crate::types::Decoration;
+use crate::types::Decorator;
+use crate::types::Span;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 pub enum DecorationId {

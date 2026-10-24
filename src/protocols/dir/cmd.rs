@@ -1,9 +1,8 @@
 use std::path::PathBuf;
 
-use crate::{
-    protocols::dir::{DirEntry, PrintableDirEntry},
-    types::render::WindowId,
-};
+use crate::protocols::dir::DirEntry;
+use crate::protocols::dir::PrintableDirEntry;
+use crate::types::render::WindowId;
 
 #[allow(unused)]
 pub enum DirCmd {

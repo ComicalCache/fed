@@ -1,11 +1,12 @@
 use crossterm::event::MouseEvent;
 
-use crate::{
-    fed::FCmd,
-    modes::common,
-    state::{State, ViewStoreTypes},
-    types::{MouseInputHandler, MouseInputPriority, render::WindowId},
-};
+use crate::fed::FCmd;
+use crate::modes::common;
+use crate::state::State;
+use crate::state::ViewStoreTypes;
+use crate::types::MouseInputHandler;
+use crate::types::MouseInputPriority;
+use crate::types::render::WindowId;
 
 pub struct InsertMouseInput {}
 

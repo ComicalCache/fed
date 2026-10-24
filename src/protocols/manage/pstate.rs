@@ -1,4 +1,5 @@
-use crate::state::{DocId, ViewId};
+use crate::state::DocId;
+use crate::state::ViewId;
 
 #[derive(Clone, Copy)]
 pub enum ManageEntry {

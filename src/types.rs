@@ -12,16 +12,24 @@ mod span;
 mod theme;
 
 pub use cursor::Cursor;
-pub use decoration::{Decoration, Decorator};
+pub use decoration::Decoration;
+pub use decoration::Decorator;
 pub use face::Face;
-pub use input::{
-    KeyInputHandler, KeyInputPriority, MouseInputHandler, MouseInputPriority, PasteInputHandler,
-    PasteInputPriority, ResizeInputHandler, ResizeInputPriority,
-};
-pub use keymap::{KeyChord, Keymap, ParseResult};
+pub use input::KeyInputHandler;
+pub use input::KeyInputPriority;
+pub use input::MouseInputHandler;
+pub use input::MouseInputPriority;
+pub use input::PasteInputHandler;
+pub use input::PasteInputPriority;
+pub use input::ResizeInputHandler;
+pub use input::ResizeInputPriority;
+pub use keymap::KeyChord;
+pub use keymap::Keymap;
+pub use keymap::ParseResult;
 pub use motion::Motion;
 pub use pos::Pos;
-pub use rect::{Rect, RectSplit};
+pub use rect::Rect;
+pub use rect::RectSplit;
 pub use rgb::Rgb;
 pub use span::Span;
 pub use theme::Theme;

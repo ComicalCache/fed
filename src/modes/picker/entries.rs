@@ -1,6 +1,9 @@
-use std::{any::Any, fmt, path::PathBuf};
+use std::any::Any;
+use std::fmt;
+use std::path::PathBuf;
 
-use crate::{protocols::picker::PickerEntry, types::Theme};
+use crate::protocols::picker::PickerEntry;
+use crate::types::Theme;
 
 #[derive(Clone)]
 pub struct ScanEntry {

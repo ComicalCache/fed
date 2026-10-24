@@ -1,31 +1,43 @@
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
+use std::time::Duration;
 
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::KeyCode;
+use crossterm::event::KeyEvent;
 use piece_table::Slice;
 use tokio::sync::mpsc::UnboundedSender;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::{
-    fed::FCmd,
-    modes::{
-        common,
-        normal::{cmd::Cmd, keymap},
-        picker::entries::{ScanEntry, ThemeEntry},
-        search,
-    },
-    protocols::{
-        action::{ActionCmd, ActionProtocol},
-        dir::{DirCmd, DirProtocol},
-        doc_view::{DocViewCmd, DocViewProtocol},
-        io::{IoFuture, IoProtocol},
-        manage::ManageCmd,
-        mp::MpCmd,
-        picker::{PickerCmd, PickerEntry},
-    },
-    state::{DocId, State, ViewId, ViewStoreTypes},
-    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, Motion, ParseResult, Theme},
-    util,
-};
+use crate::fed::FCmd;
+use crate::modes::common;
+use crate::modes::normal::cmd::Cmd;
+use crate::modes::normal::keymap;
+use crate::modes::picker::entries::ScanEntry;
+use crate::modes::picker::entries::ThemeEntry;
+use crate::modes::search;
+use crate::protocols::action::ActionCmd;
+use crate::protocols::action::ActionProtocol;
+use crate::protocols::dir::DirCmd;
+use crate::protocols::dir::DirProtocol;
+use crate::protocols::doc_view::DocViewCmd;
+use crate::protocols::doc_view::DocViewProtocol;
+use crate::protocols::io::IoFuture;
+use crate::protocols::io::IoProtocol;
+use crate::protocols::manage::ManageCmd;
+use crate::protocols::mp::MpCmd;
+use crate::protocols::picker::PickerCmd;
+use crate::protocols::picker::PickerEntry;
+use crate::state::DocId;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::state::ViewStoreTypes;
+use crate::types::KeyChord;
+use crate::types::KeyInputHandler;
+use crate::types::KeyInputPriority;
+use crate::types::Keymap;
+use crate::types::Motion;
+use crate::types::ParseResult;
+use crate::types::Theme;
+use crate::util;
 
 pub struct NormalKeyInput {
     keymap: Keymap<Cmd>,

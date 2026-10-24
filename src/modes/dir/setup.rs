@@ -1,14 +1,11 @@
-use crate::{
-    state::{
-        DocStoreTypes, State,
-        ViewStoreTypes::{self, TabWidth},
-    },
-    types::{
-        Face,
-        render::{ModeLineConfig, ModeLineWidget},
-    },
-    util,
-};
+use crate::state::DocStoreTypes;
+use crate::state::State;
+use crate::state::ViewStoreTypes::TabWidth;
+use crate::state::ViewStoreTypes::{self};
+use crate::types::Face;
+use crate::types::render::ModeLineConfig;
+use crate::types::render::ModeLineWidget;
+use crate::util;
 
 pub fn setup(s: &mut State) {
     s.p.dir.pwd = std::env::current_dir().map_or_default(util::path::normalize);

@@ -1,4 +1,6 @@
-use crate::{protocols::screen::ScreenCmd, state::State, types::render::Screen};
+use crate::protocols::screen::ScreenCmd;
+use crate::state::State;
+use crate::types::render::Screen;
 
 pub struct ScreenProtocol {}
 

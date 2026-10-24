@@ -1,4 +1,5 @@
-use crate::{state::ViewId, types::Pos};
+use crate::state::ViewId;
+use crate::types::Pos;
 
 #[allow(unused)]
 pub enum ViewCmd {

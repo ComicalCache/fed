@@ -1,4 +1,5 @@
-use crate::types::{Face, Rgb};
+use crate::types::Face;
+use crate::types::Rgb;
 
 #[derive(Clone)]
 pub struct Theme {

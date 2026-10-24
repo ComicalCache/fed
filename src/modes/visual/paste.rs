@@ -1,10 +1,10 @@
-use crate::{
-    fed::FCmd,
-    modes::common,
-    protocols::action::ActionCmd,
-    state::{State, ViewStoreTypes},
-    types::{PasteInputHandler, PasteInputPriority},
-};
+use crate::fed::FCmd;
+use crate::modes::common;
+use crate::protocols::action::ActionCmd;
+use crate::state::State;
+use crate::state::ViewStoreTypes;
+use crate::types::PasteInputHandler;
+use crate::types::PasteInputPriority;
 
 pub struct VisualPasteInput {}
 

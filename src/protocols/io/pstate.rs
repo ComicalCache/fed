@@ -1,7 +1,6 @@
-use std::{
-    path::PathBuf,
-    sync::{Arc, atomic::AtomicUsize},
-};
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
 
 use crate::protocols::io::ScanEntry;
 

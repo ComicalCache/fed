@@ -1,16 +1,20 @@
 use piece_table::Slice;
 
-use crate::{
-    fed::FEvent,
-    protocols::{
-        action::ActionProtocol,
-        mp::MpKind,
-        picker::{PCallback, PickerCmd, PickerEntry, PickerRenderer},
-        view::ViewProtocol,
-    },
-    state::{State, ViewId, ViewStoreTypes},
-    types::{Motion, Pos, Rect, render::ZLayer},
-};
+use crate::fed::FEvent;
+use crate::protocols::action::ActionProtocol;
+use crate::protocols::mp::MpKind;
+use crate::protocols::picker::PCallback;
+use crate::protocols::picker::PickerCmd;
+use crate::protocols::picker::PickerEntry;
+use crate::protocols::picker::PickerRenderer;
+use crate::protocols::view::ViewProtocol;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::state::ViewStoreTypes;
+use crate::types::Motion;
+use crate::types::Pos;
+use crate::types::Rect;
+use crate::types::render::ZLayer;
 
 pub struct PickerProtocol {}
 

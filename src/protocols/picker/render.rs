@@ -1,12 +1,12 @@
-use crate::{
-    layers::{CurrLineLayer, CursorLayer},
-    protocols::view::ViewRenderer,
-    state::State,
-    types::{
-        Pos,
-        render::{Cell, Renderer, Viewport, WindowId},
-    },
-};
+use crate::layers::CurrLineLayer;
+use crate::layers::CursorLayer;
+use crate::protocols::view::ViewRenderer;
+use crate::state::State;
+use crate::types::Pos;
+use crate::types::render::Cell;
+use crate::types::render::Renderer;
+use crate::types::render::Viewport;
+use crate::types::render::WindowId;
 
 pub struct PickerRenderer {
     input: ViewRenderer,

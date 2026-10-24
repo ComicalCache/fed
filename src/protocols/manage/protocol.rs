@@ -1,17 +1,18 @@
-use std::{fmt::Write, time::Duration};
+use std::fmt::Write;
+use std::time::Duration;
 
-use crate::{
-    protocols::{
-        action::ActionProtocol,
-        dir::DirProtocol,
-        doc_view::DocViewProtocol,
-        manage::{ManageCmd, ManageEntry, ManageRenderer},
-        view::ViewProtocol,
-    },
-    state::{DocStoreTypes, State},
-    types::{Pos, render::WindowId},
-    util,
-};
+use crate::protocols::action::ActionProtocol;
+use crate::protocols::dir::DirProtocol;
+use crate::protocols::doc_view::DocViewProtocol;
+use crate::protocols::manage::ManageCmd;
+use crate::protocols::manage::ManageEntry;
+use crate::protocols::manage::ManageRenderer;
+use crate::protocols::view::ViewProtocol;
+use crate::state::DocStoreTypes;
+use crate::state::State;
+use crate::types::Pos;
+use crate::types::render::WindowId;
+use crate::util;
 
 pub struct ManageProtocol {}
 

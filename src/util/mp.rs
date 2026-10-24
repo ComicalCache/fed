@@ -1,12 +1,12 @@
 use std::time::Duration;
 
-use tokio::sync::{mpsc::UnboundedSender, oneshot};
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::oneshot;
 
-use crate::{
-    fed::FCmd,
-    protocols::mp::{MpCmd, MpProtocol},
-    state::State,
-};
+use crate::fed::FCmd;
+use crate::protocols::mp::MpCmd;
+use crate::protocols::mp::MpProtocol;
+use crate::state::State;
 
 pub fn message(s: &mut State, message: String, duration: Duration) {
     let Some(id) = MpProtocol::message(s, message, None) else { return };

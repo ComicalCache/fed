@@ -1,9 +1,10 @@
-use std::{any::Any, fmt::Display};
+use std::any::Any;
+use std::fmt::Display;
 
-use crate::{
-    state::{DocId, State, ViewId},
-    types::render::WindowId,
-};
+use crate::state::DocId;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::types::render::WindowId;
 
 pub trait PickerEntry: Display + Send + 'static {
     fn as_any(&self) -> &dyn Any;

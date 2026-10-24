@@ -1,6 +1,7 @@
 use std::time::Duration;
 
-use crate::{state::State, util};
+use crate::state::State;
+use crate::util;
 
 pub struct QuitProtocol {}
 

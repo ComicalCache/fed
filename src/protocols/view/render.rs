@@ -1,10 +1,10 @@
-use crate::{
-    state::{State, ViewId},
-    types::{
-        Pos,
-        render::{self, Cell, Layer, Viewport},
-    },
-};
+use crate::state::State;
+use crate::state::ViewId;
+use crate::types::Pos;
+use crate::types::render::Cell;
+use crate::types::render::Layer;
+use crate::types::render::Viewport;
+use crate::types::render::{self};
 
 pub struct ViewRenderer {
     layers: Vec<Box<dyn Layer>>,

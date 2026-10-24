@@ -1,19 +1,25 @@
-use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use crossterm::event::KeyModifiers;
+use crossterm::event::MouseButton;
+use crossterm::event::MouseEvent;
+use crossterm::event::MouseEventKind;
 use piece_table::Slice;
 use tokio::sync::oneshot;
 
-use crate::{
-    fed::FCmd,
-    protocols::{
-        action::{ActionCmd, ActionProtocol},
-        doc_view::DocViewCmd,
-        mp::MpCmd,
-        view::ViewCmd,
-    },
-    state::{DocId, State, ViewId, ViewStoreTypes},
-    types::{Motion, Pos, RectSplit, render::WindowId},
-    util,
-};
+use crate::fed::FCmd;
+use crate::protocols::action::ActionCmd;
+use crate::protocols::action::ActionProtocol;
+use crate::protocols::doc_view::DocViewCmd;
+use crate::protocols::mp::MpCmd;
+use crate::protocols::view::ViewCmd;
+use crate::state::DocId;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::state::ViewStoreTypes;
+use crate::types::Motion;
+use crate::types::Pos;
+use crate::types::RectSplit;
+use crate::types::render::WindowId;
+use crate::util;
 
 pub fn mouse(s: &State, window: WindowId, view: ViewId, event: MouseEvent) -> Vec<FCmd> {
     match event.kind {

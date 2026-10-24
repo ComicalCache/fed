@@ -13,29 +13,36 @@ mod state;
 mod types;
 mod util;
 
-use std::{
-    backtrace::{Backtrace, BacktraceStatus},
-    fs::OpenOptions,
-    io::{IsTerminal, Read, Write, stdout},
-    os::fd::AsRawFd,
-};
+use std::backtrace::Backtrace;
+use std::backtrace::BacktraceStatus;
+use std::fs::OpenOptions;
+use std::io::IsTerminal;
+use std::io::Read;
+use std::io::Write;
+use std::io::stdout;
+use std::os::fd::AsRawFd;
 
-use crossterm::{
-    cursor::{Hide, Show},
-    event::{
-        DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
-        Event, EventStream,
-    },
-    execute,
-    terminal::{
-        EndSynchronizedUpdate, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
-        enable_raw_mode,
-    },
-};
+use crossterm::cursor::Hide;
+use crossterm::cursor::Show;
+use crossterm::event::DisableBracketedPaste;
+use crossterm::event::DisableMouseCapture;
+use crossterm::event::EnableBracketedPaste;
+use crossterm::event::EnableMouseCapture;
+use crossterm::event::Event;
+use crossterm::event::EventStream;
+use crossterm::execute;
+use crossterm::terminal::EndSynchronizedUpdate;
+use crossterm::terminal::EnterAlternateScreen;
+use crossterm::terminal::LeaveAlternateScreen;
+use crossterm::terminal::disable_raw_mode;
+use crossterm::terminal::enable_raw_mode;
 use futures::StreamExt;
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
+use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::unbounded_channel;
 
-use crate::{cli::Cli, fed::Fed};
+use crate::cli::Cli;
+use crate::fed::Fed;
 
 async fn input(tx: UnboundedSender<Event>) -> std::io::Result<()> {
     let mut reader = EventStream::new();

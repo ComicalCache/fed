@@ -1,12 +1,14 @@
-use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+use crossterm::event::MouseButton;
+use crossterm::event::MouseEvent;
+use crossterm::event::MouseEventKind;
 
-use crate::{
-    fed::FCmd,
-    modes::common,
-    protocols::mp::MpKind,
-    state::State,
-    types::{MouseInputHandler, MouseInputPriority, render::WindowId},
-};
+use crate::fed::FCmd;
+use crate::modes::common;
+use crate::protocols::mp::MpKind;
+use crate::state::State;
+use crate::types::MouseInputHandler;
+use crate::types::MouseInputPriority;
+use crate::types::render::WindowId;
 
 pub struct MpMouseInput {}
 

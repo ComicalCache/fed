@@ -1,15 +1,20 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::KeyCode;
+use crossterm::event::KeyEvent;
+use crossterm::event::KeyModifiers;
 
-use crate::{
-    fed::FCmd,
-    modes::mp::{cmd::Cmd, keymap},
-    protocols::{
-        action::ActionCmd,
-        mp::{MpCmd, MpKind},
-    },
-    state::{State, ViewId},
-    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
-};
+use crate::fed::FCmd;
+use crate::modes::mp::cmd::Cmd;
+use crate::modes::mp::keymap;
+use crate::protocols::action::ActionCmd;
+use crate::protocols::mp::MpCmd;
+use crate::protocols::mp::MpKind;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::types::KeyChord;
+use crate::types::KeyInputHandler;
+use crate::types::KeyInputPriority;
+use crate::types::Keymap;
+use crate::types::ParseResult;
 
 pub struct MpKeyInput {
     keymap: Keymap<Cmd>,

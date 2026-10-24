@@ -1,9 +1,10 @@
-use crossterm::event::{KeyCode, KeyModifiers};
+use crossterm::event::KeyCode;
+use crossterm::event::KeyModifiers;
 
-use crate::{
-    modes::picker::cmd::Cmd,
-    types::{KeyChord, Keymap, Motion},
-};
+use crate::modes::picker::cmd::Cmd;
+use crate::types::KeyChord;
+use crate::types::Keymap;
+use crate::types::Motion;
 
 pub fn keymap() -> Keymap<Cmd> {
     let mut keymap = Keymap::new();

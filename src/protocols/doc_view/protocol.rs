@@ -1,22 +1,23 @@
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
+use std::time::Duration;
 
 use tokio::sync::oneshot;
 
-use crate::{
-    fed::FCmd,
-    protocols::{
-        action::ActionProtocol,
-        doc_view::{DocViewCmd, DocViewRenderer},
-        io::IoProtocol,
-        view::ViewProtocol,
-    },
-    state::{DocId, State, ViewId},
-    types::{
-        Pos, Rect, RectSplit,
-        render::{WindowId, ZLayer},
-    },
-    util,
-};
+use crate::fed::FCmd;
+use crate::protocols::action::ActionProtocol;
+use crate::protocols::doc_view::DocViewCmd;
+use crate::protocols::doc_view::DocViewRenderer;
+use crate::protocols::io::IoProtocol;
+use crate::protocols::view::ViewProtocol;
+use crate::state::DocId;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::types::Pos;
+use crate::types::Rect;
+use crate::types::RectSplit;
+use crate::types::render::WindowId;
+use crate::types::render::ZLayer;
+use crate::util;
 
 pub struct DocViewProtocol {}
 

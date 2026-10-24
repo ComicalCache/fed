@@ -1,12 +1,19 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::KeyCode;
+use crossterm::event::KeyEvent;
+use crossterm::event::KeyModifiers;
 
-use crate::{
-    fed::FCmd,
-    modes::insert::{cmd::Cmd, keymap},
-    protocols::action::ActionCmd,
-    state::{State, ViewId, ViewStoreTypes},
-    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
-};
+use crate::fed::FCmd;
+use crate::modes::insert::cmd::Cmd;
+use crate::modes::insert::keymap;
+use crate::protocols::action::ActionCmd;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::state::ViewStoreTypes;
+use crate::types::KeyChord;
+use crate::types::KeyInputHandler;
+use crate::types::KeyInputPriority;
+use crate::types::Keymap;
+use crate::types::ParseResult;
 
 pub struct InsertKeyInput {
     keymap: Keymap<Cmd>,

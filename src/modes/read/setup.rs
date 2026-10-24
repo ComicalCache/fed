@@ -1,10 +1,10 @@
-use crate::{
-    state::{DocId, State, ViewId, ViewStoreTypes},
-    types::{
-        Face,
-        render::{ModeLineConfig, ModeLineWidget},
-    },
-};
+use crate::state::DocId;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::state::ViewStoreTypes;
+use crate::types::Face;
+use crate::types::render::ModeLineConfig;
+use crate::types::render::ModeLineWidget;
 
 pub fn dmode(s: &mut State, doc: DocId) {
     s.doc_store.get_mut(&doc).unwrap().read_only = true;

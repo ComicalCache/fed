@@ -1,6 +1,9 @@
 use std::any::Any;
 
-use crate::types::{Decoration, Decorator, Face, Span};
+use crate::types::Decoration;
+use crate::types::Decorator;
+use crate::types::Face;
+use crate::types::Span;
 
 pub struct SearchDecorator {
     pub query: String,

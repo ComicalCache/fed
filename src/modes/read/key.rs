@@ -1,16 +1,22 @@
 use crossterm::event::KeyEvent;
 
-use crate::{
-    fed::FCmd,
-    modes::{
-        common,
-        read::{cmd::Cmd, keymap},
-        search,
-    },
-    protocols::{action::ActionCmd, dir::DirCmd, manage::ManageCmd},
-    state::{DocStoreTypes, State, ViewId, ViewStoreTypes},
-    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
-};
+use crate::fed::FCmd;
+use crate::modes::common;
+use crate::modes::read::cmd::Cmd;
+use crate::modes::read::keymap;
+use crate::modes::search;
+use crate::protocols::action::ActionCmd;
+use crate::protocols::dir::DirCmd;
+use crate::protocols::manage::ManageCmd;
+use crate::state::DocStoreTypes;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::state::ViewStoreTypes;
+use crate::types::KeyChord;
+use crate::types::KeyInputHandler;
+use crate::types::KeyInputPriority;
+use crate::types::Keymap;
+use crate::types::ParseResult;
 
 pub struct ReadKeyInput {
     keymap: Keymap<Cmd>,

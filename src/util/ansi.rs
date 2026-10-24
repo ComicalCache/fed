@@ -1,9 +1,11 @@
-use anstyle_parse::{Params, Perform};
+use anstyle_parse::Params;
+use anstyle_parse::Perform;
 
-use crate::{
-    decorators::SpanDecorator,
-    types::{Decoration, Face, Rgb, Span},
-};
+use crate::decorators::SpanDecorator;
+use crate::types::Decoration;
+use crate::types::Face;
+use crate::types::Rgb;
+use crate::types::Span;
 
 #[derive(Default)]
 pub struct DecoratioParser {

@@ -1,25 +1,38 @@
 use crossterm::event::Event;
 
-use crate::{
-    fed::FCmd,
-    modes::{
-        dir::{DirKeyInput, DirMouseInput},
-        insert::{InsertKeyInput, InsertMouseInput, InsertPasteInput},
-        manage::{ManageKeyInput, ManageMouseInput},
-        mp::{MpKeyInput, MpMouseInput, MpPasteInput},
-        normal::{NormalKeyInput, NormalMouseInput, NormalPasteInput},
-        picker::{PickerKeyInput, PickerMouseInput, PickerPasteInput},
-        read::{ReadKeyInput, ReadMouseInput},
-        search::{SearchKeyInput, SearchMouseInput},
-        visual::{VisualKeyInput, VisualMouseInput, VisualPasteInput},
-    },
-    protocols::{
-        mp::MpResizeInput, picker::PickerResizeInput, screen::ScreenResizeInput,
-        view::ViewResizeInput,
-    },
-    state::State,
-    types::{KeyInputHandler, MouseInputHandler, PasteInputHandler, ResizeInputHandler},
-};
+use crate::fed::FCmd;
+use crate::modes::dir::DirKeyInput;
+use crate::modes::dir::DirMouseInput;
+use crate::modes::insert::InsertKeyInput;
+use crate::modes::insert::InsertMouseInput;
+use crate::modes::insert::InsertPasteInput;
+use crate::modes::manage::ManageKeyInput;
+use crate::modes::manage::ManageMouseInput;
+use crate::modes::mp::MpKeyInput;
+use crate::modes::mp::MpMouseInput;
+use crate::modes::mp::MpPasteInput;
+use crate::modes::normal::NormalKeyInput;
+use crate::modes::normal::NormalMouseInput;
+use crate::modes::normal::NormalPasteInput;
+use crate::modes::picker::PickerKeyInput;
+use crate::modes::picker::PickerMouseInput;
+use crate::modes::picker::PickerPasteInput;
+use crate::modes::read::ReadKeyInput;
+use crate::modes::read::ReadMouseInput;
+use crate::modes::search::SearchKeyInput;
+use crate::modes::search::SearchMouseInput;
+use crate::modes::visual::VisualKeyInput;
+use crate::modes::visual::VisualMouseInput;
+use crate::modes::visual::VisualPasteInput;
+use crate::protocols::mp::MpResizeInput;
+use crate::protocols::picker::PickerResizeInput;
+use crate::protocols::screen::ScreenResizeInput;
+use crate::protocols::view::ViewResizeInput;
+use crate::state::State;
+use crate::types::KeyInputHandler;
+use crate::types::MouseInputHandler;
+use crate::types::PasteInputHandler;
+use crate::types::ResizeInputHandler;
 
 pub struct InputRouter {
     key_handlers: Vec<Box<dyn KeyInputHandler>>,

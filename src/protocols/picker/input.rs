@@ -1,9 +1,8 @@
-use crate::{
-    fed::FCmd,
-    protocols::picker::PickerCmd,
-    state::State,
-    types::{ResizeInputHandler, ResizeInputPriority},
-};
+use crate::fed::FCmd;
+use crate::protocols::picker::PickerCmd;
+use crate::state::State;
+use crate::types::ResizeInputHandler;
+use crate::types::ResizeInputPriority;
 
 pub struct PickerResizeInput {}
 

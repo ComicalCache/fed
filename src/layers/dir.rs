@@ -1,11 +1,12 @@
-use crate::{
-    protocols::dir::DirEntryKind,
-    state::{DocStoreEntry, State, ViewStoreEntry, ViewStoreTypes},
-    types::{
-        Face,
-        render::{Cell, Layer, VisualOffsetMapping},
-    },
-};
+use crate::protocols::dir::DirEntryKind;
+use crate::state::DocStoreEntry;
+use crate::state::State;
+use crate::state::ViewStoreEntry;
+use crate::state::ViewStoreTypes;
+use crate::types::Face;
+use crate::types::render::Cell;
+use crate::types::render::Layer;
+use crate::types::render::VisualOffsetMapping;
 
 pub struct DirLayer {}
 

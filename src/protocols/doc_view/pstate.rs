@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use crate::{state::ViewId, types::render::WindowId};
+use crate::state::ViewId;
+use crate::types::render::WindowId;
 
 #[derive(Default)]
 pub struct DocViewPState {

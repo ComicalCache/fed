@@ -4,22 +4,29 @@ mod view;
 
 use std::path::PathBuf;
 
-pub use doc::{DocId, DocStore, DocStoreEntry, types as DocStoreTypes};
+pub use doc::DocId;
+pub use doc::DocStore;
+pub use doc::DocStoreEntry;
+pub use doc::types as DocStoreTypes;
 use piece_table::PieceTable;
 use tokio::sync::mpsc::UnboundedSender;
-pub use view::{ViewId, ViewStore, ViewStoreEntry, types as ViewStoreTypes};
+pub use view::ViewId;
+pub use view::ViewStore;
+pub use view::ViewStoreEntry;
+pub use view::types as ViewStoreTypes;
 
-use crate::{
-    fed::{FCmd, FEvent},
-    modes,
-    protocols::pstate::PState,
-    state::index::Index,
-    types::{
-        Pos, Rect, Theme,
-        render::{Renderer, WindowId, Workspace},
-    },
-    util,
-};
+use crate::fed::FCmd;
+use crate::fed::FEvent;
+use crate::modes;
+use crate::protocols::pstate::PState;
+use crate::state::index::Index;
+use crate::types::Pos;
+use crate::types::Rect;
+use crate::types::Theme;
+use crate::types::render::Renderer;
+use crate::types::render::WindowId;
+use crate::types::render::Workspace;
+use crate::util;
 
 pub struct State {
     next_doc_id: usize,
@@ -127,47 +134,6 @@ impl State {
         view
     }
 
-    fn dinit(&mut self, doc: DocId) {
-        match self.doc_store.get(&doc).unwrap().mode {
-            DocStoreTypes::Mode::Text
-            | DocStoreTypes::Mode::Mp
-            | DocStoreTypes::Mode::Dir
-            | DocStoreTypes::Mode::Manage
-            | DocStoreTypes::Mode::Picker
-            | DocStoreTypes::Mode::Read => {}
-        }
-
-        self.dmode(doc);
-    }
-
-    fn vinit(&mut self, view: ViewId) {
-        let doc = self.index.view_to_doc(view).unwrap();
-
-        match self.doc_store.get(&doc).unwrap().mode {
-            DocStoreTypes::Mode::Read => modes::read::setup::vinit(self, view),
-            DocStoreTypes::Mode::Text
-            | DocStoreTypes::Mode::Mp
-            | DocStoreTypes::Mode::Dir
-            | DocStoreTypes::Mode::Manage
-            | DocStoreTypes::Mode::Picker => {}
-        }
-
-        self.vmode(view);
-    }
-
-    pub fn dmode(&mut self, doc: DocId) {
-        match self.doc_store.get(&doc).unwrap().mode {
-            DocStoreTypes::Mode::Read => modes::read::setup::dmode(self, doc),
-            DocStoreTypes::Mode::Text
-            | DocStoreTypes::Mode::Mp
-            | DocStoreTypes::Mode::Dir
-            | DocStoreTypes::Mode::Manage
-            | DocStoreTypes::Mode::Picker => {}
-        }
-    }
-
-    pub fn vmode(&mut self, _view: ViewId) {}
-
     /// Returns the window which contained the view.
     pub fn destroy_view(&mut self, view: ViewId) -> Option<WindowId> {
         self.view_store.get(&view)?;
@@ -235,6 +201,47 @@ impl State {
 
         Some(views[0])
     }
+
+    fn dinit(&mut self, doc: DocId) {
+        match self.doc_store.get(&doc).unwrap().mode {
+            DocStoreTypes::Mode::Text
+            | DocStoreTypes::Mode::Mp
+            | DocStoreTypes::Mode::Dir
+            | DocStoreTypes::Mode::Manage
+            | DocStoreTypes::Mode::Picker
+            | DocStoreTypes::Mode::Read => {}
+        }
+
+        self.dmode(doc);
+    }
+
+    fn vinit(&mut self, view: ViewId) {
+        let doc = self.index.view_to_doc(view).unwrap();
+
+        match self.doc_store.get(&doc).unwrap().mode {
+            DocStoreTypes::Mode::Read => modes::read::setup::vinit(self, view),
+            DocStoreTypes::Mode::Text
+            | DocStoreTypes::Mode::Mp
+            | DocStoreTypes::Mode::Dir
+            | DocStoreTypes::Mode::Manage
+            | DocStoreTypes::Mode::Picker => {}
+        }
+
+        self.vmode(view);
+    }
+
+    pub fn dmode(&mut self, doc: DocId) {
+        match self.doc_store.get(&doc).unwrap().mode {
+            DocStoreTypes::Mode::Read => modes::read::setup::dmode(self, doc),
+            DocStoreTypes::Mode::Text
+            | DocStoreTypes::Mode::Mp
+            | DocStoreTypes::Mode::Dir
+            | DocStoreTypes::Mode::Manage
+            | DocStoreTypes::Mode::Picker => {}
+        }
+    }
+
+    pub fn vmode(&mut self, _view: ViewId) {}
 
     pub fn vse_and_dse<'a>(
         view_store: &'a ViewStore, doc_store: &'a DocStore, index: &Index, view: ViewId,

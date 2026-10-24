@@ -1,7 +1,10 @@
-use crate::{
-    state::{DocStoreEntry, State, ViewStoreEntry, ViewStoreTypes},
-    types::render::{Cell, Layer, VisualOffsetMapping},
-};
+use crate::state::DocStoreEntry;
+use crate::state::State;
+use crate::state::ViewStoreEntry;
+use crate::state::ViewStoreTypes;
+use crate::types::render::Cell;
+use crate::types::render::Layer;
+use crate::types::render::VisualOffsetMapping;
 
 pub struct CursorLayer {}
 

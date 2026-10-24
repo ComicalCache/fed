@@ -1,9 +1,13 @@
 use std::path::PathBuf;
 
-use crate::{
-    state::{DocId, DocStoreTypes, ViewId, ViewStoreTypes},
-    types::{Decorator, Motion, Pos, render::WindowId},
-};
+use crate::state::DocId;
+use crate::state::DocStoreTypes;
+use crate::state::ViewId;
+use crate::state::ViewStoreTypes;
+use crate::types::Decorator;
+use crate::types::Motion;
+use crate::types::Pos;
+use crate::types::render::WindowId;
 
 #[allow(unused)]
 pub enum ActionCmd {

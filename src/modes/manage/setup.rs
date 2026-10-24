@@ -1,13 +1,10 @@
-use crate::{
-    state::{
-        DocStoreTypes, State,
-        ViewStoreTypes::{self, TabWidth},
-    },
-    types::{
-        Face,
-        render::{ModeLineConfig, ModeLineWidget},
-    },
-};
+use crate::state::DocStoreTypes;
+use crate::state::State;
+use crate::state::ViewStoreTypes::TabWidth;
+use crate::state::ViewStoreTypes::{self};
+use crate::types::Face;
+use crate::types::render::ModeLineConfig;
+use crate::types::render::ModeLineWidget;
 
 pub fn setup(s: &mut State) {
     s.p.manage.doc = s.create_doc(None).unwrap();

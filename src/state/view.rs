@@ -7,24 +7,27 @@ mod scroll;
 mod view_cache;
 
 pub mod types {
-    pub use crate::state::view::{
-        cursors::Cursors,
-        decorations::{DecorationId, Decorations},
-        event::Event,
-        layout::{Layout, Replacements, TabWidth, ViewLayout},
-        mode::Mode,
-        scroll::Scroll,
-        view_cache::ViewCache,
-    };
+    pub use crate::state::view::cursors::Cursors;
+    pub use crate::state::view::decorations::DecorationId;
+    pub use crate::state::view::decorations::Decorations;
+    pub use crate::state::view::event::Event;
+    pub use crate::state::view::layout::Layout;
+    pub use crate::state::view::layout::Replacements;
+    pub use crate::state::view::layout::TabWidth;
+    pub use crate::state::view::layout::ViewLayout;
+    pub use crate::state::view::mode::Mode;
+    pub use crate::state::view::scroll::Scroll;
+    pub use crate::state::view::view_cache::ViewCache;
 }
 
 use std::collections::HashMap;
 
-use crate::{
-    state::{DocStoreEntry, ViewStoreTypes},
-    types::{Pos, Rect, render::ModeLineConfig},
-    util::newtype,
-};
+use crate::state::DocStoreEntry;
+use crate::state::ViewStoreTypes;
+use crate::types::Pos;
+use crate::types::Rect;
+use crate::types::render::ModeLineConfig;
+use crate::util::newtype;
 
 newtype!(ViewId, usize);
 

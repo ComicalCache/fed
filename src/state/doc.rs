@@ -4,12 +4,11 @@ mod event;
 mod mode;
 
 pub mod types {
-    pub use crate::state::doc::{
-        decorations::{DecorationId, Decorations},
-        doc::Doc,
-        event::Event,
-        mode::Mode,
-    };
+    pub use crate::state::doc::decorations::DecorationId;
+    pub use crate::state::doc::decorations::Decorations;
+    pub use crate::state::doc::doc::Doc;
+    pub use crate::state::doc::event::Event;
+    pub use crate::state::doc::mode::Mode;
 }
 
 use std::collections::HashMap;

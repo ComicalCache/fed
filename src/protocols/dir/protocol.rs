@@ -1,19 +1,23 @@
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
+use std::time::Duration;
 
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{
-    fed::FCmd,
-    protocols::{
-        action::ActionProtocol,
-        dir::{DirCmd, DirEntry, DirEntryKind, DirRenderer, PrintableDirEntry},
-        doc_view::{DocViewCmd, DocViewProtocol},
-        view::ViewProtocol,
-    },
-    state::State,
-    types::{Pos, render::WindowId},
-    util::{self, format},
-};
+use crate::fed::FCmd;
+use crate::protocols::action::ActionProtocol;
+use crate::protocols::dir::DirCmd;
+use crate::protocols::dir::DirEntry;
+use crate::protocols::dir::DirEntryKind;
+use crate::protocols::dir::DirRenderer;
+use crate::protocols::dir::PrintableDirEntry;
+use crate::protocols::doc_view::DocViewCmd;
+use crate::protocols::doc_view::DocViewProtocol;
+use crate::protocols::view::ViewProtocol;
+use crate::state::State;
+use crate::types::Pos;
+use crate::types::render::WindowId;
+use crate::util::format;
+use crate::util::{self};
 
 pub struct DirProtocol {}
 

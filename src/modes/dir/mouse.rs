@@ -1,11 +1,12 @@
 use crossterm::event::MouseEvent;
 
-use crate::{
-    fed::FCmd,
-    modes::common,
-    state::{DocStoreTypes, State},
-    types::{MouseInputHandler, MouseInputPriority, render::WindowId},
-};
+use crate::fed::FCmd;
+use crate::modes::common;
+use crate::state::DocStoreTypes;
+use crate::state::State;
+use crate::types::MouseInputHandler;
+use crate::types::MouseInputPriority;
+use crate::types::render::WindowId;
 
 pub struct DirMouseInput {}
 

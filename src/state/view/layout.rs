@@ -1,7 +1,6 @@
-use crate::{
-    types::{Face, Rect},
-    util::newtype,
-};
+use crate::types::Face;
+use crate::types::Rect;
+use crate::util::newtype;
 
 newtype!(TabWidth, usize, Clone, Copy, PartialEq, Eq, Hash);
 

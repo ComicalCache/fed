@@ -1,9 +1,12 @@
-use crossterm::event::{KeyCode, KeyModifiers};
+use crossterm::event::KeyCode;
+use crossterm::event::KeyModifiers;
 
-use crate::{
-    modes::{motions::MOTIONS, normal::cmd::Cmd},
-    types::{KeyChord, Keymap, Motion, RectSplit},
-};
+use crate::modes::motions::MOTIONS;
+use crate::modes::normal::cmd::Cmd;
+use crate::types::KeyChord;
+use crate::types::Keymap;
+use crate::types::Motion;
+use crate::types::RectSplit;
 
 pub fn keymap() -> Keymap<Cmd> {
     let mut keymap = Keymap::new();
@@ -82,8 +85,8 @@ pub fn keymap() -> Keymap<Cmd> {
     keymap.bind(&[KeyChord::new(KeyCode::Char('r'), KeyModifiers::empty())], Cmd::Replace);
 
     keymap.bind(&[KeyChord::new(KeyCode::Char('s'), KeyModifiers::CONTROL)], Cmd::SaveFile);
-    keymap.bind(&[KeyChord::new(KeyCode::Char('f'), KeyModifiers::ALT)], Cmd::FindFile);
-    keymap.bind(&[KeyChord::new(KeyCode::Char('t'), KeyModifiers::ALT)], Cmd::SelectTheme);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('f'), KeyModifiers::CONTROL)], Cmd::FindFile);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('t'), KeyModifiers::CONTROL)], Cmd::SelectTheme);
     keymap.bind(&[KeyChord::new(KeyCode::Char('j'), KeyModifiers::CONTROL)], Cmd::Jump);
 
     keymap.bind(

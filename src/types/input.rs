@@ -1,6 +1,9 @@
-use crossterm::event::{KeyEvent, MouseEvent};
+use crossterm::event::KeyEvent;
+use crossterm::event::MouseEvent;
 
-use crate::{fed::FCmd, state::State, types::render::WindowId};
+use crate::fed::FCmd;
+use crate::state::State;
+use crate::types::render::WindowId;
 
 pub trait KeyInputHandler {
     /// The _static_ priority of the handler. This determines in which order

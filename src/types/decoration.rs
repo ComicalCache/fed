@@ -1,6 +1,7 @@
 use std::any::Any;
 
-use crate::types::{Face, Span};
+use crate::types::Face;
+use crate::types::Span;
 
 #[derive(Clone, PartialEq, Eq)]
 #[allow(unused)]

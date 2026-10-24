@@ -1,8 +1,8 @@
-use crate::{
-    state::{DocStoreEntry, State, ViewStoreEntry},
-    types::Face,
-    util,
-};
+use crate::state::DocStoreEntry;
+use crate::state::State;
+use crate::state::ViewStoreEntry;
+use crate::types::Face;
+use crate::util;
 
 pub enum ModeLineWidget {
     DocMode { face: Face },

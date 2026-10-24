@@ -1,4 +1,5 @@
-use crate::state::{ViewId, ViewStoreTypes};
+use crate::state::ViewId;
+use crate::state::ViewStoreTypes;
 
 #[derive(Clone)]
 #[allow(unused)]

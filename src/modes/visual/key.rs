@@ -2,16 +2,23 @@ use crossterm::event::KeyEvent;
 use piece_table::Slice;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::{
-    fed::FCmd,
-    modes::{
-        common, search,
-        visual::{VisualPasteInput, cmd::Cmd, keymap},
-    },
-    protocols::action::ActionCmd,
-    state::{DocId, State, ViewId, ViewStoreTypes},
-    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult, PasteInputHandler},
-};
+use crate::fed::FCmd;
+use crate::modes::common;
+use crate::modes::search;
+use crate::modes::visual::VisualPasteInput;
+use crate::modes::visual::cmd::Cmd;
+use crate::modes::visual::keymap;
+use crate::protocols::action::ActionCmd;
+use crate::state::DocId;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::state::ViewStoreTypes;
+use crate::types::KeyChord;
+use crate::types::KeyInputHandler;
+use crate::types::KeyInputPriority;
+use crate::types::Keymap;
+use crate::types::ParseResult;
+use crate::types::PasteInputHandler;
 
 pub struct VisualKeyInput {
     keymap: Keymap<Cmd>,

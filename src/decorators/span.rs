@@ -1,6 +1,8 @@
 use std::any::Any;
 
-use crate::types::{Decoration, Decorator, Span};
+use crate::types::Decoration;
+use crate::types::Decorator;
+use crate::types::Span;
 
 pub struct SpanDecorator {
     spans: Vec<Span<Decoration>>,

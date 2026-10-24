@@ -13,6 +13,6 @@ binop_separator = "Front"
 fn_params_layout = "Compressed"
 fn_single_line = true
 group_imports = "StdExternalCrate"
-imports_granularity = "Crate"
+imports_granularity = "Item"
 struct_lit_single_line = true
 wrap_comments = true

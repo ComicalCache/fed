@@ -1,8 +1,8 @@
-use crate::{
-    state::{DocId, State, ViewId},
-    types::render::WindowId,
-    util::newtype,
-};
+use crate::state::DocId;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::types::render::WindowId;
+use crate::util::newtype;
 
 pub type PCallback = Box<dyn FnOnce(&mut State, String) + Send>;
 

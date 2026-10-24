@@ -1,4 +1,5 @@
-use crate::types::{Motion, RectSplit};
+use crate::types::Motion;
+use crate::types::RectSplit;
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum Cmd {

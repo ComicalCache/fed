@@ -1,13 +1,16 @@
-use crate::{
-    fed::FCmd,
-    protocols::{
-        action::ActionProtocol, dir::DirProtocol, doc_view::DocViewProtocol, io::IoProtocol,
-        manage::ManageProtocol, mp::MpProtocol, picker::PickerProtocol, quit::QuitProtocol,
-        screen::ScreenProtocol, view::ViewProtocol,
-    },
-    state::State,
-    types::render::Screen,
-};
+use crate::fed::FCmd;
+use crate::protocols::action::ActionProtocol;
+use crate::protocols::dir::DirProtocol;
+use crate::protocols::doc_view::DocViewProtocol;
+use crate::protocols::io::IoProtocol;
+use crate::protocols::manage::ManageProtocol;
+use crate::protocols::mp::MpProtocol;
+use crate::protocols::picker::PickerProtocol;
+use crate::protocols::quit::QuitProtocol;
+use crate::protocols::screen::ScreenProtocol;
+use crate::protocols::view::ViewProtocol;
+use crate::state::State;
+use crate::types::render::Screen;
 
 pub struct ProtocolRouter {}
 

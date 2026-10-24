@@ -1,7 +1,7 @@
-use crate::state::{
-    DocStoreTypes, State,
-    ViewStoreTypes::{self, TabWidth},
-};
+use crate::state::DocStoreTypes;
+use crate::state::State;
+use crate::state::ViewStoreTypes::TabWidth;
+use crate::state::ViewStoreTypes::{self};
 
 pub fn setup(s: &mut State) {
     s.p.picker.input_doc = s.create_doc(None).unwrap();

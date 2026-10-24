@@ -1,6 +1,8 @@
-use crossterm::event::{KeyCode, KeyModifiers};
+use crossterm::event::KeyCode;
+use crossterm::event::KeyModifiers;
 
-use crate::types::{KeyChord, Motion};
+use crate::types::KeyChord;
+use crate::types::Motion;
 
 pub const MOTIONS: [(KeyChord, Motion); 17] = [
     (KeyChord::new(KeyCode::Char('h'), KeyModifiers::empty()), Motion::Left),

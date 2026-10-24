@@ -1,4 +1,5 @@
-use std::{path::PathBuf, pin::Pin};
+use std::path::PathBuf;
+use std::pin::Pin;
 
 use crate::protocols::io::ScanEntry;
 

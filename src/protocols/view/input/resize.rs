@@ -1,9 +1,8 @@
-use crate::{
-    fed::FCmd,
-    protocols::view::ViewCmd,
-    state::State,
-    types::{ResizeInputHandler, ResizeInputPriority},
-};
+use crate::fed::FCmd;
+use crate::protocols::view::ViewCmd;
+use crate::state::State;
+use crate::types::ResizeInputHandler;
+use crate::types::ResizeInputPriority;
 
 pub struct ViewResizeInput {}
 

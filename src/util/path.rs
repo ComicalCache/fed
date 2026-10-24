@@ -1,4 +1,5 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
 pub fn normalize<P: AsRef<Path>>(path: P) -> PathBuf {
     let path = path.as_ref();

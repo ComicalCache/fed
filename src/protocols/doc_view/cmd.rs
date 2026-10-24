@@ -2,13 +2,12 @@ use std::path::PathBuf;
 
 use tokio::sync::oneshot;
 
-use crate::{
-    state::{DocId, ViewId},
-    types::{
-        Rect, RectSplit,
-        render::{WindowId, ZLayer},
-    },
-};
+use crate::state::DocId;
+use crate::state::ViewId;
+use crate::types::Rect;
+use crate::types::RectSplit;
+use crate::types::render::WindowId;
+use crate::types::render::ZLayer;
 
 #[allow(unused)]
 pub enum DocViewCmd {

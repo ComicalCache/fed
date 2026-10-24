@@ -1,12 +1,14 @@
 use fancy_regex::Regex;
 use piece_table::Slice;
 
-use crate::{
-    decorators::SearchDecorator,
-    fed::FCmd,
-    protocols::{action::ActionCmd, mp::MpCmd},
-    state::{DocId, State, ViewId, ViewStoreTypes},
-};
+use crate::decorators::SearchDecorator;
+use crate::fed::FCmd;
+use crate::protocols::action::ActionCmd;
+use crate::protocols::mp::MpCmd;
+use crate::state::DocId;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::state::ViewStoreTypes;
 
 pub fn start_search(view: ViewId, doc: DocId, bounds: Option<Vec<(usize, usize)>>) -> Vec<FCmd> {
     let prompt = if bounds.is_some() {

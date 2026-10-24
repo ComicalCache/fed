@@ -1,13 +1,19 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::KeyCode;
+use crossterm::event::KeyEvent;
+use crossterm::event::KeyModifiers;
 
-use crate::{
-    fed::FCmd,
-    modes::picker::{cmd::Cmd, keymap},
-    protocols::{action::ActionCmd, picker::PickerCmd},
-    state::State,
-    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
-    util::text::sanitize,
-};
+use crate::fed::FCmd;
+use crate::modes::picker::cmd::Cmd;
+use crate::modes::picker::keymap;
+use crate::protocols::action::ActionCmd;
+use crate::protocols::picker::PickerCmd;
+use crate::state::State;
+use crate::types::KeyChord;
+use crate::types::KeyInputHandler;
+use crate::types::KeyInputPriority;
+use crate::types::Keymap;
+use crate::types::ParseResult;
+use crate::util::text::sanitize;
 
 pub struct PickerKeyInput {
     keymap: Keymap<Cmd>,

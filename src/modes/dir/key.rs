@@ -2,23 +2,27 @@ use std::path::PathBuf;
 
 use crossterm::event::KeyEvent;
 
-use crate::{
-    fed::FCmd,
-    modes::{
-        common,
-        dir::{cmd::Cmd, keymap},
-        search,
-    },
-    protocols::{
-        action::ActionCmd,
-        dir::{DirCmd, DirEntry, DirProtocol},
-        manage::ManageCmd,
-        mp::MpCmd,
-    },
-    state::{DocStoreTypes, State, ViewId, ViewStoreTypes},
-    types::{KeyChord, KeyInputHandler, KeyInputPriority, Keymap, ParseResult},
-    util,
-};
+use crate::fed::FCmd;
+use crate::modes::common;
+use crate::modes::dir::cmd::Cmd;
+use crate::modes::dir::keymap;
+use crate::modes::search;
+use crate::protocols::action::ActionCmd;
+use crate::protocols::dir::DirCmd;
+use crate::protocols::dir::DirEntry;
+use crate::protocols::dir::DirProtocol;
+use crate::protocols::manage::ManageCmd;
+use crate::protocols::mp::MpCmd;
+use crate::state::DocStoreTypes;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::state::ViewStoreTypes;
+use crate::types::KeyChord;
+use crate::types::KeyInputHandler;
+use crate::types::KeyInputPriority;
+use crate::types::Keymap;
+use crate::types::ParseResult;
+use crate::util;
 
 pub struct DirKeyInput {
     keymap: Keymap<Cmd>,

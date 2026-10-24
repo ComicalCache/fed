@@ -1,16 +1,13 @@
-use std::{
-    path::{Path, PathBuf},
-    sync::atomic::Ordering,
-};
+use std::path::Path;
+use std::path::PathBuf;
+use std::sync::atomic::Ordering;
 
-use crate::{
-    fed::FCmd,
-    protocols::io::{
-        IoCmd, ScanEntry,
-        cmd::{RCallback, WCallback},
-    },
-    state::State,
-};
+use crate::fed::FCmd;
+use crate::protocols::io::IoCmd;
+use crate::protocols::io::ScanEntry;
+use crate::protocols::io::cmd::RCallback;
+use crate::protocols::io::cmd::WCallback;
+use crate::state::State;
 
 pub struct IoProtocol {}
 

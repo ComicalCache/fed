@@ -1,11 +1,16 @@
-use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+use crossterm::event::MouseButton;
+use crossterm::event::MouseEvent;
+use crossterm::event::MouseEventKind;
 
-use crate::{
-    fed::FCmd,
-    protocols::{action::ActionCmd, picker::PickerCmd},
-    state::State,
-    types::{Motion, MouseInputHandler, MouseInputPriority, Pos, render::WindowId},
-};
+use crate::fed::FCmd;
+use crate::protocols::action::ActionCmd;
+use crate::protocols::picker::PickerCmd;
+use crate::state::State;
+use crate::types::Motion;
+use crate::types::MouseInputHandler;
+use crate::types::MouseInputPriority;
+use crate::types::Pos;
+use crate::types::render::WindowId;
 
 pub struct PickerMouseInput {}
 

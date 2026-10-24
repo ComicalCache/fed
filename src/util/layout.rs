@@ -1,9 +1,9 @@
 use piece_table::Slice;
 
-use crate::{
-    state::{DocStoreEntry, ViewStoreEntry},
-    types::render::{self, VisualOffsetMapping},
-};
+use crate::state::DocStoreEntry;
+use crate::state::ViewStoreEntry;
+use crate::types::render::VisualOffsetMapping;
+use crate::types::render::{self};
 
 pub fn vom(
     line: usize, vse: &ViewStoreEntry, dse: &DocStoreEntry,

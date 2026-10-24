@@ -9,11 +9,10 @@ pub mod text;
 
 pub(crate) use macros::newtype;
 
-use crate::{
-    state::{DocStoreEntry, ViewStoreEntry},
-    types::Pos,
-    util,
-};
+use crate::state::DocStoreEntry;
+use crate::state::ViewStoreEntry;
+use crate::types::Pos;
+use crate::util;
 
 pub fn pos_to_offset(pos: Pos, vse: &ViewStoreEntry, dse: &DocStoreEntry) -> usize {
     let y = pos.y.min(dse.doc.data.lines().saturating_sub(1));

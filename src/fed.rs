@@ -1,35 +1,41 @@
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
+use std::time::Duration;
 
-use anstyle_parse::{DefaultCharAccumulator, Parser};
+use anstyle_parse::DefaultCharAccumulator;
+use anstyle_parse::Parser;
 use crossterm::event::Event;
-use tokio::sync::{
-    mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
-    oneshot,
-};
+use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::unbounded_channel;
+use tokio::sync::oneshot;
 
-use crate::{
-    cli::Cli,
-    input_router::InputRouter,
-    protocol_router::ProtocolRouter,
-    protocols::{
-        action::ActionCmd,
-        dir::DirCmd,
-        doc_view::DocViewCmd,
-        io::{IoCmd, IoProtocol},
-        manage::{ManageCmd, ManageProtocol},
-        mp::MpCmd,
-        picker::PickerCmd,
-        quit::QuitProtocol,
-        screen::{ScreenCmd, ScreenProtocol},
-        view::{ViewCmd, ViewProtocol},
-    },
-    state::{DocId, DocStoreTypes, State, ViewId, ViewStoreTypes},
-    types::{
-        Pos, RectSplit,
-        render::{Screen, WindowId},
-    },
-    util,
-};
+use crate::cli::Cli;
+use crate::input_router::InputRouter;
+use crate::protocol_router::ProtocolRouter;
+use crate::protocols::action::ActionCmd;
+use crate::protocols::dir::DirCmd;
+use crate::protocols::doc_view::DocViewCmd;
+use crate::protocols::io::IoCmd;
+use crate::protocols::io::IoProtocol;
+use crate::protocols::manage::ManageCmd;
+use crate::protocols::manage::ManageProtocol;
+use crate::protocols::mp::MpCmd;
+use crate::protocols::picker::PickerCmd;
+use crate::protocols::quit::QuitProtocol;
+use crate::protocols::screen::ScreenCmd;
+use crate::protocols::screen::ScreenProtocol;
+use crate::protocols::view::ViewCmd;
+use crate::protocols::view::ViewProtocol;
+use crate::state::DocId;
+use crate::state::DocStoreTypes;
+use crate::state::State;
+use crate::state::ViewId;
+use crate::state::ViewStoreTypes;
+use crate::types::Pos;
+use crate::types::RectSplit;
+use crate::types::render::Screen;
+use crate::types::render::WindowId;
+use crate::util;
 
 #[allow(unused)]
 pub enum FCmd {

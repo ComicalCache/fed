@@ -1,23 +1,20 @@
 use piece_table::Slice;
 use tokio::sync::oneshot;
 
-use crate::{
-    decorators::MpDecorator,
-    protocols::{
-        action::ActionProtocol,
-        doc_view::DocViewRenderer,
-        mp::{
-            MpCmd, MpKind,
-            pstate::{MpId, PCallback},
-        },
-        view::ViewProtocol,
-    },
-    state::{State, ViewStoreTypes},
-    types::{
-        Pos, Rect,
-        render::{WindowId, ZLayer},
-    },
-};
+use crate::decorators::MpDecorator;
+use crate::protocols::action::ActionProtocol;
+use crate::protocols::doc_view::DocViewRenderer;
+use crate::protocols::mp::MpCmd;
+use crate::protocols::mp::MpKind;
+use crate::protocols::mp::pstate::MpId;
+use crate::protocols::mp::pstate::PCallback;
+use crate::protocols::view::ViewProtocol;
+use crate::state::State;
+use crate::state::ViewStoreTypes;
+use crate::types::Pos;
+use crate::types::Rect;
+use crate::types::render::WindowId;
+use crate::types::render::ZLayer;
 
 pub struct MpProtocol {}
 

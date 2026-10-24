@@ -7,14 +7,21 @@ mod workspace;
 mod z_layer;
 
 pub use cell::Cell;
-pub use layout::{VisualOffsetMapping, layout_cells, layout_vom};
-pub use mode_line::{ModeLineConfig, ModeLineWidget};
+pub use layout::VisualOffsetMapping;
+pub use layout::layout_cells;
+pub use layout::layout_vom;
+pub use mode_line::ModeLineConfig;
+pub use mode_line::ModeLineWidget;
 pub use screen::Screen;
 pub use viewport::Viewport;
-pub use workspace::{WindowId, Workspace};
+pub use workspace::WindowId;
+pub use workspace::Workspace;
 pub use z_layer::ZLayer;
 
-use crate::state::{DocStoreEntry, State, ViewStoreEntry, ViewStoreTypes};
+use crate::state::DocStoreEntry;
+use crate::state::State;
+use crate::state::ViewStoreEntry;
+use crate::state::ViewStoreTypes;
 
 pub trait Layer: Send + Sync + 'static {
     fn apply(
