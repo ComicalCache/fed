@@ -1,10 +1,12 @@
-pub mod slice;
+pub mod chunks;
 
 use std::fmt::Display;
+use std::ops::RangeBounds;
 
 use crate::history::Commit;
 use crate::history::History;
 use crate::history::Kind;
+use crate::piece_table::chunks::Chunks;
 
 #[derive(Clone, Copy)]
 enum Source {
@@ -72,7 +74,7 @@ impl PieceTable {
     ///
     /// THIS OPERATION RESETS THE UNDO/REDO HISTORY! ANY ACTIVE COMMIT IS
     /// DISCARDED.
-    pub fn compact(&mut self) { *self = Self::from(self.__slice(0, self.total_length)); }
+    pub fn compact(&mut self) { *self = Self::from(self.slice(..)); }
 
     /// Inserts `string` at `pos`.
     pub fn insert<S: AsRef<str>>(&mut self, mut pos: usize, str: S) {
@@ -310,7 +312,7 @@ impl PieceTable {
         let mut changes = Vec::with_capacity(commit.logical_changes.len());
         for logical in commit.logical_changes.iter().rev() {
             let data = if matches!(logical.kind, Kind::Insertion) {
-                Some(self.__slice(logical.pos, logical.pos + logical.length))
+                Some(self.slice(logical.pos..logical.pos + logical.length))
             } else {
                 None
             };
@@ -332,7 +334,7 @@ impl PieceTable {
                 Kind::Insertion => Kind::Deletion,
             };
             let data =
-                data.unwrap_or_else(|| self.__slice(logical.pos, logical.pos + logical.length));
+                data.unwrap_or_else(|| self.slice(logical.pos..logical.pos + logical.length));
             changes.push((logical.pos, kind, data));
         }
 
@@ -365,7 +367,7 @@ impl PieceTable {
         let mut changes = Vec::with_capacity(commit.logical_changes.len());
         for logical in &commit.logical_changes {
             let data = if matches!(logical.kind, Kind::Deletion) {
-                Some(self.__slice(logical.pos, logical.pos + logical.length))
+                Some(self.slice(logical.pos..logical.pos + logical.length))
             } else {
                 None
             };
@@ -383,7 +385,7 @@ impl PieceTable {
             }
 
             let data =
-                data.unwrap_or_else(|| self.__slice(logical.pos, logical.pos + logical.length));
+                data.unwrap_or_else(|| self.slice(logical.pos..logical.pos + logical.length));
             changes.push((logical.pos, logical.kind, data));
         }
 
@@ -400,55 +402,15 @@ impl PieceTable {
         changes
     }
 
-    /// Returns text stored in the piece table (`upper` is exclusive).
-    pub(crate) fn __slice(&self, lower: usize, upper: usize) -> String {
-        assert!(lower <= upper, "Lower slice bound must be smaller than upper");
+    /// Returns an owned slice of the text stored in the `PieceTable`.
+    #[must_use]
+    pub fn slice(&self, idx: impl RangeBounds<usize>) -> String {
+        let range = self.normalize_range(idx);
+        let mut out = String::with_capacity(range.end - range.start);
 
-        let mut out = String::with_capacity(upper - lower);
-        if lower == upper {
-            return out;
-        }
-
-        let mut len = 0;
-        for piece in &self.pieces {
-            if len >= upper {
-                break;
-            }
-
-            let prev_len = len;
-            len += piece.length;
-
-            let source = match piece.source {
-                Source::Original => &self.original,
-                Source::Addition => &self.addition,
-            };
-
-            let capture_start = lower <= prev_len;
-            let capture_end = upper >= len && len > lower;
-            let caputre_slice = prev_len < lower && upper < len;
-
-            match (capture_start, capture_end) {
-                (false, true) => {
-                    let start = piece.offset + (lower - prev_len);
-                    let end = piece.offset + piece.length;
-
-                    out.push_str(&source[start..end]);
-                }
-                (true, true) => out.push_str(&source[piece.offset..piece.offset + piece.length]),
-                (true, false) => {
-                    let start = piece.offset;
-                    let end = piece.offset + (upper - prev_len);
-
-                    out.push_str(&source[start..end]);
-                }
-                _ if caputre_slice => {
-                    let start = piece.offset + (lower - prev_len);
-                    let end = piece.offset + (upper - prev_len);
-
-                    out.push_str(&source[start..end]);
-                }
-                _ => {}
-            }
+        let chunks = self.chunks(range);
+        for chunk in chunks {
+            out.push_str(chunk);
         }
 
         out
@@ -564,7 +526,11 @@ impl Default for PieceTable {
 }
 
 impl Display for PieceTable {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "{}", self.__slice(0, self.total_length))
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for chunk in self.chunks(..) {
+            f.write_str(chunk)?;
+        }
+
+        Ok(())
     }
 }
