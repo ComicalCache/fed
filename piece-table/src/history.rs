@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use crate::piece_table::Piece;
 
 #[derive(Clone, Copy)]
@@ -17,9 +19,17 @@ impl Change {
     pub const fn new(pos: usize, piece: Piece, kind: Kind) -> Self { Self { pos, piece, kind } }
 }
 
+pub struct LogicalChange {
+    pub pos: usize,
+    pub kind: Kind,
+    pub length: usize,
+
+    pub changes: Range<usize>,
+}
+
 pub struct Commit {
     pub changes: Vec<Change>,
-    pub logical_changes: Vec<(usize, Kind, String)>,
+    pub logical_changes: Vec<LogicalChange>,
 }
 
 impl Commit {
@@ -27,6 +37,16 @@ impl Commit {
 
     pub fn add_change(&mut self, pos: usize, piece: Piece, kind: Kind) {
         self.changes.push(Change::new(pos, piece, kind));
+    }
+
+    pub fn add_logical_change(&mut self, pos: usize, kind: Kind, length: usize) {
+        let start = self.logical_changes.last().map_or(0, |c| c.changes.end);
+        self.logical_changes.push(LogicalChange {
+            pos,
+            kind,
+            length,
+            changes: start..self.changes.len(),
+        });
     }
 }
 
@@ -71,19 +91,21 @@ impl History {
         self.changes.push(entry);
     }
 
+    pub fn commit(&self, index: usize) -> &Commit { &self.changes[index].commit }
+
     /// Undos a commit by updating the history to the new head and returning the
-    /// commit.
-    pub fn undo(&mut self) -> Option<&Commit> {
+    /// commit index.
+    pub fn undo(&mut self) -> Option<usize> {
         let prev_head = self.head;
         self.head = self.changes[prev_head].previous?;
 
         self.changes[self.head].hot_path = Some(prev_head);
-        Some(&self.changes[prev_head].commit)
+        Some(prev_head)
     }
 
-    /// Greedily redos on the "hot path", the path of the last head locations.
-    pub fn hot_redo(&mut self) -> Option<&Commit> {
+    /// Greedily redos on the "hot path", returning the commit index.
+    pub fn hot_redo(&mut self) -> Option<usize> {
         self.head = self.changes[self.head].hot_path?;
-        Some(&self.changes[self.head].commit)
+        Some(self.head)
     }
 }

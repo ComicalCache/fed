@@ -67,6 +67,13 @@ impl PieceTable {
         }
     }
 
+    /// Compacts the current text into a single original buffer, reclaiming
+    /// storage.
+    ///
+    /// THIS OPERATION RESETS THE UNDO/REDO HISTORY! ANY ACTIVE COMMIT IS
+    /// DISCARDED.
+    pub fn compact(&mut self) { *self = Self::from(self.__slice(0, self.total_length)); }
+
     /// Inserts `string` at `pos`.
     pub fn insert<S: AsRef<str>>(&mut self, mut pos: usize, str: S) {
         assert!(
@@ -76,10 +83,6 @@ impl PieceTable {
 
         let str = str.as_ref();
         assert!(!str.is_empty(), "Inserted string must not be empty");
-
-        if let Some(commit) = &mut self.active_commit {
-            commit.logical_changes.push((pos, Kind::Insertion, str.to_string()));
-        }
 
         let update_pos = pos;
 
@@ -115,6 +118,7 @@ impl PieceTable {
                 if let Some(commit) = &mut self.active_commit {
                     commit.add_change(idx, piece, Kind::Deletion);
                     commit.add_change(idx, self.pieces[idx], Kind::Insertion);
+                    commit.add_logical_change(update_pos, Kind::Insertion, str.len());
                 }
 
                 self.total_length += str.len();
@@ -157,6 +161,7 @@ impl PieceTable {
             for (idx, piece, kind) in changes {
                 commit.add_change(idx, piece, kind);
             }
+            commit.add_logical_change(update_pos, Kind::Insertion, str.len());
         }
 
         self.total_length += str.len();
@@ -179,11 +184,6 @@ impl PieceTable {
         let end = pos + n;
         assert!(end <= self.total_length, "Removed string must be within the text");
         assert!(n != 0, "Must remove at least 1 character");
-
-        if self.active_commit.is_some() {
-            let data = self.__slice(pos, end);
-            self.active_commit.as_mut().unwrap().logical_changes.push((pos, Kind::Deletion, data));
-        }
 
         let mut remove = Vec::new();
         let mut len = 0;
@@ -261,6 +261,7 @@ impl PieceTable {
             for (idx, piece, kind) in changes {
                 commit.add_change(idx, piece, kind);
             }
+            commit.add_logical_change(pos, Kind::Deletion, n);
         }
 
         self.update_lines_remove(pos, n);
@@ -305,30 +306,35 @@ impl PieceTable {
             return Vec::new();
         };
 
-        for change in commit.changes.iter().rev() {
-            match change.kind {
-                Kind::Deletion => {
-                    self.pieces.insert(change.pos, change.piece);
-                    self.total_length += change.piece.length;
-                }
-                Kind::Insertion => {
-                    self.total_length -= self.pieces.remove(change.pos).length;
+        let commit = self.history.commit(commit);
+        let mut changes = Vec::with_capacity(commit.logical_changes.len());
+        for logical in commit.logical_changes.iter().rev() {
+            let data = if matches!(logical.kind, Kind::Insertion) {
+                Some(self.__slice(logical.pos, logical.pos + logical.length))
+            } else {
+                None
+            };
+
+            for change in commit.changes[logical.changes.clone()].iter().rev() {
+                match change.kind {
+                    Kind::Deletion => {
+                        self.pieces.insert(change.pos, change.piece);
+                        self.total_length += change.piece.length;
+                    }
+                    Kind::Insertion => {
+                        self.total_length -= self.pieces.remove(change.pos).length;
+                    }
                 }
             }
-        }
 
-        let changes: Vec<_> = commit
-            .logical_changes
-            .iter()
-            .rev()
-            .map(|(pos, kind, data)| {
-                let kind = match kind {
-                    Kind::Deletion => Kind::Insertion,
-                    Kind::Insertion => Kind::Deletion,
-                };
-                (*pos, kind, data.clone())
-            })
-            .collect();
+            let kind = match logical.kind {
+                Kind::Deletion => Kind::Insertion,
+                Kind::Insertion => Kind::Deletion,
+            };
+            let data =
+                data.unwrap_or_else(|| self.__slice(logical.pos, logical.pos + logical.length));
+            changes.push((logical.pos, kind, data));
+        }
 
         // Fast forward single changes.
         if let [(pos, kind, data)] = &changes[..] {
@@ -355,19 +361,31 @@ impl PieceTable {
             return Vec::new();
         };
 
-        for change in &commit.changes {
-            match change.kind {
-                Kind::Deletion => {
-                    self.total_length -= self.pieces.remove(change.pos).length;
-                }
-                Kind::Insertion => {
-                    self.pieces.insert(change.pos, change.piece);
-                    self.total_length += change.piece.length;
+        let commit = self.history.commit(commit);
+        let mut changes = Vec::with_capacity(commit.logical_changes.len());
+        for logical in &commit.logical_changes {
+            let data = if matches!(logical.kind, Kind::Deletion) {
+                Some(self.__slice(logical.pos, logical.pos + logical.length))
+            } else {
+                None
+            };
+
+            for change in &commit.changes[logical.changes.clone()] {
+                match change.kind {
+                    Kind::Deletion => {
+                        self.total_length -= self.pieces.remove(change.pos).length;
+                    }
+                    Kind::Insertion => {
+                        self.pieces.insert(change.pos, change.piece);
+                        self.total_length += change.piece.length;
+                    }
                 }
             }
-        }
 
-        let changes = commit.logical_changes.clone();
+            let data =
+                data.unwrap_or_else(|| self.__slice(logical.pos, logical.pos + logical.length));
+            changes.push((logical.pos, logical.kind, data));
+        }
 
         // Fast forward single changes.
         if let [(pos, kind, data)] = &changes[..] {
