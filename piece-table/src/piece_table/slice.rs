@@ -1,4 +1,9 @@
-use std::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
+use std::ops::Range;
+use std::ops::RangeFrom;
+use std::ops::RangeFull;
+use std::ops::RangeInclusive;
+use std::ops::RangeTo;
+use std::ops::RangeToInclusive;
 
 use crate::piece_table::PieceTable;
 

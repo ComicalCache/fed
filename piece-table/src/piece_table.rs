@@ -2,7 +2,9 @@ pub mod slice;
 
 use std::fmt::Display;
 
-use crate::history::{Commit, History, Kind};
+use crate::history::Commit;
+use crate::history::History;
+use crate::history::Kind;
 
 #[derive(Clone, Copy)]
 enum Source {
