@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
-use piece_table::Slice;
+use piece_table::Chunks;
 use tokio::sync::mpsc::UnboundedSender;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -278,7 +278,13 @@ impl NormalKeyInput {
                     let start = dse.doc.data.get_line_start_byte(y);
                     let end = dse.doc.data.get_line_end_byte(y);
 
-                    if dse.doc.data.slice(start..end).starts_with('\t') {
+                    if dse
+                        .doc
+                        .data
+                        .chunks(start..end)
+                        .next()
+                        .is_some_and(|chunk| chunk.starts_with('\t'))
+                    {
                         cmds.push(FCmd::Action(ActionCmd::Remove { view, offset: start, len: 1 }));
                     }
                 }

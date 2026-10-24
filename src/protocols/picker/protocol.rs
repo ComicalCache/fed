@@ -1,5 +1,3 @@
-use piece_table::Slice;
-
 use crate::fed::FEvent;
 use crate::protocols::action::ActionProtocol;
 use crate::protocols::mp::MpKind;

@@ -1,4 +1,4 @@
-use piece_table::Slice;
+use piece_table::Chunks;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::state::DocStoreEntry;
@@ -113,7 +113,11 @@ fn end_of_line(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
 
     // Do not treat the newline character as a "character".
     cursor.offset =
-        if dse.doc.data.slice(start..end).ends_with('\n') { end.saturating_sub(1) } else { end };
+        if dse.doc.data.chunks(start..end).next_back().is_some_and(|c| c.ends_with('\n')) {
+            end.saturating_sub(1)
+        } else {
+            end
+        };
 
     update_pref_x(cursor, vse, dse);
 }
@@ -350,9 +354,7 @@ fn next_empty_line(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntr
     for target in (y + 1)..lines {
         let start = dse.doc.data.get_line_start_byte(target);
         let end = dse.doc.data.get_line_end_byte(target);
-        let line = dse.doc.data.slice(start..end);
-
-        if line.is_empty() || line == "\n" {
+        if start == end || dse.doc.data.chunks(start..end).eq(["\n"]) {
             cursor.offset = start;
             found = true;
 
@@ -379,9 +381,7 @@ fn prev_empty_line(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntr
     for target in (0..y).rev() {
         let start = dse.doc.data.get_line_start_byte(target);
         let end = dse.doc.data.get_line_end_byte(target);
-        let line = dse.doc.data.slice(start..end);
-
-        if line.is_empty() || line == "\n" {
+        if start == end || dse.doc.data.chunks(start..end).eq(["\n"]) {
             cursor.offset = start;
             found = true;
 
@@ -493,14 +493,16 @@ impl<'a> TextReader<'a> {
         self.text = self.dse.doc.data.slice(self.start..self.end);
     }
 
-    fn char_at(&mut self, offset: usize) -> Option<char> {
+    fn char_at(&self, offset: usize) -> Option<char> {
         if offset >= self.dse.doc.data.len() {
             return None;
         }
 
-        self.fetch(offset);
+        if self.y != usize::MAX && (self.start..self.end).contains(&offset) {
+            return self.text[offset - self.start..].chars().next();
+        }
 
-        self.text[offset - self.start..].graphemes(true).next().and_then(|g| g.chars().next())
+        self.dse.doc.data.chunks(offset..).next().and_then(|c| c.chars().next())
     }
 
     fn step_forward(&mut self, offset: &mut usize) -> bool {

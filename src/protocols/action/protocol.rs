@@ -2,7 +2,6 @@ use std::path::PathBuf;
 
 use piece_table::Kind;
 use piece_table::PieceTable;
-use piece_table::Slice;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::fed::FEvent;

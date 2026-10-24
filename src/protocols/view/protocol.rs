@@ -1,4 +1,4 @@
-use piece_table::Slice;
+use piece_table::Chunks;
 
 use crate::protocols::view::ViewCmd;
 use crate::state::DocStoreTypes;
@@ -80,12 +80,18 @@ impl ViewProtocol {
             return;
         }
 
-        let data = dse.doc.data.slice(start..end);
+        let mut lines = Vec::new();
+        let mut line = String::new();
+        for chunk in dse.doc.data.chunks(start..end) {
+            for part in chunk.split_inclusive('\n') {
+                line.push_str(part);
 
-        let mut lines: Vec<_> = data.split_inclusive('\n').map(String::from).collect();
-        if data.is_empty() || data.ends_with('\n') {
-            lines.push(String::new());
+                if part.ends_with('\n') {
+                    lines.push(std::mem::take(&mut line));
+                }
+            }
         }
+        lines.push(line);
 
         vse.view_cache = ViewStoreTypes::ViewCache { offset: start, lines, revision };
     }

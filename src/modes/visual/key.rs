@@ -1,5 +1,5 @@
 use crossterm::event::KeyEvent;
-use piece_table::Slice;
+use piece_table::Chunks;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::fed::FCmd;
@@ -150,7 +150,9 @@ impl VisualKeyInput {
         if matches!(cmd, Cmd::Yank) {
             let mut yanked = String::new();
             for &(start, end) in &offsets {
-                yanked.push_str(&dse.doc.data.slice(start..end));
+                for chunk in dse.doc.data.chunks(start..end) {
+                    yanked.push_str(chunk);
+                }
 
                 // Newline to separate multi-cursor yanks.
                 yanked.push('\n');

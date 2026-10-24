@@ -1,5 +1,4 @@
 use fancy_regex::Regex;
-use piece_table::Slice;
 
 use crate::decorators::SearchDecorator;
 use crate::fed::FCmd;

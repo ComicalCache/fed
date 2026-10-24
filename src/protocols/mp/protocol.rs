@@ -1,4 +1,3 @@
-use piece_table::Slice;
 use tokio::sync::oneshot;
 
 use crate::decorators::MpDecorator;

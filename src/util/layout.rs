@@ -1,5 +1,3 @@
-use piece_table::Slice;
-
 use crate::state::DocStoreEntry;
 use crate::state::ViewStoreEntry;
 use crate::types::render::VisualOffsetMapping;

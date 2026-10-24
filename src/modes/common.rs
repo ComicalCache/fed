@@ -2,7 +2,7 @@ use crossterm::event::KeyModifiers;
 use crossterm::event::MouseButton;
 use crossterm::event::MouseEvent;
 use crossterm::event::MouseEventKind;
-use piece_table::Slice;
+use piece_table::Chunks;
 use tokio::sync::oneshot;
 
 use crate::fed::FCmd;
@@ -169,7 +169,9 @@ pub fn yank(s: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>> {
 
     let mut yanked = String::new();
     for &(start, end) in &offsets {
-        yanked.push_str(&dse.doc.data.slice(start.min(end)..start.max(end)));
+        for chunk in dse.doc.data.chunks(start.min(end)..start.max(end)) {
+            yanked.push_str(chunk);
+        }
 
         // Newline to separate multi-cursor yanks.
         yanked.push('\n');
@@ -207,7 +209,9 @@ pub fn yank_line(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
             end -= 1;
         }
 
-        yanked.push_str(&dse.doc.data.slice(start..end));
+        for chunk in dse.doc.data.chunks(start..end) {
+            yanked.push_str(chunk);
+        }
 
         // Newline to separate multi-cursor yanks.
         yanked.push('\n');
