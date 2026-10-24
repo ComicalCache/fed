@@ -4,7 +4,7 @@ use crate::state::ViewId;
 use crate::types::render::WindowId;
 use crate::util::newtype;
 
-pub type PCallback = Box<dyn FnOnce(&mut State, String) + Send>;
+pub type PCallback = Box<dyn FnOnce(&mut State, Option<String>) + Send>;
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
 pub enum MpKind {

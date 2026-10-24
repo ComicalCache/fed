@@ -6,13 +6,13 @@ use crate::fed::FCmd;
 use crate::modes::common;
 use crate::modes::dir::cmd::Cmd;
 use crate::modes::dir::keymap;
-use crate::modes::search;
 use crate::protocols::action::ActionCmd;
 use crate::protocols::dir::DirCmd;
 use crate::protocols::dir::DirEntry;
 use crate::protocols::dir::DirProtocol;
 use crate::protocols::manage::ManageCmd;
 use crate::protocols::mp::MpCmd;
+use crate::protocols::search::SearchCmd;
 use crate::state::DocStoreTypes;
 use crate::state::State;
 use crate::state::ViewId;
@@ -62,7 +62,9 @@ impl DirKeyInput {
                 view,
                 mode: ViewStoreTypes::Mode::Visual,
             })]),
-            Cmd::EnterSearchMode => Some(search::util::start_search(view, doc, None)),
+            Cmd::EnterSearchMode => {
+                Some(vec![FCmd::Search(SearchCmd::Search { view, doc, bounds: None })])
+            }
             Cmd::Quit => common::quit(s, view),
         }
     }
@@ -74,7 +76,8 @@ impl DirKeyInput {
             initial_text.push(std::path::MAIN_SEPARATOR);
         }
 
-        let pcallback = Box::new(move |s: &mut State, path: String| {
+        let pcallback = Box::new(move |s: &mut State, path: Option<String>| {
+            let Some(path) = path else { return };
             let dir = path.ends_with(std::path::MAIN_SEPARATOR);
             let path = PathBuf::from(path);
 
@@ -96,7 +99,8 @@ impl DirKeyInput {
         entry.path.file_name()?;
 
         let old = entry.path.clone();
-        let pcallback = Box::new(move |s: &mut State, new: String| {
+        let pcallback = Box::new(move |s: &mut State, new: Option<String>| {
+            let Some(new) = new else { return };
             let new = util::path::normalize(new);
 
             if !new.is_empty() {
@@ -125,7 +129,8 @@ impl DirKeyInput {
             format!("Delete '{name}'? (y/N): ")
         };
 
-        let pcallback = Box::new(move |s: &mut State, res: String| {
+        let pcallback = Box::new(move |s: &mut State, res: Option<String>| {
+            let Some(res) = res else { return };
             if res.to_lowercase() == "y" {
                 DirProtocol::delete(s, path, recursive);
             }

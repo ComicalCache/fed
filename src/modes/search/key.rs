@@ -1,13 +1,11 @@
 use crossterm::event::KeyEvent;
-use fancy_regex::Regex;
 
 use crate::decorators::SearchDecorator;
 use crate::fed::FCmd;
 use crate::modes::search::cmd::Cmd;
 use crate::modes::search::keymap;
 use crate::protocols::action::ActionCmd;
-use crate::protocols::mp::MpCmd;
-use crate::state::DocId;
+use crate::protocols::search::SearchCmd;
 use crate::state::State;
 use crate::state::ViewId;
 use crate::state::ViewStoreTypes;
@@ -48,7 +46,7 @@ impl SearchKeyInput {
                     return None;
                 }
 
-                Self::replace(s, view, doc)
+                Some(vec![FCmd::Search(SearchCmd::Replace { view, doc })])
             }
             Cmd::Escape => Some(Self::escape(view)),
         }
@@ -85,74 +83,7 @@ impl SearchKeyInput {
         Some(cmds)
     }
 
-    fn replace(s: &State, view: ViewId, doc: DocId) -> Option<Vec<FCmd>> {
-        let (query, matches, _) = Self::search_state(s, view)?;
-        let query = query.to_owned();
-        let matches = matches.to_vec();
-
-        let pcallback = Box::new(move |s: &mut State, replacement: String| {
-            let dse = s.doc_store.get(&doc).unwrap();
-
-            // TODO: somehow don't require copying the entire doc anymore?
-            let data = dse.doc.data.slice(0..dse.doc.data.len());
-            let async_fcmd_tx = s.async_fcmd_tx.clone();
-            tokio::spawn(async move {
-                // Delay actually processing the regex into an asynchronous
-                // task to not block the main loop.
-                let Ok(regex) = Regex::new(&query) else {
-                    // TODO: display error about regex.
-                    return;
-                };
-
-                let mut edits = Vec::new();
-                for (start, end) in matches {
-                    if let Ok(Some(caps)) = regex.captures(&data[start..end]) {
-                        let mut text = String::new();
-                        caps.expand(&replacement, &mut text);
-                        edits.push((start, end - start, text));
-                    }
-                }
-                edits.sort_by_key(|e| std::cmp::Reverse(e.0));
-
-                let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::StartCommit { doc }));
-
-                for (offset, len, text) in edits {
-                    let _ =
-                        async_fcmd_tx.send(FCmd::Action(ActionCmd::Remove { view, offset, len }));
-                    if !text.is_empty() {
-                        let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::InsertAt {
-                            view,
-                            text,
-                            offset,
-                        }));
-                    }
-                }
-
-                let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::EndCommit { doc }));
-
-                for cmd in Self::escape(view) {
-                    let _ = async_fcmd_tx.send(cmd);
-                }
-            });
-        });
-
-        Some(vec![FCmd::Mp(MpCmd::Prompt {
-            prompt: "Replace with: ".to_string(),
-            initial_text: None,
-            pcallback,
-            tx: None,
-        })])
-    }
-
-    fn escape(view: ViewId) -> Vec<FCmd> {
-        vec![
-            FCmd::Action(ActionCmd::RemoveViewDecorator {
-                view,
-                id: ViewStoreTypes::DecorationId::Search,
-            }),
-            FCmd::Action(ActionCmd::PopViewMode { view }),
-        ]
-    }
+    fn escape(view: ViewId) -> Vec<FCmd> { vec![FCmd::Search(SearchCmd::Close { view })] }
 
     fn search_state(s: &State, view: ViewId) -> Option<(&str, &[(usize, usize)], Vec<usize>)> {
         let vse = s.view_store.get(&view).unwrap();

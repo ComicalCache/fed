@@ -67,6 +67,7 @@ impl MpProtocol {
         tx: Option<oneshot::Sender<MpId>>,
     ) -> Option<MpId> {
         if s.p.mp.kind == MpKind::Prompt {
+            pcallback(s, None);
             return None;
         }
 
@@ -116,7 +117,7 @@ impl MpProtocol {
         Self::close(s, s.p.mp.id);
 
         if let Some(cb) = callback {
-            cb(s, res);
+            cb(s, Some(res));
         }
     }
 
@@ -144,7 +145,7 @@ impl MpProtocol {
 
         s.p.mp.kind = MpKind::None;
         s.p.mp.prev_window = None;
-        s.p.mp.pcallback = None;
+        let callback = s.p.mp.pcallback.take();
 
         let vse = s.view_store.get_mut(&s.p.mp.view).unwrap();
         let dse = s.doc_store.get(&s.p.mp.doc).unwrap();
@@ -156,6 +157,10 @@ impl MpProtocol {
         ActionProtocol::remove(s, s.p.mp.view, 0, len);
         ActionProtocol::remove_cursors(s, s.p.mp.view, &[0]);
         ActionProtocol::saved(s, s.p.mp.doc);
+
+        if let Some(callback) = callback {
+            callback(s, None);
+        }
     }
 
     fn create_window(s: &mut State) -> WindowId {

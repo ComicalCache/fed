@@ -24,6 +24,8 @@ use crate::protocols::picker::PickerCmd;
 use crate::protocols::quit::QuitProtocol;
 use crate::protocols::screen::ScreenCmd;
 use crate::protocols::screen::ScreenProtocol;
+use crate::protocols::search::SearchCmd;
+use crate::protocols::search::SearchProtocol;
 use crate::protocols::view::ViewCmd;
 use crate::protocols::view::ViewProtocol;
 use crate::state::DocId;
@@ -49,6 +51,7 @@ pub enum FCmd {
     Dir(DirCmd),
     Manage(ManageCmd),
     Picker(PickerCmd),
+    Search(SearchCmd),
 }
 
 /// FEvent's are deferred and may only update component owned state. They should
@@ -135,6 +138,7 @@ impl Fed {
                     ViewProtocol::exec_doc_event(&mut self.s, &event);
                 }
                 FEvent::View(event) => {
+                    SearchProtocol::exec_view_event(&mut self.s, &event);
                     ViewProtocol::exec_view_event(&mut self.s, &event);
                 }
             }

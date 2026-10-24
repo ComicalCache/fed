@@ -224,6 +224,11 @@ impl ActionProtocol {
     pub fn saved(s: &mut State, doc: DocId) {
         let dse = s.doc_store.get_mut(&doc).unwrap();
 
+        // Singleton views don't need undo/redo.
+        if dse.mode.singleton() {
+            dse.doc.data.compact();
+        }
+
         if !dse.doc.modified {
             return;
         }
@@ -286,9 +291,10 @@ impl ActionProtocol {
 
     pub fn push_view_mode(s: &mut State, view: ViewId, mode: ViewStoreTypes::Mode) {
         let vse = s.view_store.get_mut(&view).unwrap();
-        if vse.modes.last() != Some(&mode) {
-            vse.modes.push(mode);
+        if vse.mode() == mode {
+            return;
         }
+        vse.modes.push(mode);
         s.vmode(view);
 
         let _ =
@@ -300,9 +306,10 @@ impl ActionProtocol {
             return;
         };
 
-        if vse.modes.len() > 1 {
-            vse.modes.pop();
+        if vse.modes.len() <= 1 {
+            return;
         }
+        vse.modes.pop();
 
         let mode = vse.mode();
         s.vmode(view);

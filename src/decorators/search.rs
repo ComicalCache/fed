@@ -8,13 +8,16 @@ use crate::types::Span;
 pub struct SearchDecorator {
     pub query: String,
     pub matches: Vec<(usize, usize)>,
+    pub revision: u64,
 
     pub face: Face,
 }
 
 impl SearchDecorator {
-    pub const fn new(query: String, matches: Vec<(usize, usize)>, face: Face) -> Self {
-        Self { query, matches, face }
+    pub const fn new(
+        query: String, matches: Vec<(usize, usize)>, face: Face, revision: u64,
+    ) -> Self {
+        Self { query, matches, revision, face }
     }
 }
 

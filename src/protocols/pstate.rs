@@ -5,6 +5,7 @@ use crate::protocols::manage::ManagePState;
 use crate::protocols::mp::MpPState;
 use crate::protocols::picker::PickerPState;
 use crate::protocols::quit::QuitPState;
+use crate::protocols::search::SearchPState;
 
 pub struct PState {
     pub io: IoPState,
@@ -14,6 +15,7 @@ pub struct PState {
     pub dir: DirPState,
     pub doc_view: DocViewPState,
     pub picker: PickerPState,
+    pub search: SearchPState,
 }
 
 impl PState {
@@ -26,6 +28,7 @@ impl PState {
             dir: DirPState::default(),
             doc_view: DocViewPState::default(),
             picker: PickerPState::default(),
+            search: SearchPState::default(),
         }
     }
 }

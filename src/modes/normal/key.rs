@@ -13,7 +13,6 @@ use crate::modes::normal::cmd::Cmd;
 use crate::modes::normal::keymap;
 use crate::modes::picker::entries::ScanEntry;
 use crate::modes::picker::entries::ThemeEntry;
-use crate::modes::search;
 use crate::protocols::action::ActionCmd;
 use crate::protocols::action::ActionProtocol;
 use crate::protocols::dir::DirCmd;
@@ -26,6 +25,7 @@ use crate::protocols::manage::ManageCmd;
 use crate::protocols::mp::MpCmd;
 use crate::protocols::picker::PickerCmd;
 use crate::protocols::picker::PickerEntry;
+use crate::protocols::search::SearchCmd;
 use crate::state::DocId;
 use crate::state::State;
 use crate::state::ViewId;
@@ -175,7 +175,9 @@ impl NormalKeyInput {
                 view,
                 mode: ViewStoreTypes::Mode::Visual,
             })]),
-            Cmd::EnterSearchMode => Some(search::util::start_search(view, doc, None)),
+            Cmd::EnterSearchMode => {
+                Some(vec![FCmd::Search(SearchCmd::Search { view, doc, bounds: None })])
+            }
             Cmd::Quit => common::quit(s, view),
         }
     }
@@ -430,7 +432,7 @@ impl NormalKeyInput {
             } else {
                 DocViewProtocol::exec(
                     s,
-                    DocViewCmd::OpenFile { window, path: entry.path, force: true },
+                    DocViewCmd::OpenFile { window, path: entry.path, force: false },
                 );
             }
         });
@@ -473,7 +475,8 @@ impl NormalKeyInput {
             |p| p.display().to_string(),
         );
 
-        let pcallback = Box::new(move |s: &mut State, res: String| {
+        let pcallback = Box::new(move |s: &mut State, res: Option<String>| {
+            let Some(res) = res else { return };
             if res.is_empty() {
                 return;
             }

@@ -4,11 +4,11 @@ use unicode_segmentation::UnicodeSegmentation;
 
 use crate::fed::FCmd;
 use crate::modes::common;
-use crate::modes::search;
 use crate::modes::visual::VisualPasteInput;
 use crate::modes::visual::cmd::Cmd;
 use crate::modes::visual::keymap;
 use crate::protocols::action::ActionCmd;
+use crate::protocols::search::SearchCmd;
 use crate::state::DocId;
 use crate::state::State;
 use crate::state::ViewId;
@@ -128,7 +128,7 @@ impl VisualKeyInput {
             bounds.push((start, end));
         }
 
-        search::util::start_search(view, doc, Some(bounds))
+        vec![FCmd::Search(SearchCmd::Search { view, doc, bounds: Some(bounds) })]
     }
 
     fn operator(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Vec<FCmd> {

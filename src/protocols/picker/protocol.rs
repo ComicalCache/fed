@@ -94,10 +94,10 @@ impl PickerProtocol {
             s.p.mp.prev_window = restore;
         }
 
-        s.p.picker.entries.clear();
-        s.p.picker.display_text.clear();
-        s.p.picker.search_text.clear();
-        s.p.picker.filtered.clear();
+        s.p.picker.entries = Vec::new();
+        s.p.picker.display_text = Vec::new();
+        s.p.picker.search_text = Vec::new();
+        s.p.picker.filtered = Vec::new();
         s.p.picker.offset = 0;
 
         for view in [s.p.picker.input_view, s.p.picker.list_view] {

@@ -122,7 +122,8 @@ pub fn jump(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
     let mut x = pos.x;
     let mut y = pos.y;
 
-    let pcallback = Box::new(move |s: &mut State, res: String| {
+    let pcallback = Box::new(move |s: &mut State, res: Option<String>| {
+        let Some(res) = res else { return };
         if res.is_empty() {
             return;
         }

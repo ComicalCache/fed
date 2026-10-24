@@ -4,10 +4,10 @@ use crate::fed::FCmd;
 use crate::modes::common;
 use crate::modes::manage::cmd::Cmd;
 use crate::modes::manage::keymap;
-use crate::modes::search;
 use crate::protocols::action::ActionCmd;
 use crate::protocols::dir::DirCmd;
 use crate::protocols::manage::ManageCmd;
+use crate::protocols::search::SearchCmd;
 use crate::state::DocStoreTypes;
 use crate::state::State;
 use crate::state::ViewId;
@@ -53,7 +53,9 @@ impl ManageKeyInput {
                 view,
                 mode: ViewStoreTypes::Mode::Visual,
             })]),
-            Cmd::EnterSearchMode => Some(search::util::start_search(view, doc, None)),
+            Cmd::EnterSearchMode => {
+                Some(vec![FCmd::Search(SearchCmd::Search { view, doc, bounds: None })])
+            }
             Cmd::Quit => common::quit(s, view),
         }
     }
