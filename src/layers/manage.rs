@@ -14,7 +14,7 @@ impl Layer for CurrLineLayer {
         _: &[VisualOffsetMapping], vse: &ViewStoreEntry, dse: &DocStoreEntry,
     ) {
         let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
-        let cursor_y = dse.doc.data.get_line_of_byte(offset);
+        let cursor_y = dse.doc.data.line_idx_at_offset(offset);
 
         if cursor_y != y {
             return;

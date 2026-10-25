@@ -40,9 +40,9 @@ impl SearchProtocol {
 
     pub fn exec_view_event(s: &mut State, event: &ViewStoreTypes::Event) {
         match event {
-            ViewStoreTypes::Event::ModeChanged { id, .. }
-            | ViewStoreTypes::Event::Destroyed { id } => {
-                s.p.search.searches.remove(id);
+            ViewStoreTypes::Event::ModeChanged { view, .. }
+            | ViewStoreTypes::Event::Destroyed { view } => {
+                s.p.search.searches.remove(view);
             }
             _ => {}
         }
@@ -244,12 +244,12 @@ impl SearchProtocol {
             return None;
         }
 
-        let id = s.p.search.next_id;
+        let request_id = s.p.search.next_id;
         s.p.search.next_id += 1;
 
         let revision = s.doc_store.get(&doc).unwrap().doc.revision;
 
-        let request = SearchRequest { id, view, doc, revision };
+        let request = SearchRequest { request_id, view, doc, revision };
         s.p.search.searches.insert(view, request);
 
         Some(request)

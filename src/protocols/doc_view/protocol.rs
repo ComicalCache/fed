@@ -25,8 +25,8 @@ impl DocViewProtocol {
     pub fn exec(s: &mut State, cmd: DocViewCmd) {
         match cmd {
             DocViewCmd::OpenFile { window, path, force } => Self::open_file(s, window, path, force),
-            DocViewCmd::OpenFileCompletion { window, id, path, force, res } => {
-                Self::open_file_completion(s, window, id, path, force, res);
+            DocViewCmd::OpenFileCompletion { window, request_id, path, force, res } => {
+                Self::open_file_completion(s, window, request_id, path, force, res);
             }
             DocViewCmd::CreateTile { doc, view, split_window, direction, raw, tx } => {
                 Self::create_tile(s, doc, view, split_window, direction, raw, tx);
@@ -34,8 +34,8 @@ impl DocViewProtocol {
             DocViewCmd::CreateFloating { doc, view, rect, z, raw, tx } => {
                 Self::create_floating(s, doc, view, rect, z, raw, tx);
             }
-            DocViewCmd::ReplaceWindow { doc, view, window, raw, tx } => {
-                Self::replace_window(s, doc, view, window, raw, tx);
+            DocViewCmd::Show { doc, view, window, raw, tx } => {
+                Self::show(s, doc, view, window, raw, tx);
             }
             DocViewCmd::DestroyView { view } => Self::destroy_view(s, view),
         }
@@ -56,11 +56,11 @@ impl DocViewProtocol {
             return;
         }
 
-        let id = s.p.doc_view.revision;
+        let request_id = s.p.doc_view.revision;
         s.p.doc_view.revision += 1;
 
         let views = s.index.window_to_views(window).unwrap().clone();
-        s.p.doc_view.pending.insert(window, (id, views));
+        s.p.doc_view.pending.insert(window, (request_id, views));
 
         let tx = s.async_fcmd_tx.clone();
         IoProtocol::read(
@@ -69,7 +69,7 @@ impl DocViewProtocol {
                 Box::pin(async move {
                     let _ = tx.send(FCmd::DocView(DocViewCmd::OpenFileCompletion {
                         window,
-                        id,
+                        request_id,
                         path,
                         force,
                         res,
@@ -80,10 +80,12 @@ impl DocViewProtocol {
     }
 
     fn open_file_completion(
-        s: &mut State, window: WindowId, id: u64, path: PathBuf, force: bool,
+        s: &mut State, window: WindowId, request_id: u64, path: PathBuf, force: bool,
         result: Result<String, String>,
     ) {
-        if s.p.doc_view.pending.get(&window).is_none_or(|(revision, _)| *revision != id) {
+        if s.p.doc_view.pending.get(&window).is_none_or(|(pending_request_id, _)| {
+            *pending_request_id != request_id
+        }) {
             return;
         }
 
@@ -104,7 +106,7 @@ impl DocViewProtocol {
 
         match s.create_doc(Some(path)) {
             Ok(doc) => {
-                let view = Self::replace_window(s, doc, None, window, false, None);
+                let view = Self::show(s, doc, None, window, false, None);
                 ActionProtocol::insert(s, view, text);
                 ActionProtocol::move_cursor_to_pos(s, view, Pos::default(), true);
                 ActionProtocol::saved(s, doc);
@@ -151,7 +153,7 @@ impl DocViewProtocol {
         (view, window)
     }
 
-    pub fn replace_window(
+    pub fn show(
         s: &mut State, doc: DocId, view: Option<ViewId>, window: WindowId, raw: bool,
         tx: Option<oneshot::Sender<ViewId>>,
     ) -> ViewId {
@@ -202,6 +204,6 @@ impl DocViewProtocol {
             views.map(|views| views[0])
         };
 
-        Self::replace_window(s, doc, view, window, false, None);
+        Self::show(s, doc, view, window, false, None);
     }
 }

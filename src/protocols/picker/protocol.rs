@@ -214,7 +214,7 @@ impl PickerProtocol {
 
         for view in [s.p.picker.input_view, s.p.picker.list_view] {
             ViewProtocol::scroll_if_needed(s, view);
-            let _ = s.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::Resized { id: view }));
+            let _ = s.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::Resized { view }));
         }
     }
 
@@ -223,7 +223,7 @@ impl PickerProtocol {
             State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.picker.list_view)
                 .unwrap();
 
-        s.p.picker.offset + dse.doc.data.get_line_of_byte(vse.cursors.list[0].offset)
+        s.p.picker.offset + dse.doc.data.line_idx_at_offset(vse.cursors.list[0].offset)
     }
 
     fn update_list(s: &mut State, selection: usize) {

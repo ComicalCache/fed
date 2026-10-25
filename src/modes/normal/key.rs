@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
-use piece_table::Chunks;
 use tokio::sync::mpsc::UnboundedSender;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -13,6 +12,7 @@ use crate::modes::normal::cmd::Cmd;
 use crate::modes::normal::keymap;
 use crate::modes::picker::entries::ScanEntry;
 use crate::modes::picker::entries::ThemeEntry;
+use crate::piece_table::Chunks;
 use crate::protocols::action::ActionCmd;
 use crate::protocols::action::ActionProtocol;
 use crate::protocols::dir::DirCmd;
@@ -152,11 +152,11 @@ impl NormalKeyInput {
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),
             Cmd::EnterDirMode => {
                 let window = s.workspace.active_window?;
-                Some(vec![FCmd::Dir(DirCmd::ReplaceWindow { window, path: None })])
+                Some(vec![FCmd::Dir(DirCmd::Show { window, path: None })])
             }
             Cmd::EnterManageMode => {
                 let window = s.workspace.active_window?;
-                Some(vec![FCmd::Manage(ManageCmd::ReplaceWindow { window })])
+                Some(vec![FCmd::Manage(ManageCmd::Show { window })])
             }
             Cmd::EnterInsertMode => {
                 if dse.read_only {
@@ -212,7 +212,7 @@ impl NormalKeyInput {
         let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         let mut lines: Vec<_> =
-            vse.cursors.list.iter().map(|c| dse.doc.data.get_line_of_byte(c.offset)).collect();
+            vse.cursors.list.iter().map(|c| dse.doc.data.line_idx_at_offset(c.offset)).collect();
         lines.sort_unstable();
         lines.dedup();
 
@@ -224,13 +224,13 @@ impl NormalKeyInput {
         match cmd {
             Cmd::DeleteLine => {
                 for y in lines.into_iter().rev() {
-                    let mut start = dse.doc.data.get_line_start_byte(y);
-                    let end = dse.doc.data.get_line_end_byte(y);
+                    let mut start = dse.doc.data.line_start_offset(y);
+                    let end = dse.doc.data.line_end_offset(y);
 
                     // When deleting the last line, delete the newline from the
                     // previous line. This will break for Windows CRLF line
                     // endings.
-                    if y + 1 == dse.doc.data.lines() {
+                    if y + 1 == dse.doc.data.line_count() {
                         start = start.saturating_sub(1);
                     }
 
@@ -243,12 +243,12 @@ impl NormalKeyInput {
             }
             Cmd::ChangeLine => {
                 for y in lines.into_iter().rev() {
-                    let start = dse.doc.data.get_line_start_byte(y);
-                    let mut end = dse.doc.data.get_line_end_byte(y);
+                    let start = dse.doc.data.line_start_offset(y);
+                    let mut end = dse.doc.data.line_end_offset(y);
 
                     // Remove the newline of not the last line. This will break
                     // for Windows CRLF line endings.
-                    if y + 1 != dse.doc.data.lines() {
+                    if y + 1 != dse.doc.data.line_count() {
                         end -= 1;
                     }
 
@@ -270,15 +270,15 @@ impl NormalKeyInput {
                     cmds.push(FCmd::Action(ActionCmd::InsertAt {
                         view,
                         text: "\t".to_string(),
-                        offset: dse.doc.data.get_line_start_byte(y),
+                        offset: dse.doc.data.line_start_offset(y),
                     }));
                 }
             }
             Cmd::Dedent => {
                 // FIXME: option to also respect leading spaces.
                 for y in lines.into_iter().rev() {
-                    let start = dse.doc.data.get_line_start_byte(y);
-                    let end = dse.doc.data.get_line_end_byte(y);
+                    let start = dse.doc.data.line_start_offset(y);
+                    let end = dse.doc.data.line_end_offset(y);
 
                     if dse
                         .doc
@@ -360,7 +360,7 @@ impl NormalKeyInput {
         let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         let lines: Vec<_> =
-            vse.cursors.list.iter().map(|c| dse.doc.data.get_line_of_byte(c.offset)).collect();
+            vse.cursors.list.iter().map(|c| dse.doc.data.line_idx_at_offset(c.offset)).collect();
 
         common::swap_lines(s, view, doc, lines, matches!(cmd, Cmd::SwapLineDown))
     }
@@ -370,7 +370,7 @@ impl NormalKeyInput {
 
         let mut edits = Vec::new();
         for cursor in &vse.cursors.list {
-            let end = dse.doc.data.get_line_end_byte(dse.doc.data.get_line_of_byte(cursor.offset));
+            let end = dse.doc.data.line_end_offset(dse.doc.data.line_idx_at_offset(cursor.offset));
 
             if cursor.offset < end {
                 let text = dse.doc.data.slice(cursor.offset..end);
@@ -428,7 +428,7 @@ impl NormalKeyInput {
             ActionProtocol::set_active_window(s, Some(window));
 
             if entry.dir {
-                DirProtocol::exec(s, DirCmd::ReplaceWindow { window, path: Some(entry.path) });
+                DirProtocol::exec(s, DirCmd::Show { window, path: Some(entry.path) });
             } else {
                 DocViewProtocol::exec(
                     s,

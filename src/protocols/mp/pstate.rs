@@ -18,7 +18,7 @@ newtype!(MpId, usize);
 
 pub struct MpPState {
     pub next_id: usize,
-    pub id: MpId,
+    pub mp: MpId,
 
     pub kind: MpKind,
 
@@ -38,7 +38,7 @@ impl MpPState {
     pub fn new(width: usize, height: usize) -> Self {
         Self {
             next_id: 1,
-            id: MpId(0),
+            mp: MpId(0),
             kind: MpKind::default(),
             doc: DocId::default(),
             view: ViewId::default(),

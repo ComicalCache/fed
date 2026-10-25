@@ -14,7 +14,7 @@ newtype!(WindowId, u64);
 
 enum Tile {
     Split { direction: RectSplit, ratio: f32, first: Box<Self>, second: Box<Self> },
-    Window { id: WindowId, content: Box<dyn Renderer> },
+    Window { window: WindowId, content: Box<dyn Renderer> },
     Dummy,
 }
 
@@ -28,7 +28,7 @@ impl Tile {
 
                 second.find(target)
             }
-            Self::Window { id, .. } if *id == target => Some(self),
+            Self::Window { window, .. } if *window == target => Some(self),
             Self::Window { .. } => None,
             Self::Dummy => unreachable!(),
         }
@@ -37,8 +37,8 @@ impl Tile {
     fn find_parent(&mut self, target: WindowId) -> Option<&mut Self> {
         let parent = match &*self {
             Self::Split { first, second, .. } => {
-                matches!(**first, Self::Window { id, .. } if id == target)
-                    || matches!(**second, Self::Window { id, .. } if id == target)
+                matches!(**first, Self::Window { window, .. } if window == target)
+                    || matches!(**second, Self::Window { window, .. } if window == target)
             }
             Self::Window { .. } => false,
             Self::Dummy => unreachable!(),
@@ -69,7 +69,7 @@ impl Tile {
                     recursive(first, ids);
                     recursive(second, ids);
                 }
-                Tile::Window { id, .. } => ids.push(*id),
+                Tile::Window { window, .. } => ids.push(*window),
                 Dummy => unreachable!(),
             }
         }
@@ -89,7 +89,7 @@ impl Tile {
                 first.layout(first_rect, res);
                 second.layout(second_rect, res);
             }
-            Self::Window { id, .. } => res.push((*id, rect)),
+            Self::Window { window, .. } => res.push((*window, rect)),
             Self::Dummy => unreachable!(),
         }
     }
@@ -102,8 +102,8 @@ impl Tile {
                 first.render(s, screen, first_rect);
                 second.render(s, screen, second_rect);
             }
-            Self::Window { content, id } => {
-                content.render(s, &mut Viewport::new(screen, rect), *id);
+            Self::Window { content, window } => {
+                content.render(s, &mut Viewport::new(screen, rect), *window);
             }
             Self::Dummy => unreachable!(),
         }
@@ -114,7 +114,7 @@ struct Floating {
     rect: Rect,
     z: ZLayer,
 
-    id: WindowId,
+    window: WindowId,
     pub content: Box<dyn Renderer>,
 }
 
@@ -144,18 +144,18 @@ impl Workspace {
     pub fn tiles(&self) -> Vec<WindowId> { self.root.as_ref().map_or_default(Tile::windows) }
 
     /// Collects all floating window IDs.
-    pub fn floatings(&self) -> Vec<WindowId> { self.floating.iter().map(|f| f.id).collect() }
+    pub fn floatings(&self) -> Vec<WindowId> { self.floating.iter().map(|f| f.window).collect() }
 
     pub fn create_tile(
         &mut self, split_id: WindowId, direction: RectSplit, content: Box<dyn Renderer>,
     ) -> WindowId {
-        let id = WindowId(self.next_window_id);
+        let window = WindowId(self.next_window_id);
         self.next_window_id += 1;
 
         let Some(root) = &mut self.root else {
-            self.root = Some(Tile::Window { id, content });
+            self.root = Some(Tile::Window { window, content });
 
-            return id;
+            return window;
         };
 
         let target = root.find(split_id).unwrap();
@@ -166,15 +166,15 @@ impl Workspace {
             direction,
             ratio: 0.5,
             first: Box::new(tile),
-            second: Box::new(Tile::Window { id, content }),
+            second: Box::new(Tile::Window { window, content }),
         };
 
-        id
+        window
     }
 
-    pub fn resize_tile(&mut self, id: WindowId, delta: f32) {
+    pub fn resize_tile(&mut self, window: WindowId, delta: f32) {
         if let Some(root) = &mut self.root
-            && let Some(Tile::Split { ratio, .. }) = root.find_parent(id)
+            && let Some(Tile::Split { ratio, .. }) = root.find_parent(window)
         {
             *ratio = (*ratio + delta).clamp(0.05, 0.95);
         }
@@ -183,31 +183,31 @@ impl Workspace {
     pub fn create_floating(
         &mut self, rect: Rect, z: ZLayer, content: Box<dyn Renderer>,
     ) -> WindowId {
-        let id = WindowId(self.next_window_id);
+        let window = WindowId(self.next_window_id);
         self.next_window_id += 1;
 
-        self.floating.push(Floating { rect, z, id, content });
+        self.floating.push(Floating { rect, z, window, content });
         self.floating.sort_by_key(|f| f.z);
 
-        id
+        window
     }
 
-    pub fn resize_floating(&mut self, id: WindowId, width: usize, height: usize) {
-        let floating = self.floating.iter_mut().find(|f| f.id == id).unwrap();
+    pub fn resize_floating(&mut self, window: WindowId, width: usize, height: usize) {
+        let floating = self.floating.iter_mut().find(|f| f.window == window).unwrap();
         floating.rect.width = width;
         floating.rect.height = height;
     }
 
-    pub fn reposition_floating(&mut self, id: WindowId, pos: Pos) {
-        self.floating.iter_mut().find(|f| f.id == id).unwrap().rect.pos = pos;
+    pub fn reposition_floating(&mut self, window: WindowId, pos: Pos) {
+        self.floating.iter_mut().find(|f| f.window == window).unwrap().rect.pos = pos;
     }
 
-    pub fn destroy_window(&mut self, id: WindowId) {
+    pub fn destroy_window(&mut self, window: WindowId) {
         // Search floating windows first.
-        if let Some(idx) = self.floating.iter().position(|f| f.id == id) {
+        if let Some(idx) = self.floating.iter().position(|f| f.window == window) {
             self.floating.remove(idx);
 
-            if self.active_window == Some(id) {
+            if self.active_window == Some(window) {
                 self.active_window = None;
             }
 
@@ -218,16 +218,16 @@ impl Workspace {
         let root = self.root.as_mut().unwrap();
         match root {
             Tile::Dummy => unreachable!(),
-            Tile::Window { id: root, .. } if *root == id => {
+            Tile::Window { window: root, .. } if *root == window => {
                 self.root = None;
-                if self.active_window == Some(id) {
+                if self.active_window == Some(window) {
                     self.active_window = None;
                 }
             }
             _ => {
-                let parent = root.find_parent(id).unwrap();
+                let parent = root.find_parent(window).unwrap();
                 let survivor = if let Tile::Split { first, second, .. } = parent {
-                    if matches!(**first, Tile::Window { id: first_id, .. } if first_id == id) {
+                    if matches!(**first, Tile::Window { window: first_id, .. } if first_id == window) {
                         std::mem::replace(&mut **second, Tile::Dummy)
                     } else {
                         std::mem::replace(&mut **first, Tile::Dummy)
@@ -238,16 +238,16 @@ impl Workspace {
 
                 *parent = survivor;
 
-                if self.active_window == Some(id) {
+                if self.active_window == Some(window) {
                     self.active_window = None;
                 }
             }
         }
     }
 
-    pub fn replace_renderer(&mut self, id: WindowId, content: Box<dyn Renderer>) {
+    pub fn replace_renderer(&mut self, window: WindowId, content: Box<dyn Renderer>) {
         // Search floating windows first.
-        if let Some(idx) = self.floating.iter().position(|f| f.id == id) {
+        if let Some(idx) = self.floating.iter().position(|f| f.window == window) {
             self.floating[idx].content = content;
 
             return;
@@ -255,13 +255,13 @@ impl Workspace {
 
         // Search tiling tree second.
         let root = self.root.as_mut().unwrap();
-        let tile = root.find(id).unwrap();
-        *tile = Tile::Window { id, content };
+        let tile = root.find(window).unwrap();
+        *tile = Tile::Window { window, content };
     }
 
-    pub fn get_rect(&self, id: WindowId) -> Option<Rect> {
+    pub fn get_rect(&self, window: WindowId) -> Option<Rect> {
         // Search floating windows first.
-        if let Some(f) = self.floating.iter().find(|f| f.id == id) {
+        if let Some(f) = self.floating.iter().find(|f| f.window == window) {
             return Some(f.rect);
         }
 
@@ -270,7 +270,7 @@ impl Workspace {
             let mut layout = Vec::new();
             root.layout(self.rect, &mut layout);
 
-            return layout.into_iter().find(|(w, _)| *w == id).map(|(_, r)| r);
+            return layout.into_iter().find(|(w, _)| *w == window).map(|(_, r)| r);
         }
 
         None
@@ -280,7 +280,7 @@ impl Workspace {
         // Search floating windows first.
         for floating in self.floating.iter().rev() {
             if floating.rect.contains(pos) {
-                return Some(floating.id);
+                return Some(floating.window);
             }
         }
 
@@ -341,7 +341,7 @@ impl Workspace {
         }
 
         for floating in &self.floating {
-            floating.content.render(s, &mut Viewport::new(screen, floating.rect), floating.id);
+            floating.content.render(s, &mut Viewport::new(screen, floating.rect), floating.window);
         }
     }
 }

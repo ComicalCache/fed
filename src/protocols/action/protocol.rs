@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 
-use piece_table::Kind;
-use piece_table::PieceTable;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::fed::FEvent;
+use crate::piece_table::Kind;
+use crate::piece_table::PieceTable;
 use crate::protocols::action::ActionCmd;
 use crate::state::DocId;
 use crate::state::DocStoreTypes;
@@ -38,8 +38,8 @@ impl ActionProtocol {
             ActionCmd::CreateCursorAtPos { view, pos } => {
                 Self::create_cursor_at_pos(s, view, pos);
             }
-            ActionCmd::CreateCursorsAtOffset { view, offsets } => {
-                Self::create_cursors_at_offset(s, view, offsets);
+            ActionCmd::CreateCursorsAtOffsets { view, offsets } => {
+                Self::create_cursors_at_offsets(s, view, offsets);
             }
             ActionCmd::RemoveCursors { view, offsets } => {
                 Self::remove_cursors(s, view, &offsets);
@@ -68,15 +68,17 @@ impl ActionProtocol {
             ActionCmd::PushViewMode { view, mode } => Self::push_view_mode(s, view, mode),
             ActionCmd::PopViewMode { view } => Self::pop_view_mode(s, view),
 
-            ActionCmd::SetDocDecorator { doc, id, dec } => {
-                Self::set_doc_decorator(s, doc, id, dec);
+            ActionCmd::SetDocDecorator { doc, decoration, dec } => {
+                Self::set_doc_decorator(s, doc, decoration, dec);
             }
-            ActionCmd::SetViewDecorator { view, id, dec } => {
-                Self::set_view_decorator(s, view, id, dec);
+            ActionCmd::SetViewDecorator { view, decoration, dec } => {
+                Self::set_view_decorator(s, view, decoration, dec);
             }
-            ActionCmd::RemoveDocDecorator { doc, id } => Self::remove_doc_decorator(s, doc, id),
-            ActionCmd::RemoveViewDecorator { view, id } => {
-                Self::remove_view_decorator(s, view, id);
+            ActionCmd::RemoveDocDecorator { doc, decoration } => {
+                Self::remove_doc_decorator(s, doc, decoration);
+            }
+            ActionCmd::RemoveViewDecorator { view, decoration } => {
+                Self::remove_view_decorator(s, view, decoration);
             }
 
             ActionCmd::SetActiveWindow { window } => Self::set_active_window(s, window),
@@ -146,7 +148,7 @@ impl ActionProtocol {
         let _ = s.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::CursorsChanged { view }));
     }
 
-    pub fn create_cursors_at_offset(s: &mut State, view: ViewId, mut offsets: Vec<usize>) {
+    pub fn create_cursors_at_offsets(s: &mut State, view: ViewId, mut offsets: Vec<usize>) {
         let (vse, dse) =
             State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view).unwrap();
 
@@ -238,7 +240,7 @@ impl ActionProtocol {
         let path = dse.doc.path.clone();
         if let Some(path) = path {
             let _ = s.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Written {
-                id: doc,
+                doc,
                 path,
                 bytes_written: dse.doc.data.len(),
             }));
@@ -274,7 +276,7 @@ impl ActionProtocol {
         let dse = s.doc_store.get_mut(&doc).unwrap();
         dse.doc.path.clone_from(&path);
 
-        let _ = s.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::PathChanged { id: doc, path }));
+        let _ = s.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::PathChanged { doc, path }));
     }
 
     pub fn set_doc_mode(s: &mut State, doc: DocId, mode: DocStoreTypes::Mode) {
@@ -286,7 +288,7 @@ impl ActionProtocol {
         dse.mode = mode;
         s.dmode(doc);
 
-        let _ = s.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::ModeChanged { id: doc, mode }));
+        let _ = s.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::ModeChanged { doc, mode }));
     }
 
     pub fn push_view_mode(s: &mut State, view: ViewId, mode: ViewStoreTypes::Mode) {
@@ -297,8 +299,7 @@ impl ActionProtocol {
         vse.modes.push(mode);
         s.vmode(view);
 
-        let _ =
-            s.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::ModeChanged { id: view, mode }));
+        let _ = s.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::ModeChanged { view, mode }));
     }
 
     pub fn pop_view_mode(s: &mut State, view: ViewId) {
@@ -314,32 +315,36 @@ impl ActionProtocol {
         let mode = vse.mode();
         s.vmode(view);
 
-        let _ =
-            s.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::ModeChanged { id: view, mode }));
+        let _ = s.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::ModeChanged { view, mode }));
     }
 
     pub fn set_doc_decorator(
-        s: &mut State, doc: DocId, id: DocStoreTypes::DecorationId, dec: Box<dyn Decorator>,
+        s: &mut State, doc: DocId, decoration: DocStoreTypes::DecorationId, dec: Box<dyn Decorator>,
     ) {
         let dse = s.doc_store.get_mut(&doc).unwrap();
-        dse.decs.decorators.insert(id, dec);
+        dse.decs.decorators.insert(decoration, dec);
     }
 
     pub fn set_view_decorator(
-        s: &mut State, view: ViewId, id: ViewStoreTypes::DecorationId, dec: Box<dyn Decorator>,
+        s: &mut State, view: ViewId, decoration: ViewStoreTypes::DecorationId,
+        dec: Box<dyn Decorator>,
     ) {
         let vse = s.view_store.get_mut(&view).unwrap();
-        vse.decs.decorators.insert(id, dec);
+        vse.decs.decorators.insert(decoration, dec);
     }
 
-    pub fn remove_doc_decorator(s: &mut State, doc: DocId, id: DocStoreTypes::DecorationId) {
+    pub fn remove_doc_decorator(
+        s: &mut State, doc: DocId, decoration: DocStoreTypes::DecorationId,
+    ) {
         let dse = s.doc_store.get_mut(&doc).unwrap();
-        dse.decs.decorators.remove(&id);
+        dse.decs.decorators.remove(&decoration);
     }
 
-    pub fn remove_view_decorator(s: &mut State, view: ViewId, id: ViewStoreTypes::DecorationId) {
+    pub fn remove_view_decorator(
+        s: &mut State, view: ViewId, decoration: ViewStoreTypes::DecorationId,
+    ) {
         let vse = s.view_store.get_mut(&view).unwrap();
-        vse.decs.decorators.remove(&id);
+        vse.decs.decorators.remove(&decoration);
     }
 
     pub fn set_active_window(s: &mut State, window: Option<WindowId>) {
@@ -375,8 +380,8 @@ impl ActionProtocol {
                         continue;
                     }
 
-                    let y = doc_data.get_line_of_byte(cursor.offset - 1);
-                    let start = doc_data.get_line_start_byte(y);
+                    let y = doc_data.line_idx_at_offset(cursor.offset - 1);
+                    let start = doc_data.line_start_offset(y);
                     let remove = if cursor.offset == start {
                         1
                     } else {
@@ -394,8 +399,8 @@ impl ActionProtocol {
                         continue;
                     }
 
-                    let y = doc_data.get_line_of_byte(cursor.offset);
-                    let end = doc_data.get_line_end_byte(y);
+                    let y = doc_data.line_idx_at_offset(cursor.offset);
+                    let end = doc_data.line_end_offset(y);
                     let remove = if cursor.offset == end {
                         1
                     } else {
@@ -510,10 +515,8 @@ impl ActionProtocol {
 
         for (pos, kind, str) in edits {
             let event = match kind {
-                Kind::Deletion => DocStoreTypes::Event::Removed { id: doc, pos, n: str.len(), str },
-                Kind::Insertion => {
-                    DocStoreTypes::Event::Inserted { id: doc, pos, n: str.len(), str }
-                }
+                Kind::Deletion => DocStoreTypes::Event::Removed { doc, pos, n: str.len(), str },
+                Kind::Insertion => DocStoreTypes::Event::Inserted { doc, pos, n: str.len(), str },
             };
 
             let _ = s.fevent_tx.send(FEvent::Doc(event));

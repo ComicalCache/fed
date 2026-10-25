@@ -1,5 +1,4 @@
-use piece_table::Chunks;
-
+use crate::piece_table::Chunks;
 use crate::protocols::view::ViewCmd;
 use crate::state::DocStoreTypes;
 use crate::state::State;
@@ -26,10 +25,10 @@ impl ViewProtocol {
             DocStoreTypes::Event::Created { .. }
             | DocStoreTypes::Event::Destroyed { .. }
             | DocStoreTypes::Event::Written { .. } => return,
-            DocStoreTypes::Event::Inserted { id, .. }
-            | DocStoreTypes::Event::Removed { id, .. }
-            | DocStoreTypes::Event::ModeChanged { id, .. }
-            | DocStoreTypes::Event::PathChanged { id, .. } => id,
+            DocStoreTypes::Event::Inserted { doc, .. }
+            | DocStoreTypes::Event::Removed { doc, .. }
+            | DocStoreTypes::Event::ModeChanged { doc, .. }
+            | DocStoreTypes::Event::PathChanged { doc, .. } => doc,
         };
 
         // Event may be received after the doc has already been removed again.
@@ -44,9 +43,9 @@ impl ViewProtocol {
 
     pub fn exec_view_event(s: &mut State, event: &ViewStoreTypes::Event) {
         let view = match event {
-            ViewStoreTypes::Event::Created { id }
-            | ViewStoreTypes::Event::Resized { id }
-            | ViewStoreTypes::Event::CursorsMoved { view: id } => *id,
+            ViewStoreTypes::Event::Created { view }
+            | ViewStoreTypes::Event::Resized { view }
+            | ViewStoreTypes::Event::CursorsMoved { view } => *view,
             ViewStoreTypes::Event::CursorsChanged { .. }
             | ViewStoreTypes::Event::ModeChanged { .. }
             | ViewStoreTypes::Event::Destroyed { .. } => return,
@@ -68,8 +67,8 @@ impl ViewProtocol {
         let (vse, dse) =
             State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view).unwrap();
 
-        let start = dse.doc.data.get_line_start_byte(vse.scroll.y);
-        let end = dse.doc.data.get_line_end_byte(vse.scroll.y + vse.layout(dse).content.height);
+        let start = dse.doc.data.line_start_offset(vse.scroll.y);
+        let end = dse.doc.data.line_end_offset(vse.scroll.y + vse.layout(dse).content.height);
 
         vse.decs.update(start, end);
         dse.decs.update(start, end);

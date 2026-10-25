@@ -53,7 +53,7 @@ impl ViewStoreEntry {
     pub fn mode(&self) -> types::Mode { *self.modes.last().unwrap() }
 
     pub fn layout(&self, dse: &DocStoreEntry) -> types::ViewLayout {
-        let gutter_width = self.layout.gutter_width(dse.doc.data.lines()).min(self.rect.width);
+        let gutter_width = self.layout.gutter_width(dse.doc.data.line_count()).min(self.rect.width);
         let mode_line_height = self.layout.mode_line.min(self.rect.height);
         let content_height = self.rect.height.saturating_sub(mode_line_height);
 

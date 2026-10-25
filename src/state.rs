@@ -8,7 +8,6 @@ pub use doc::DocId;
 pub use doc::DocStore;
 pub use doc::DocStoreEntry;
 pub use doc::types as DocStoreTypes;
-use piece_table::PieceTable;
 use tokio::sync::mpsc::UnboundedSender;
 pub use view::ViewId;
 pub use view::ViewStore;
@@ -18,6 +17,7 @@ pub use view::types as ViewStoreTypes;
 use crate::fed::FCmd;
 use crate::fed::FEvent;
 use crate::modes;
+use crate::piece_table::PieceTable;
 use crate::protocols::pstate::PState;
 use crate::state::index::Index;
 use crate::types::Pos;
@@ -96,7 +96,7 @@ impl State {
         self.doc_store.insert(doc, entry);
         self.dinit(doc);
 
-        let _ = self.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Created { id: doc }));
+        let _ = self.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Created { doc }));
 
         Ok(doc)
     }
@@ -113,7 +113,7 @@ impl State {
 
         self.doc_store.remove(&doc);
 
-        let _ = self.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Destroyed { id: doc }));
+        let _ = self.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Destroyed { doc }));
     }
 
     pub fn create_view(&mut self, doc: DocId) -> ViewId {
@@ -129,7 +129,7 @@ impl State {
         self.index.link_view_to_doc(view, doc);
         self.vinit(view);
 
-        let _ = self.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::Created { id: view }));
+        let _ = self.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::Created { view }));
 
         view
     }
@@ -152,7 +152,7 @@ impl State {
             self.workspace.destroy_window(window);
         }
 
-        let _ = self.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::Destroyed { id: view }));
+        let _ = self.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::Destroyed { view }));
 
         window
     }

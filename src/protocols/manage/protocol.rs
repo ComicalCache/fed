@@ -19,7 +19,7 @@ pub struct ManageProtocol {}
 impl ManageProtocol {
     pub fn exec(s: &mut State, cmd: ManageCmd) {
         match cmd {
-            ManageCmd::ReplaceWindow { window } => Self::replace_window(s, window),
+            ManageCmd::Show { window } => Self::show(s, window),
 
             ManageCmd::Select => Self::select(s),
             ManageCmd::Close => Self::close(s),
@@ -103,7 +103,7 @@ impl ManageProtocol {
         s.doc_store.get_mut(&s.p.manage.doc).unwrap().read_only = true;
     }
 
-    fn replace_window(s: &mut State, window: WindowId) {
+    fn show(s: &mut State, window: WindowId) {
         Self::init(s, true);
 
         s.replace_view(window, s.p.manage.view, Box::new(ManageRenderer::new()));
@@ -116,7 +116,7 @@ impl ManageProtocol {
             State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.manage.view).unwrap();
 
         let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
-        let y = dse.doc.data.get_line_of_byte(offset);
+        let y = dse.doc.data.line_idx_at_offset(offset);
         let entry = s.p.manage.entries[y];
 
         let view = match entry {
@@ -152,9 +152,9 @@ impl ManageProtocol {
         let window = s.index.view_to_window(s.p.manage.view).unwrap();
         match dse.mode {
             DocStoreTypes::Mode::Text | DocStoreTypes::Mode::Read => {
-                DocViewProtocol::replace_window(s, doc, view, window, false, None);
+                DocViewProtocol::show(s, doc, view, window, false, None);
             }
-            DocStoreTypes::Mode::Dir => DirProtocol::replace_window(s, window),
+            DocStoreTypes::Mode::Dir => DirProtocol::show(s, window),
             DocStoreTypes::Mode::Mp | DocStoreTypes::Mode::Manage | DocStoreTypes::Mode::Picker => {
                 unreachable!()
             }
@@ -166,7 +166,7 @@ impl ManageProtocol {
             State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.manage.view).unwrap();
 
         let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
-        let y = dse.doc.data.get_line_of_byte(offset);
+        let y = dse.doc.data.line_idx_at_offset(offset);
         let entry = s.p.manage.entries[y];
         match entry {
             ManageEntry::Doc(id) => {

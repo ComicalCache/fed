@@ -71,7 +71,7 @@ impl DocViewRenderer {
         let (vse, dse) =
             State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, self.view).unwrap();
 
-        let lines = dse.doc.data.lines();
+        let lines = dse.doc.data.line_count();
         let scroll = vse.scroll;
 
         for y in 0..viewport.height() {

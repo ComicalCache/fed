@@ -2,7 +2,7 @@ use crate::types::render::WindowId;
 
 #[allow(unused)]
 pub enum ManageCmd {
-    ReplaceWindow { window: WindowId },
+    Show { window: WindowId },
 
     Select,
     Close,

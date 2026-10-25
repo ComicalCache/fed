@@ -32,7 +32,7 @@ impl ModeLineWidget {
             }
             Self::CursorPos { face } => {
                 let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
-                let y = dse.doc.data.get_line_of_byte(offset);
+                let y = dse.doc.data.line_idx_at_offset(offset);
 
                 let (vom, _) = util::layout::vom(y, vse, dse);
                 let x = vom.iter().find(|vo| vo.offset >= offset).map_or(0, |vo| vo.visual_x);

@@ -6,8 +6,8 @@ use crate::types::render::{self};
 pub fn vom(
     line: usize, vse: &ViewStoreEntry, dse: &DocStoreEntry,
 ) -> (Vec<VisualOffsetMapping>, usize) {
-    let start = dse.doc.data.get_line_start_byte(line);
-    let end = dse.doc.data.get_line_end_byte(line);
+    let start = dse.doc.data.line_start_offset(line);
+    let end = dse.doc.data.line_end_offset(line);
     let line = dse.doc.data.slice(start..end);
 
     let mut decs = Vec::new();

@@ -6,11 +6,11 @@ use crate::state::DocStoreTypes;
 #[derive(Clone)]
 #[allow(unused)]
 pub enum Event {
-    Created { id: DocId },
-    Destroyed { id: DocId },
-    Inserted { id: DocId, pos: usize, n: usize, str: String },
-    Removed { id: DocId, pos: usize, n: usize, str: String },
-    Written { id: DocId, path: PathBuf, bytes_written: usize },
-    ModeChanged { id: DocId, mode: DocStoreTypes::Mode },
-    PathChanged { id: DocId, path: Option<PathBuf> },
+    Created { doc: DocId },
+    Destroyed { doc: DocId },
+    Inserted { doc: DocId, pos: usize, n: usize, str: String },
+    Removed { doc: DocId, pos: usize, n: usize, str: String },
+    Written { doc: DocId, path: PathBuf, bytes_written: usize },
+    ModeChanged { doc: DocId, mode: DocStoreTypes::Mode },
+    PathChanged { doc: DocId, path: Option<PathBuf> },
 }

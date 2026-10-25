@@ -17,7 +17,7 @@ pub enum MpCmd {
     },
     Submit,
     Close {
-        id: MpId,
+        mp: MpId,
     },
 
     Resize {

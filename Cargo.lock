@@ -213,7 +213,6 @@ dependencies = [
  "fancy-regex",
  "futures",
  "libc",
- "piece-table",
  "tokio",
  "unicode-segmentation",
  "unicode-width",
@@ -592,10 +591,6 @@ dependencies = [
  "hashbrown 0.15.5",
  "indexmap",
 ]
-
-[[package]]
-name = "piece-table"
-version = "1.8.0"
 
 [[package]]
 name = "pin-project-lite"

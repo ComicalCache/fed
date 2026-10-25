@@ -2,10 +2,10 @@ use crossterm::event::KeyModifiers;
 use crossterm::event::MouseButton;
 use crossterm::event::MouseEvent;
 use crossterm::event::MouseEventKind;
-use piece_table::Chunks;
 use tokio::sync::oneshot;
 
 use crate::fed::FCmd;
+use crate::piece_table::Chunks;
 use crate::protocols::action::ActionCmd;
 use crate::protocols::action::ActionProtocol;
 use crate::protocols::doc_view::DocViewCmd;
@@ -192,7 +192,7 @@ pub fn yank_line(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
     let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
     let mut lines: Vec<_> =
-        vse.cursors.list.iter().map(|c| dse.doc.data.get_line_of_byte(c.offset)).collect();
+        vse.cursors.list.iter().map(|c| dse.doc.data.line_idx_at_offset(c.offset)).collect();
     lines.sort_unstable();
     lines.dedup();
 
@@ -202,11 +202,11 @@ pub fn yank_line(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
 
     let mut yanked = String::new();
     for &y in &lines {
-        let start = dse.doc.data.get_line_start_byte(y);
-        let mut end = dse.doc.data.get_line_end_byte(y);
+        let start = dse.doc.data.line_start_offset(y);
+        let mut end = dse.doc.data.line_end_offset(y);
 
         // Remove the newline if not the last line.
-        if y + 1 != dse.doc.data.lines() {
+        if y + 1 != dse.doc.data.line_count() {
             end -= 1;
         }
 
@@ -239,7 +239,7 @@ pub fn swap_lines(
 
     let (_, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
-    let doc_lines = dse.doc.data.lines();
+    let doc_lines = dse.doc.data.line_count();
 
     // Group contiguous lines into blocks and move them together.
     let mut blocks: Vec<(usize, usize)> = Vec::new();
@@ -261,12 +261,12 @@ pub fn swap_lines(
                 continue;
             }
 
-            let block_start = dse.doc.data.get_line_start_byte(start);
-            let block_end = dse.doc.data.get_line_end_byte(end);
+            let block_start = dse.doc.data.line_start_offset(start);
+            let block_end = dse.doc.data.line_end_offset(end);
 
             let target = end + 1;
-            let target_start = dse.doc.data.get_line_start_byte(target);
-            let target_end = dse.doc.data.get_line_end_byte(target);
+            let target_start = dse.doc.data.line_start_offset(target);
+            let target_end = dse.doc.data.line_end_offset(target);
             let target_text = dse.doc.data.slice(target_start..target_end);
 
             // Target line is the last line of the document.
@@ -308,11 +308,11 @@ pub fn swap_lines(
                 continue;
             }
 
-            let block_end = dse.doc.data.get_line_end_byte(end);
+            let block_end = dse.doc.data.line_end_offset(end);
 
             let target = start - 1;
-            let target_start = dse.doc.data.get_line_start_byte(target);
-            let target_end = dse.doc.data.get_line_end_byte(target);
+            let target_start = dse.doc.data.line_start_offset(target);
+            let target_end = dse.doc.data.line_end_offset(target);
             let target_text = dse.doc.data.slice(target_start..target_end);
             let target_len = target_text.len();
 

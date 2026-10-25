@@ -28,12 +28,12 @@ impl DirProtocol {
             DirCmd::InitCompletion { entries, printables, revision } => {
                 Self::init_completion(s, entries, printables, revision);
             }
-            DirCmd::ReplaceWindow { window, path } => {
+            DirCmd::Show { window, path } => {
                 if let Some(path) = path {
                     s.p.dir.pwd = util::path::normalize(path);
                 }
 
-                Self::replace_window(s, window);
+                Self::show(s, window);
             }
 
             DirCmd::Create { path, dir } => Self::create(s, path, dir),
@@ -106,7 +106,7 @@ impl DirProtocol {
         s.doc_store.get_mut(&s.p.dir.doc).unwrap().read_only = true;
     }
 
-    pub fn replace_window(s: &mut State, window: WindowId) {
+    pub fn show(s: &mut State, window: WindowId) {
         Self::init(s);
 
         s.replace_view(window, s.p.dir.view, Box::new(DirRenderer::new()));
@@ -195,7 +195,7 @@ impl DirProtocol {
             State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.dir.view).unwrap();
 
         let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
-        let y = dse.doc.data.get_line_of_byte(offset);
+        let y = dse.doc.data.line_idx_at_offset(offset);
 
         let Some(entry) = s.p.dir.entries.get(y).cloned() else { return };
         match entry.kind {

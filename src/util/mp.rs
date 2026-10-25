@@ -9,13 +9,13 @@ use crate::protocols::mp::MpProtocol;
 use crate::state::State;
 
 pub fn message(s: &mut State, message: String, duration: Duration) {
-    let Some(id) = MpProtocol::message(s, message, None) else { return };
+    let Some(mp) = MpProtocol::message(s, message, None) else { return };
 
     let tx = s.async_fcmd_tx.clone();
     tokio::spawn(async move {
         tokio::time::sleep(duration).await;
 
-        let _ = tx.send(FCmd::Mp(MpCmd::Close { id }));
+        let _ = tx.send(FCmd::Mp(MpCmd::Close { mp }));
     });
 }
 
@@ -24,10 +24,10 @@ pub fn async_message(tx: UnboundedSender<FCmd>, message: String, duration: Durat
     let _ = tx.send(FCmd::Mp(MpCmd::Message { message, tx: Some(id_tx) }));
 
     tokio::spawn(async move {
-        let Ok(id) = id_rx.await else { return };
+        let Ok(mp) = id_rx.await else { return };
 
         tokio::time::sleep(duration).await;
 
-        let _ = tx.send(FCmd::Mp(MpCmd::Close { id }));
+        let _ = tx.send(FCmd::Mp(MpCmd::Close { mp }));
     });
 }

@@ -8,7 +8,7 @@ use crate::types::render::WindowId;
 pub enum DirCmd {
     Init,
     InitCompletion { entries: Vec<DirEntry>, printables: Vec<PrintableDirEntry>, revision: u64 },
-    ReplaceWindow { window: WindowId, path: Option<PathBuf> },
+    Show { window: WindowId, path: Option<PathBuf> },
 
     Create { path: PathBuf, dir: bool },
     Rename { old: PathBuf, new: PathBuf },

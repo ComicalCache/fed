@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::piece_table::Piece;
+use crate::piece_table::piece_table::Piece;
 
 #[derive(Clone, Copy)]
 pub enum Kind {
@@ -8,28 +8,29 @@ pub enum Kind {
     Insertion,
 }
 
-pub struct Change {
-    /// Position of the Piece in the `PieceTable` at the time of changing.
-    pub pos: usize,
-    pub piece: Piece,
-    pub kind: Kind,
+pub(super) struct Change {
+    pub(super) piece_idx: usize,
+    pub(super) piece: Piece,
+    pub(super) kind: Kind,
 }
 
 impl Change {
-    pub const fn new(pos: usize, piece: Piece, kind: Kind) -> Self { Self { pos, piece, kind } }
+    pub const fn new(piece_idx: usize, piece: Piece, kind: Kind) -> Self {
+        Self { piece_idx, piece, kind }
+    }
 }
 
-pub struct LogicalChange {
-    pub pos: usize,
-    pub kind: Kind,
-    pub length: usize,
+pub(super) struct LogicalChange {
+    pub(super) kind: Kind,
+    pub(super) offset: usize,
+    pub(super) len: usize,
 
-    pub changes: Range<usize>,
+    pub(super) changes: Range<usize>,
 }
 
-pub struct Commit {
-    pub changes: Vec<Change>,
-    pub logical_changes: Vec<LogicalChange>,
+pub(super) struct Commit {
+    pub(super) changes: Vec<Change>,
+    pub(super) logical_changes: Vec<LogicalChange>,
 }
 
 impl Commit {
@@ -39,18 +40,18 @@ impl Commit {
         self.changes.push(Change::new(pos, piece, kind));
     }
 
-    pub fn add_logical_change(&mut self, pos: usize, kind: Kind, length: usize) {
+    pub fn add_logical_change(&mut self, kind: Kind, offset: usize, len: usize) {
         let start = self.logical_changes.last().map_or(0, |c| c.changes.end);
         self.logical_changes.push(LogicalChange {
-            pos,
             kind,
-            length,
+            offset,
+            len,
             changes: start..self.changes.len(),
         });
     }
 }
 
-pub struct Entry {
+struct Entry {
     /// Index of the previous/following (if any) entries in the history.
     previous: Option<usize>,
     next: Vec<usize>,
@@ -71,41 +72,43 @@ impl Entry {
 /// Manipulation history of a `Piecetable`.
 ///
 /// Creates a tree of changes that can be traversed forward and backward.
-pub struct History {
-    changes: Vec<Entry>,
+pub(super) struct History {
+    entries: Vec<Entry>,
     head: usize,
 }
 
 impl History {
-    pub fn new(commit: Commit) -> Self { Self { changes: vec![Entry::new(commit)], head: 0 } }
+    pub(super) fn new(commit: Commit) -> Self {
+        Self { entries: vec![Entry::new(commit)], head: 0 }
+    }
 
     /// Updates the history and adds the latest commit.
-    pub fn save(&mut self, commit: Commit) {
+    pub(super) fn save(&mut self, commit: Commit) {
         let prev_head = self.head;
-        self.head = self.changes.len();
+        self.head = self.entries.len();
 
-        self.changes[prev_head].next.push(self.head);
+        self.entries[prev_head].next.push(self.head);
 
         let mut entry = Entry::new(commit);
         entry.previous = Some(prev_head);
-        self.changes.push(entry);
+        self.entries.push(entry);
     }
 
-    pub fn commit(&self, index: usize) -> &Commit { &self.changes[index].commit }
+    pub(super) fn commit(&self, index: usize) -> &Commit { &self.entries[index].commit }
 
     /// Undos a commit by updating the history to the new head and returning the
     /// commit index.
-    pub fn undo(&mut self) -> Option<usize> {
+    pub(super) fn undo(&mut self) -> Option<usize> {
         let prev_head = self.head;
-        self.head = self.changes[prev_head].previous?;
+        self.head = self.entries[prev_head].previous?;
 
-        self.changes[self.head].hot_path = Some(prev_head);
+        self.entries[self.head].hot_path = Some(prev_head);
         Some(prev_head)
     }
 
     /// Greedily redos on the "hot path", returning the commit index.
-    pub fn hot_redo(&mut self) -> Option<usize> {
-        self.head = self.changes[self.head].hot_path?;
+    pub(super) fn hot_redo(&mut self) -> Option<usize> {
+        self.head = self.entries[self.head].hot_path?;
         Some(self.head)
     }
 }

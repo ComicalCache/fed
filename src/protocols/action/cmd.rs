@@ -14,7 +14,7 @@ pub enum ActionCmd {
     MoveCursors { view: ViewId, motion: Motion, move_anchor: bool },
     MoveCursorToPos { view: ViewId, pos: Pos, move_anchor: bool },
     CreateCursorAtPos { view: ViewId, pos: Pos },
-    CreateCursorsAtOffset { view: ViewId, offsets: Vec<usize> },
+    CreateCursorsAtOffsets { view: ViewId, offsets: Vec<usize> },
     RemoveCursors { view: ViewId, offsets: Vec<usize> },
     ResetCursorAnchors { view: ViewId },
 
@@ -38,10 +38,10 @@ pub enum ActionCmd {
     PushViewMode { view: ViewId, mode: ViewStoreTypes::Mode },
     PopViewMode { view: ViewId },
 
-    SetDocDecorator { doc: DocId, id: DocStoreTypes::DecorationId, dec: Box<dyn Decorator> },
-    SetViewDecorator { view: ViewId, id: ViewStoreTypes::DecorationId, dec: Box<dyn Decorator> },
-    RemoveDocDecorator { doc: DocId, id: DocStoreTypes::DecorationId },
-    RemoveViewDecorator { view: ViewId, id: ViewStoreTypes::DecorationId },
+    SetDocDecorator { doc: DocId, decoration: DocStoreTypes::DecorationId, dec: Box<dyn Decorator> },
+    SetViewDecorator { view: ViewId, decoration: ViewStoreTypes::DecorationId, dec: Box<dyn Decorator> },
+    RemoveDocDecorator { doc: DocId, decoration: DocStoreTypes::DecorationId },
+    RemoveViewDecorator { view: ViewId, decoration: ViewStoreTypes::DecorationId },
 
     SetActiveWindow { window: Option<WindowId> },
 }

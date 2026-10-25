@@ -47,7 +47,7 @@ impl ManageKeyInput {
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),
             Cmd::EnterDirMode => {
                 let window = s.workspace.active_window?;
-                Some(vec![FCmd::Dir(DirCmd::ReplaceWindow { window, path: None })])
+                Some(vec![FCmd::Dir(DirCmd::Show { window, path: None })])
             }
             Cmd::EnterVisualMode => Some(vec![FCmd::Action(ActionCmd::PushViewMode {
                 view,

@@ -1,5 +1,4 @@
 use crossterm::event::KeyEvent;
-use piece_table::Chunks;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::fed::FCmd;
@@ -7,6 +6,7 @@ use crate::modes::common;
 use crate::modes::visual::VisualPasteInput;
 use crate::modes::visual::cmd::Cmd;
 use crate::modes::visual::keymap;
+use crate::piece_table::Chunks;
 use crate::protocols::action::ActionCmd;
 use crate::protocols::search::SearchCmd;
 use crate::state::DocId;
@@ -74,7 +74,7 @@ impl VisualKeyInput {
     fn swap_operation(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
         let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
-        let doc_lines = dse.doc.data.lines();
+        let doc_lines = dse.doc.data.line_count();
 
         let mut lines = Vec::new();
         for cursor in &vse.cursors.list {
@@ -82,8 +82,8 @@ impl VisualKeyInput {
             let end = cursor.anchor.max(cursor.offset);
 
             for idx in 0..doc_lines {
-                let s = dse.doc.data.get_line_start_byte(idx);
-                let e = dse.doc.data.get_line_end_byte(idx);
+                let s = dse.doc.data.line_start_offset(idx);
+                let e = dse.doc.data.line_end_offset(idx);
 
                 if start == end {
                     if start >= s && (start < e || idx == doc_lines - 1) {

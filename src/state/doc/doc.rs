@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use piece_table::PieceTable;
+use crate::piece_table::PieceTable;
 
 #[derive(Default)]
 pub struct Doc {

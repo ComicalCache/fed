@@ -30,7 +30,7 @@ impl MpKeyInput {
     }
 
     fn exec(s: &State, cmd: Cmd) -> Vec<FCmd> {
-        let id = s.p.mp.id;
+        let mp = s.p.mp.mp;
         let view = s.p.mp.view;
 
         match cmd {
@@ -41,7 +41,7 @@ impl MpKeyInput {
             Cmd::Backspace => vec![FCmd::Action(ActionCmd::Backspace { view })],
             Cmd::Delete => vec![FCmd::Action(ActionCmd::Delete { view })],
             Cmd::Submit => vec![FCmd::Mp(MpCmd::Submit)],
-            Cmd::Close => vec![FCmd::Mp(MpCmd::Close { id })],
+            Cmd::Close => vec![FCmd::Mp(MpCmd::Close { mp })],
         }
     }
 }

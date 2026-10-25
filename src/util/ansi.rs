@@ -8,7 +8,7 @@ use crate::types::Rgb;
 use crate::types::Span;
 
 #[derive(Default)]
-pub struct DecoratioParser {
+pub struct DecorationParser {
     pub parsed: String,
     spans: Vec<Span<Decoration>>,
 
@@ -16,7 +16,7 @@ pub struct DecoratioParser {
     face_offset: usize,
 }
 
-impl DecoratioParser {
+impl DecorationParser {
     pub fn commit(&mut self) {
         let pos = self.parsed.len();
 
@@ -34,7 +34,7 @@ impl DecoratioParser {
     pub fn decorator(self) -> SpanDecorator { SpanDecorator::new(self.spans) }
 }
 
-impl Perform for DecoratioParser {
+impl Perform for DecorationParser {
     fn print(&mut self, ch: char) { self.parsed.push(ch); }
 
     fn execute(&mut self, byte: u8) {

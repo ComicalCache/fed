@@ -22,6 +22,4 @@ impl QuitProtocol {
             }
         }
     }
-
-    pub const fn can_quit(s: &State) -> bool { s.p.quit.quit }
 }

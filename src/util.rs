@@ -15,8 +15,8 @@ use crate::types::Pos;
 use crate::util;
 
 pub fn pos_to_offset(pos: Pos, vse: &ViewStoreEntry, dse: &DocStoreEntry) -> usize {
-    let y = pos.y.min(dse.doc.data.lines().saturating_sub(1));
-    let start = dse.doc.data.get_line_start_byte(y);
+    let y = pos.y.min(dse.doc.data.line_count().saturating_sub(1));
+    let start = dse.doc.data.line_start_offset(y);
 
     let (vom, _) = util::layout::vom(y, vse, dse);
 
@@ -24,7 +24,7 @@ pub fn pos_to_offset(pos: Pos, vse: &ViewStoreEntry, dse: &DocStoreEntry) -> usi
 }
 
 pub fn offset_to_pos(offset: usize, vse: &ViewStoreEntry, dse: &DocStoreEntry) -> Pos {
-    let y = dse.doc.data.get_line_of_byte(offset);
+    let y = dse.doc.data.line_idx_at_offset(offset);
 
     let (vom, _) = util::layout::vom(y, vse, dse);
     let x = vom

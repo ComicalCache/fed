@@ -27,7 +27,7 @@ impl MpProtocol {
                 Self::prompt(s, prompt, initial_text, pcallback, tx);
             }
             MpCmd::Submit => Self::submit(s),
-            MpCmd::Close { id } => Self::close(s, id),
+            MpCmd::Close { mp } => Self::close(s, mp),
 
             MpCmd::Resize { width, height } => Self::resize(s, width, height),
         }
@@ -40,26 +40,26 @@ impl MpProtocol {
             return None;
         }
 
-        Self::close(s, s.p.mp.id);
+        Self::close(s, s.p.mp.mp);
 
         let window = Self::create_window(s);
 
         ActionProtocol::insert_at(s, s.p.mp.view, message, 0);
         ActionProtocol::saved(s, s.p.mp.doc);
 
-        let id = MpId(s.p.mp.next_id);
+        let mp = MpId(s.p.mp.next_id);
         s.p.mp.next_id += 1;
 
-        s.p.mp.id = id;
+        s.p.mp.mp = mp;
         s.p.mp.kind = MpKind::Message;
         s.p.mp.window = Some(window);
         s.p.mp.prev_window = s.workspace.active_window;
 
         if let Some(tx) = tx {
-            let _ = tx.send(id);
+            let _ = tx.send(mp);
         }
 
-        Some(id)
+        Some(mp)
     }
 
     pub fn prompt(
@@ -71,7 +71,7 @@ impl MpProtocol {
             return None;
         }
 
-        Self::close(s, s.p.mp.id);
+        Self::close(s, s.p.mp.mp);
 
         ActionProtocol::create_cursor_at_pos(s, s.p.mp.view, Pos::new(0, 0));
         if let Some(text) = initial_text {
@@ -80,7 +80,7 @@ impl MpProtocol {
 
         let window = Self::create_window(s);
 
-        let id = MpId(s.p.mp.next_id);
+        let mp = MpId(s.p.mp.next_id);
         s.p.mp.next_id += 1;
 
         let vse = s.view_store.get_mut(&s.p.mp.view).unwrap();
@@ -89,7 +89,7 @@ impl MpProtocol {
             Box::new(MpDecorator::new(prompt, s.theme.mp)),
         );
 
-        s.p.mp.id = id;
+        s.p.mp.mp = mp;
         s.p.mp.kind = MpKind::Prompt;
         s.p.mp.window = Some(window);
         s.p.mp.prev_window = s.workspace.active_window;
@@ -98,10 +98,10 @@ impl MpProtocol {
         s.workspace.active_window = Some(window);
 
         if let Some(tx) = tx {
-            let _ = tx.send(id);
+            let _ = tx.send(mp);
         }
 
-        Some(id)
+        Some(mp)
     }
 
     pub fn submit(s: &mut State) {
@@ -114,18 +114,18 @@ impl MpProtocol {
         let res = dse.doc.data.slice(0..dse.doc.data.len());
         let callback = s.p.mp.pcallback.take();
 
-        Self::close(s, s.p.mp.id);
+        Self::close(s, s.p.mp.mp);
 
         if let Some(cb) = callback {
             cb(s, Some(res));
         }
     }
 
-    pub fn close(s: &mut State, id: MpId) {
+    pub fn close(s: &mut State, mp: MpId) {
         if s.p.mp.kind == MpKind::None {
             return;
         }
-        if s.p.mp.id != id {
+        if s.p.mp.mp != mp {
             return;
         }
 

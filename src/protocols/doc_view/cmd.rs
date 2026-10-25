@@ -18,7 +18,7 @@ pub enum DocViewCmd {
     },
     OpenFileCompletion {
         window: WindowId,
-        id: u64,
+        request_id: u64,
         path: PathBuf,
         force: bool,
         res: Result<String, String>,
@@ -39,7 +39,7 @@ pub enum DocViewCmd {
         raw: bool,
         tx: Option<oneshot::Sender<(ViewId, WindowId)>>,
     },
-    ReplaceWindow {
+    Show {
         doc: DocId,
         view: Option<ViewId>,
         window: WindowId,

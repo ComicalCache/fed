@@ -5,7 +5,7 @@ use crate::state::ViewId;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SearchRequest {
-    pub id: u64,
+    pub request_id: u64,
 
     pub view: ViewId,
     pub doc: DocId,

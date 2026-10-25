@@ -30,7 +30,7 @@ impl Layer for DirLayer {
             };
             let metadata = Face { fg: s.theme.gutter.fg, ..Face::default() };
 
-            let line_start = dse.doc.data.get_line_start_byte(y);
+            let line_start = dse.doc.data.line_start_offset(y);
             let offset = line_start + entry.path_offset;
 
             for (x, cell) in row.iter_mut().enumerate() {

@@ -7,6 +7,7 @@ mod fed;
 mod input_router;
 mod layers;
 mod modes;
+mod piece_table;
 mod protocol_router;
 mod protocols;
 mod state;

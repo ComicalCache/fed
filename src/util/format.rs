@@ -44,14 +44,14 @@ pub fn group_name(gid: u32) -> String {
     gid.to_string()
 }
 
-pub fn size(size: u64) -> String {
-    if size < 1024 {
-        size.to_string()
-    } else if size < 1024 * 1024 {
-        format!("{:.1}K", size as f64 / 1024.0).replace(".0", "")
-    } else if size < 1024 * 1024 * 1024 {
-        format!("{:.1}M", size as f64 / (1024.0 * 1024.0)).replace(".0", "")
+pub fn size(bytes: u64) -> String {
+    if bytes < 1024 {
+        bytes.to_string()
+    } else if bytes < 1024 * 1024 {
+        format!("{:.1}K", bytes as f64 / 1024.0).replace(".0", "")
+    } else if bytes < 1024 * 1024 * 1024 {
+        format!("{:.1}M", bytes as f64 / (1024.0 * 1024.0)).replace(".0", "")
     } else {
-        format!("{:.1}G", size as f64 / (1024.0 * 1024.0 * 1024.0)).replace(".0", "")
+        format!("{:.1}G", bytes as f64 / (1024.0 * 1024.0 * 1024.0)).replace(".0", "")
     }
 }

@@ -56,7 +56,7 @@ impl DirKeyInput {
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),
             Cmd::EnterManageMode => {
                 let window = s.workspace.active_window?;
-                Some(vec![FCmd::Manage(ManageCmd::ReplaceWindow { window })])
+                Some(vec![FCmd::Manage(ManageCmd::Show { window })])
             }
             Cmd::EnterVisualMode => Some(vec![FCmd::Action(ActionCmd::PushViewMode {
                 view,
@@ -143,7 +143,7 @@ impl DirKeyInput {
         let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
-        let y = dse.doc.data.get_line_of_byte(offset);
+        let y = dse.doc.data.line_idx_at_offset(offset);
 
         // Ignore the header and ".." entry.
         if y < 2 {

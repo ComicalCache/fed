@@ -1,6 +1,6 @@
-use piece_table::Chunks;
 use unicode_segmentation::UnicodeSegmentation;
 
+use crate::piece_table::Chunks;
 use crate::state::DocStoreEntry;
 use crate::state::ViewStoreEntry;
 use crate::types::Cursor;
@@ -27,8 +27,8 @@ pub fn apply(cursor: &mut Cursor, motion: Motion, vse: &ViewStoreEntry, dse: &Do
         Motion::Right => right(cursor, vse, dse),
         Motion::BeginningOfLine => beginning_of_line(cursor, vse, dse),
         Motion::EndOfLine => end_of_line(cursor, vse, dse),
-        Motion::BeginningOfFile => beginning_of_file(cursor, vse, dse),
-        Motion::EndOfFile => end_of_file(cursor, vse, dse),
+        Motion::BeginningOfDoc => beginning_of_doc(cursor, vse, dse),
+        Motion::EndOfDoc => end_of_doc(cursor, vse, dse),
         Motion::NextWord => next_word(cursor, vse, dse),
         Motion::NextWordEnd => next_word_end(cursor, vse, dse),
         Motion::PrevWord => prev_word(cursor, vse, dse),
@@ -42,7 +42,7 @@ pub fn apply(cursor: &mut Cursor, motion: Motion, vse: &ViewStoreEntry, dse: &Do
 }
 
 fn up(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
-    let y = dse.doc.data.get_line_of_byte(cursor.offset);
+    let y = dse.doc.data.line_idx_at_offset(cursor.offset);
     if y == 0 {
         cursor.offset = 0;
         cursor.pref_x = 0;
@@ -61,8 +61,8 @@ fn up(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
 }
 
 fn down(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
-    let y = dse.doc.data.get_line_of_byte(cursor.offset);
-    let lines = dse.doc.data.lines();
+    let y = dse.doc.data.line_idx_at_offset(cursor.offset);
+    let lines = dse.doc.data.line_count();
     if y + 1 >= lines {
         cursor.offset = dse.doc.data.len();
         update_pref_x(cursor, vse, dse);
@@ -102,14 +102,14 @@ fn right(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
 }
 
 fn beginning_of_line(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
-    cursor.offset = dse.doc.data.get_line_start_byte(dse.doc.data.get_line_of_byte(cursor.offset));
+    cursor.offset = dse.doc.data.line_start_offset(dse.doc.data.line_idx_at_offset(cursor.offset));
     update_pref_x(cursor, vse, dse);
 }
 
 fn end_of_line(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
-    let y = dse.doc.data.get_line_of_byte(cursor.offset);
-    let start = dse.doc.data.get_line_start_byte(y);
-    let end = dse.doc.data.get_line_end_byte(y);
+    let y = dse.doc.data.line_idx_at_offset(cursor.offset);
+    let start = dse.doc.data.line_start_offset(y);
+    let end = dse.doc.data.line_end_offset(y);
 
     // Do not treat the newline character as a "character".
     cursor.offset =
@@ -122,12 +122,12 @@ fn end_of_line(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
     update_pref_x(cursor, vse, dse);
 }
 
-fn beginning_of_file(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
+fn beginning_of_doc(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
     cursor.offset = 0;
     update_pref_x(cursor, vse, dse);
 }
 
-fn end_of_file(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
+fn end_of_doc(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
     cursor.offset = dse.doc.data.len();
     update_pref_x(cursor, vse, dse);
 }
@@ -347,13 +347,13 @@ fn prev_whitespace(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntr
 }
 
 fn next_empty_line(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
-    let y = dse.doc.data.get_line_of_byte(cursor.offset);
-    let lines = dse.doc.data.lines();
+    let y = dse.doc.data.line_idx_at_offset(cursor.offset);
+    let lines = dse.doc.data.line_count();
 
     let mut found = false;
     for target in (y + 1)..lines {
-        let start = dse.doc.data.get_line_start_byte(target);
-        let end = dse.doc.data.get_line_end_byte(target);
+        let start = dse.doc.data.line_start_offset(target);
+        let end = dse.doc.data.line_end_offset(target);
         if start == end || dse.doc.data.chunks(start..end).eq(["\n"]) {
             cursor.offset = start;
             found = true;
@@ -370,7 +370,7 @@ fn next_empty_line(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntr
 }
 
 fn prev_empty_line(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
-    let y = dse.doc.data.get_line_of_byte(cursor.offset);
+    let y = dse.doc.data.line_idx_at_offset(cursor.offset);
 
     if y == 0 {
         update_pref_x(cursor, vse, dse);
@@ -379,8 +379,8 @@ fn prev_empty_line(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntr
 
     let mut found = false;
     for target in (0..y).rev() {
-        let start = dse.doc.data.get_line_start_byte(target);
-        let end = dse.doc.data.get_line_end_byte(target);
+        let start = dse.doc.data.line_start_offset(target);
+        let end = dse.doc.data.line_end_offset(target);
         if start == end || dse.doc.data.chunks(start..end).eq(["\n"]) {
             cursor.offset = start;
             found = true;
@@ -456,7 +456,7 @@ fn matching_opposite(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEn
 }
 
 fn update_pref_x(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
-    let y = dse.doc.data.get_line_of_byte(cursor.offset);
+    let y = dse.doc.data.line_idx_at_offset(cursor.offset);
 
     let (vom, _) = util::layout::vom(y, vse, dse);
     cursor.pref_x = vom.iter().find(|vo| vo.offset == cursor.offset).map_or(0, |vo| vo.visual_x);
@@ -478,7 +478,7 @@ impl<'a> TextReader<'a> {
     }
 
     fn fetch(&mut self, offset: usize) {
-        let lines = self.dse.doc.data.lines();
+        let lines = self.dse.doc.data.line_count();
         let valid = self.y != usize::MAX
             && offset >= self.start
             && (offset < self.end || (self.y == lines.saturating_sub(1) && offset == self.end));
@@ -487,9 +487,9 @@ impl<'a> TextReader<'a> {
             return;
         }
 
-        self.y = self.dse.doc.data.get_line_of_byte(offset);
-        self.start = self.dse.doc.data.get_line_start_byte(self.y);
-        self.end = self.dse.doc.data.get_line_end_byte(self.y);
+        self.y = self.dse.doc.data.line_idx_at_offset(offset);
+        self.start = self.dse.doc.data.line_start_offset(self.y);
+        self.end = self.dse.doc.data.line_end_offset(self.y);
         self.text = self.dse.doc.data.slice(self.start..self.end);
     }
 

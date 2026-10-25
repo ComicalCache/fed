@@ -66,7 +66,7 @@ impl SearchKeyInput {
 
         Some(vec![
             FCmd::Action(ActionCmd::RemoveCursors { view, offsets }),
-            FCmd::Action(ActionCmd::CreateCursorsAtOffset { view, offsets: vec![target] }),
+            FCmd::Action(ActionCmd::CreateCursorsAtOffsets { view, offsets: vec![target] }),
         ])
     }
 
@@ -76,7 +76,7 @@ impl SearchKeyInput {
         let (_, matches, offsets) = Self::search_state(s, view)?;
         cmds.push(FCmd::Action(ActionCmd::RemoveCursors { view, offsets }));
         let offsets = matches.iter().map(|m| if front { m.0 } else { m.1 }).collect();
-        cmds.push(FCmd::Action(ActionCmd::CreateCursorsAtOffset { view, offsets }));
+        cmds.push(FCmd::Action(ActionCmd::CreateCursorsAtOffsets { view, offsets }));
 
         cmds.extend(Self::escape(view));
 

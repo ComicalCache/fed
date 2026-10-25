@@ -21,7 +21,6 @@ use crate::protocols::manage::ManageCmd;
 use crate::protocols::manage::ManageProtocol;
 use crate::protocols::mp::MpCmd;
 use crate::protocols::picker::PickerCmd;
-use crate::protocols::quit::QuitProtocol;
 use crate::protocols::screen::ScreenCmd;
 use crate::protocols::screen::ScreenProtocol;
 use crate::protocols::search::SearchCmd;
@@ -121,7 +120,7 @@ impl Fed {
                 else => break,
             }
 
-            if QuitProtocol::can_quit(&self.s) {
+            if self.s.p.quit.quit {
                 let _ = self.shutdown_tx.send(());
                 break;
             }
@@ -168,9 +167,9 @@ impl Fed {
         let _ = tx.send(FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) }));
 
         if dir {
-            let _ = tx.send(FCmd::Dir(DirCmd::ReplaceWindow { window, path: cli.path.clone() }));
+            let _ = tx.send(FCmd::Dir(DirCmd::Show { window, path: cli.path.clone() }));
         } else if let Some(text) = cli.piped.clone() {
-            let mut decoration_parser = util::ansi::DecoratioParser::default();
+            let mut decoration_parser = util::ansi::DecorationParser::default();
             let mut parser = Parser::<DefaultCharAccumulator>::new();
 
             for byte in text.as_bytes() {
@@ -183,7 +182,7 @@ impl Fed {
 
             let _ = tx.send(FCmd::Action(ActionCmd::SetDocDecorator {
                 doc,
-                id: DocStoreTypes::DecorationId::Span,
+                decoration: DocStoreTypes::DecorationId::Span,
                 dec,
             }));
             let _ = tx.send(FCmd::Action(ActionCmd::Insert { view, text }));
