@@ -64,6 +64,10 @@ impl ViewProtocol {
     }
 
     pub fn update(s: &mut State, view: ViewId) {
+        if s.index.view_to_window(view).is_none() {
+            return;
+        }
+
         let (vse, dse) =
             State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view).unwrap();
 

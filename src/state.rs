@@ -176,15 +176,25 @@ impl State {
 
     pub fn replace_view(&mut self, window: WindowId, view: ViewId, renderer: Box<dyn Renderer>) {
         self.workspace.replace_renderer(window, renderer);
-        self.index.unlink_window(window);
+        let prev_views = self.index.unlink_window(window);
 
         self.attach_view(window, view);
+
+        for previous_view in prev_views {
+            if self.index.view_to_window(previous_view).is_none() {
+                self.view_store.get_mut(&previous_view).unwrap().view_cache =
+                    ViewStoreTypes::ViewCache::default();
+            }
+        }
     }
 
     pub fn destroy_window(&mut self, window: WindowId) {
         assert!(self.workspace.get_rect(window).is_some());
 
-        self.index.unlink_window(window);
+        for view in self.index.unlink_window(window) {
+            self.view_store.get_mut(&view).unwrap().view_cache =
+                ViewStoreTypes::ViewCache::default();
+        }
         self.workspace.destroy_window(window);
     }
 

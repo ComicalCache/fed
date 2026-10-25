@@ -59,12 +59,15 @@ impl Index {
         views.insert(position, view);
     }
 
-    pub(super) fn unlink_window(&mut self, window: WindowId) {
-        if let Some(views) = self.window_to_views.remove(&window) {
-            for view in views {
-                assert!(self.view_to_window.remove(&view) == Some(window));
-            }
+    #[must_use]
+    pub(super) fn unlink_window(&mut self, window: WindowId) -> Vec<ViewId> {
+        let views = self.window_to_views.remove(&window).unwrap_or_default();
+
+        for view in &views {
+            assert!(self.view_to_window.remove(view) == Some(window));
         }
+
+        views
     }
 
     #[must_use]
