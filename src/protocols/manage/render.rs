@@ -55,7 +55,6 @@ impl Renderer for ManageRenderer {
 
 impl ManageRenderer {
     fn render_gutter(s: &State, viewport: &mut Viewport, width: usize) {
-        // The render function checks for existance.
         let (vse, dse) =
             State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.manage.view).unwrap();
 
@@ -81,7 +80,6 @@ impl ManageRenderer {
     }
 
     fn render_mode_line(s: &State, viewport: &mut Viewport) {
-        // The render function checks for existance.
         let (vse, dse) =
             State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.manage.view).unwrap();
 

@@ -343,9 +343,8 @@ pub fn swap_lines(
                     len: target_end - target_start,
                 }));
 
-                // Remove the newline of not the block since it will be
-                // at the end. This will break for Windows CRLF line
-                // endings.
+                // Remove the newline of not the block since it will be at the
+                // end.
                 cmds.push(FCmd::Action(ActionCmd::Remove { view, offset: block_end - 1, len: 1 }));
                 cmds.push(FCmd::Action(ActionCmd::InsertAt {
                     view,
@@ -382,8 +381,7 @@ pub fn swap_lines(
             // Block is the last line(s) of the document.
             if end + 1 == doc_lines {
                 // Remove the newline of not block since it wont be
-                // at the end. This will break for Windows CRLF line
-                // endings.
+                // at the end.
                 let mut target_text = target_text;
                 target_text.truncate(target_text.len() - 1);
 

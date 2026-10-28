@@ -220,8 +220,7 @@ impl NormalKeyInput {
                     let end = dse.doc.data.line_end_offset(y);
 
                     // When deleting the last line, delete the newline from the
-                    // previous line. This will break for Windows CRLF line
-                    // endings.
+                    // previous line.
                     if y + 1 == dse.doc.data.line_count() {
                         start = start.saturating_sub(1);
                     }
@@ -238,8 +237,7 @@ impl NormalKeyInput {
                     let start = dse.doc.data.line_start_offset(y);
                     let mut end = dse.doc.data.line_end_offset(y);
 
-                    // Remove the newline of not the last line. This will break
-                    // for Windows CRLF line endings.
+                    // Remove the newline of not the last line.
                     if y + 1 != dse.doc.data.line_count() {
                         end -= 1;
                     }
@@ -340,8 +338,7 @@ impl NormalKeyInput {
             if cursor.offset < end {
                 let text = dse.doc.data.slice(cursor.offset..end);
 
-                // Disallow replacing newline characters.This will break for
-                // Windows CRLF line endings.
+                // Disallow replacing newline characters.
                 if text.starts_with('\n') {
                     continue;
                 }

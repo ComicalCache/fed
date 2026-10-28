@@ -57,7 +57,6 @@ impl Renderer for DirRenderer {
 
 impl DirRenderer {
     fn render_gutter(s: &State, viewport: &mut Viewport, width: usize) {
-        // The render function checks for existance.
         let (vse, dse) =
             State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.dir.view).unwrap();
 
@@ -83,7 +82,6 @@ impl DirRenderer {
     }
 
     fn render_mode_line(s: &State, viewport: &mut Viewport) {
-        // The render function checks for existance.
         let (vse, dse) =
             State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.dir.view).unwrap();
 

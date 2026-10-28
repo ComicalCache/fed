@@ -87,8 +87,6 @@ impl SearchProtocol {
             let text = dse.doc.data.slice(..);
             let tx = s.async_fcmd_tx.clone();
             tokio::spawn(async move {
-                // Delay actually processing the regex into an asynchronous task
-                // to not block the main loop.
                 let regex = match Regex::new(&query) {
                     Ok(regex) => regex,
                     Err(_) => {
@@ -307,8 +305,6 @@ impl SearchProtocol {
         let data = s.doc_store.get(&request.doc).unwrap().doc.data.slice(..);
         let tx = s.async_fcmd_tx.clone();
         tokio::spawn(async move {
-            // Delay actually processing the regex into an asynchronous
-            // task to not block the main loop.
             let regex = match Regex::new(&query) {
                 Ok(regex) => regex,
                 Err(_) => {

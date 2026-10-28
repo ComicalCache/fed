@@ -203,7 +203,6 @@ impl Workspace {
     }
 
     pub fn destroy_window(&mut self, window: WindowId) {
-        // Search floating windows first.
         if let Some(idx) = self.floating.iter().position(|f| f.window == window) {
             self.floating.remove(idx);
 
@@ -214,7 +213,6 @@ impl Workspace {
             return;
         }
 
-        // Search tiling tree second.
         let root = self.root.as_mut().unwrap();
         match root {
             Tile::Dummy => unreachable!(),
@@ -227,7 +225,8 @@ impl Workspace {
             _ => {
                 let parent = root.find_parent(window).unwrap();
                 let survivor = if let Tile::Split { first, second, .. } = parent {
-                    if matches!(**first, Tile::Window { window: first_id, .. } if first_id == window) {
+                    if matches!(**first, Tile::Window { window: first_id, .. } if first_id == window)
+                    {
                         std::mem::replace(&mut **second, Tile::Dummy)
                     } else {
                         std::mem::replace(&mut **first, Tile::Dummy)
@@ -246,26 +245,22 @@ impl Workspace {
     }
 
     pub fn replace_renderer(&mut self, window: WindowId, content: Box<dyn Renderer>) {
-        // Search floating windows first.
         if let Some(idx) = self.floating.iter().position(|f| f.window == window) {
             self.floating[idx].content = content;
 
             return;
         }
 
-        // Search tiling tree second.
         let root = self.root.as_mut().unwrap();
         let tile = root.find(window).unwrap();
         *tile = Tile::Window { window, content };
     }
 
     pub fn get_rect(&self, window: WindowId) -> Option<Rect> {
-        // Search floating windows first.
         if let Some(f) = self.floating.iter().find(|f| f.window == window) {
             return Some(f.rect);
         }
 
-        // Search tiling tree second.
         if let Some(root) = &self.root {
             let mut layout = Vec::new();
             root.layout(self.rect, &mut layout);
@@ -277,14 +272,12 @@ impl Workspace {
     }
 
     pub fn get_window(&self, pos: Pos) -> Option<WindowId> {
-        // Search floating windows first.
         for floating in self.floating.iter().rev() {
             if floating.rect.contains(pos) {
                 return Some(floating.window);
             }
         }
 
-        // Search tiling tree second.
         if let Some(root) = &self.root {
             let mut layout = Vec::new();
             root.layout(self.rect, &mut layout);

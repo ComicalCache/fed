@@ -67,7 +67,6 @@ impl Renderer for DocViewRenderer {
 
 impl DocViewRenderer {
     fn render_gutter(&self, s: &State, viewport: &mut Viewport, width: usize) {
-        // The render function checks for existance.
         let (vse, dse) =
             State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, self.view).unwrap();
 
@@ -93,7 +92,6 @@ impl DocViewRenderer {
     }
 
     fn render_mode_line(&self, s: &State, viewport: &mut Viewport) {
-        // The render function checks for existance.
         let (vse, dse) =
             State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, self.view).unwrap();
 

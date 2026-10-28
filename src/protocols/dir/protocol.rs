@@ -240,7 +240,6 @@ impl DirProtocol {
             && let Ok(metadata) = tokio::fs::metadata(parent).await
         {
             let (perms, links, owner, group) = {
-                // This breaks Windows compatability (lol).
                 use std::os::unix::fs::MetadataExt;
 
                 (
@@ -306,7 +305,6 @@ impl DirProtocol {
             };
 
             let (perms, links, owner, group) = {
-                // This breaks Windows compatability (lol).
                 use std::os::unix::fs::MetadataExt;
 
                 (

@@ -103,7 +103,6 @@ async fn main() -> std::io::Result<()> {
         let _ = std::io::stdin().read_to_string(&mut buf);
         piped = Some(buf);
 
-        // Reconnect the terminal to stdin.
         if let Ok(tty) = std::fs::File::open("/dev/tty") {
             unsafe {
                 libc::dup2(tty.as_raw_fd(), libc::STDIN_FILENO);
@@ -129,7 +128,6 @@ async fn main() -> std::io::Result<()> {
     let (width, height) = crossterm::terminal::size()?;
     let mut fed = setup(cli, input_rx, shutdown_tx, width as usize, height as usize);
 
-    // Main loop.
     tokio::select! {
         _ = input(input_tx) => {}
         () = fed.run() => {}
