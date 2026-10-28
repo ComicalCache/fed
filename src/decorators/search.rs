@@ -5,44 +5,53 @@ use crate::types::Decorator;
 use crate::types::Face;
 use crate::types::Span;
 
+#[derive(Clone)]
+pub struct SearchMatch {
+    pub start: usize,
+    pub end: usize,
+    pub replacement: Option<String>,
+}
+
 pub struct SearchDecorator {
     pub query: String,
-    pub matches: Vec<(usize, usize)>,
+    pub matches: Vec<SearchMatch>,
     pub revision: u64,
+
+    pub replacement: Option<String>,
+    pub replaced_at: Option<usize>,
 
     pub face: Face,
 }
 
 impl SearchDecorator {
-    pub const fn new(
-        query: String, matches: Vec<(usize, usize)>, face: Face, revision: u64,
-    ) -> Self {
-        Self { query, matches, revision, face }
+    pub const fn new(query: String, matches: Vec<SearchMatch>, face: Face, revision: u64) -> Self {
+        Self { query, matches, revision, replacement: None, replaced_at: None, face }
     }
 }
 
 impl Decorator for SearchDecorator {
     fn edit(&mut self, offset: usize, remove: usize, insert: usize) {
         for m in &mut self.matches {
-            if m.0 > offset {
-                m.0 = if m.0 < offset + remove { offset } else { m.0 - remove + insert };
+            if m.start > offset {
+                m.start =
+                    if m.start < offset + remove { offset } else { m.start - remove + insert };
             }
-            if m.1 > offset {
-                m.1 = if m.1 < offset + remove { offset } else { m.1 - remove + insert };
+            if m.end > offset {
+                m.end = if m.end < offset + remove { offset } else { m.end - remove + insert };
             }
         }
 
-        self.matches.retain(|m| m.0 < m.1);
+        self.matches.retain(|m| m.start < m.end);
     }
 
     fn update(&mut self, _: usize, _: usize) {}
 
     fn range(&self, start: usize, end: usize, callback: &mut dyn FnMut(Span<Decoration>)) {
-        for &(match_start, match_end) in &self.matches {
-            if match_start < end && match_end > start {
+        for m in &self.matches {
+            if m.start < end && m.end > start {
                 callback(Span {
-                    start: match_start.max(start),
-                    end: match_end.min(end),
+                    start: m.start.max(start),
+                    end: m.end.min(end),
                     data: Decoration::Style { face: self.face },
                 });
             }

@@ -48,6 +48,7 @@ pub fn keymap() -> Keymap<Cmd> {
     keymap.bind(&[KeyChord::new(KeyCode::Char('C'), KeyModifiers::SHIFT)], Cmd::CursorsEnd);
 
     keymap.bind(&[KeyChord::new(KeyCode::Char('r'), KeyModifiers::empty())], Cmd::Replace);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('R'), KeyModifiers::SHIFT)], Cmd::ReplaceAll);
 
     keymap.bind(&[KeyChord::new(KeyCode::Char('s'), KeyModifiers::CONTROL)], Cmd::SaveFile);
     keymap.bind(&[KeyChord::new(KeyCode::Char('f'), KeyModifiers::CONTROL)], Cmd::FindFile);

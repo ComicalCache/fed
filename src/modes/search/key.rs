@@ -1,6 +1,7 @@
 use crossterm::event::KeyEvent;
 
 use crate::decorators::SearchDecorator;
+use crate::decorators::SearchMatch;
 use crate::fed::FCmd;
 use crate::modes::common;
 use crate::modes::search::cmd::Cmd;
@@ -43,16 +44,22 @@ impl SearchKeyInput {
             Cmd::Yank(motion) => common::yank(s, view, motion),
             Cmd::YankLine => common::yank_line(s, view),
             Cmd::ScrollView(motion) => Some(common::scroll_view(s, view, motion)),
-            Cmd::NextMatch => Self::navigate_match(s, view, true),
-            Cmd::PrevMatch => Self::navigate_match(s, view, false),
+            Cmd::NextMatch => Some(vec![FCmd::Search(SearchCmd::Navigate { view, forward: true })]),
+            Cmd::PrevMatch => {
+                Some(vec![FCmd::Search(SearchCmd::Navigate { view, forward: false })])
+            }
             Cmd::CursorsBegin => Self::cursors(s, view, true),
             Cmd::CursorsEnd => Self::cursors(s, view, false),
-            Cmd::Replace => {
+            Cmd::Replace | Cmd::ReplaceAll => {
                 if dse.read_only {
                     return None;
                 }
 
-                Some(vec![FCmd::Search(SearchCmd::Replace { view, doc })])
+                Some(vec![FCmd::Search(SearchCmd::Replace {
+                    view,
+                    doc,
+                    all: matches!(cmd, Cmd::ReplaceAll),
+                })])
             }
             Cmd::SaveFile => {
                 if dse.read_only {
@@ -78,30 +85,12 @@ impl SearchKeyInput {
         }
     }
 
-    fn navigate_match(s: &State, view: ViewId, forward: bool) -> Option<Vec<FCmd>> {
-        let (_, matches, offsets) = Self::search_state(s, view)?;
-        let offset = offsets.first().copied().unwrap_or(0);
-
-        let target = if forward {
-            let next = matches.partition_point(|m| m.0 <= offset);
-            matches.get(next).unwrap_or(&matches[0]).0
-        } else {
-            let next = matches.partition_point(|m| m.0 < offset);
-            matches[next.checked_sub(1).unwrap_or(matches.len() - 1)].0
-        };
-
-        Some(vec![
-            FCmd::Action(ActionCmd::RemoveCursors { view, offsets }),
-            FCmd::Action(ActionCmd::CreateCursorsAtOffsets { view, offsets: vec![target] }),
-        ])
-    }
-
     fn cursors(s: &State, view: ViewId, front: bool) -> Option<Vec<FCmd>> {
         let mut cmds = Vec::new();
 
         let (_, matches, offsets) = Self::search_state(s, view)?;
         cmds.push(FCmd::Action(ActionCmd::RemoveCursors { view, offsets }));
-        let offsets = matches.iter().map(|m| if front { m.0 } else { m.1 }).collect();
+        let offsets = matches.iter().map(|m| if front { m.start } else { m.end }).collect();
         cmds.push(FCmd::Action(ActionCmd::CreateCursorsAtOffsets { view, offsets }));
 
         cmds.extend(Self::escape(view));
@@ -111,7 +100,7 @@ impl SearchKeyInput {
 
     fn escape(view: ViewId) -> Vec<FCmd> { vec![FCmd::Search(SearchCmd::Close { view })] }
 
-    fn search_state(s: &State, view: ViewId) -> Option<(&str, &[(usize, usize)], Vec<usize>)> {
+    fn search_state(s: &State, view: ViewId) -> Option<(&str, &[SearchMatch], Vec<usize>)> {
         let vse = s.view_store.get(&view).unwrap();
         let decorator = vse.decs.decorators.get(&ViewStoreTypes::DecorationId::Search).unwrap();
         let decorator = decorator.any().downcast_ref::<SearchDecorator>().unwrap();

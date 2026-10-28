@@ -11,6 +11,7 @@ pub enum Cmd {
     CursorsBegin,
     CursorsEnd,
     Replace,
+    ReplaceAll,
     SaveFile,
     FindFile,
     SelectTheme,

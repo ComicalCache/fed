@@ -135,7 +135,7 @@ impl ViewProtocol {
         let Some(window) = s.workspace.active_window else { return };
 
         // Don't scroll windows that don't have focus.
-        if !s.index.window_to_views(window).is_some_and(|views| views.contains(&view)) {
+        if !s.index.window_to_views(window).is_some_and(|v| v.contains(&view)) {
             return;
         }
 
