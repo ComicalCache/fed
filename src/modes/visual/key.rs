@@ -1,5 +1,4 @@
 use crossterm::event::KeyEvent;
-use unicode_segmentation::UnicodeSegmentation;
 
 use crate::fed::FCmd;
 use crate::modes::common;
@@ -8,6 +7,8 @@ use crate::modes::visual::cmd::Cmd;
 use crate::modes::visual::keymap;
 use crate::piece_table::Chunks;
 use crate::protocols::action::ActionCmd;
+use crate::protocols::dir::DirCmd;
+use crate::protocols::manage::ManageCmd;
 use crate::protocols::search::SearchCmd;
 use crate::state::DocId;
 use crate::state::State;
@@ -19,6 +20,7 @@ use crate::types::KeyInputPriority;
 use crate::types::Keymap;
 use crate::types::ParseResult;
 use crate::types::PasteInputHandler;
+use crate::util;
 
 pub struct VisualKeyInput {
     keymap: Keymap<Cmd>,
@@ -44,6 +46,7 @@ impl VisualKeyInput {
                 motion,
                 move_anchor: false,
             })]),
+            Cmd::ScrollView(motion) => Some(common::scroll_view(s, view, motion)),
             Cmd::Delete | Cmd::Change => {
                 if dse.read_only {
                     return None;
@@ -59,61 +62,93 @@ impl VisualKeyInput {
 
                 VisualPasteInput {}.paste(s, &arboard::Clipboard::new().ok()?.get_text().ok()?)
             }
-            Cmd::SwapLineDown | Cmd::SwapLineUp => {
+            Cmd::SwapLineDown | Cmd::SwapLineUp | Cmd::Indent | Cmd::Dedent => {
                 if dse.read_only {
                     return None;
                 }
 
-                Self::swap_operation(s, view, doc, cmd)
+                Self::line_operation(s, view, doc, cmd)
+            }
+            Cmd::EnterVisualMode | Cmd::EnterVisualLineMode => {
+                let mode = if matches!(cmd, Cmd::EnterVisualLineMode) {
+                    ViewStoreTypes::Mode::VisualLine
+                } else {
+                    ViewStoreTypes::Mode::Visual
+                };
+
+                if s.view_store.get(&view).unwrap().mode() == mode {
+                    return Some(Self::escape(view));
+                }
+
+                Some(vec![
+                    FCmd::Action(ActionCmd::PopViewMode { view }),
+                    FCmd::Action(ActionCmd::PushViewMode { view, mode }),
+                ])
             }
             Cmd::EnterSearchMode => Some(Self::enter_search_mode(s, view, doc)),
+            Cmd::SaveFile => {
+                if dse.read_only {
+                    return None;
+                }
+
+                Some(common::save_file(s, doc))
+            }
+            Cmd::FindFile => Some(common::find_file(s)),
+            Cmd::SelectTheme => Some(common::select_theme()),
+            Cmd::Jump => common::jump(s, view, false),
+            Cmd::FocusWindow(motion) => common::focus_window(s, motion),
+            Cmd::EnterDirMode => {
+                let window = s.workspace.active_window?;
+                Some(vec![FCmd::Dir(DirCmd::Show { window, path: None })])
+            }
+            Cmd::EnterManageMode => {
+                let window = s.workspace.active_window?;
+                Some(vec![FCmd::Manage(ManageCmd::Show { window })])
+            }
+            Cmd::Quit => common::quit(s, view),
             Cmd::Escape => Some(Self::escape(view)),
         }
     }
 
-    fn swap_operation(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
+    fn line_operation(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Option<Vec<FCmd>> {
         let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
-
-        let doc_lines = dse.doc.data.line_count();
 
         let mut lines = Vec::new();
         for cursor in &vse.cursors.list {
-            let start = cursor.anchor.min(cursor.offset);
-            let end = cursor.anchor.max(cursor.offset);
+            let (start, end) = util::selection::lines(cursor, dse);
 
-            for idx in 0..doc_lines {
-                let s = dse.doc.data.line_start_offset(idx);
-                let e = dse.doc.data.line_end_offset(idx);
+            if vse.mode() == ViewStoreTypes::Mode::VisualLine {
+                lines.extend(start..=end);
+            } else {
+                let first = cursor.anchor.min(cursor.offset);
+                let last = cursor.anchor.max(cursor.offset);
 
-                if start == end {
-                    if start >= s && (start < e || idx == doc_lines - 1) {
-                        lines.push(idx);
+                for y in start..=end {
+                    let s = dse.doc.data.line_start_offset(y);
+                    let e = dse.doc.data.line_end_offset(y);
+
+                    if first == last || first < e && last > s {
+                        lines.push(y);
                     }
-                } else if start < e && end > s {
-                    lines.push(idx);
                 }
             }
         }
 
-        common::swap_lines(s, view, doc, lines, matches!(cmd, Cmd::SwapLineDown))
+        match cmd {
+            Cmd::SwapLineDown | Cmd::SwapLineUp => {
+                common::swap_lines(s, view, doc, lines, matches!(cmd, Cmd::SwapLineDown))
+            }
+            Cmd::Indent | Cmd::Dedent => {
+                common::indentation(s, view, lines, matches!(cmd, Cmd::Dedent))
+            }
+            _ => unreachable!(),
+        }
     }
 
     fn enter_search_mode(s: &State, view: ViewId, doc: DocId) -> Vec<FCmd> {
         let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
-        let mut offsets = Vec::new();
-        for cursor in &vse.cursors.list {
-            let start = cursor.anchor.min(cursor.offset);
-            let mut end = cursor.anchor.max(cursor.offset);
-
-            let text = dse.doc.data.slice(end..dse.doc.data.len());
-            if let Some(grapheme) = text.graphemes(true).next() {
-                end += grapheme.len();
-            }
-
-            offsets.push((start, end));
-        }
-
+        let mut offsets = util::selection::offsets(vse, dse);
         offsets.sort_by_key(|&(s, _)| s);
 
         let mut bounds: Vec<(usize, usize)> = Vec::new();
@@ -134,18 +169,9 @@ impl VisualKeyInput {
     fn operator(s: &State, view: ViewId, doc: DocId, cmd: Cmd) -> Vec<FCmd> {
         let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
-        let mut offsets = Vec::new();
-        for cursor in &vse.cursors.list {
-            let start = cursor.anchor.min(cursor.offset);
-            let mut end = cursor.anchor.max(cursor.offset);
-
-            let text = dse.doc.data.slice(end..dse.doc.data.len());
-            if let Some(grapheme) = text.graphemes(true).next() {
-                end += grapheme.len();
-            }
-
-            offsets.push((start, end));
-        }
+        let linewise = vse.mode() == ViewStoreTypes::Mode::VisualLine;
+        let has_last_line = linewise && util::selection::has_last_line(vse, dse);
+        let mut offsets = util::selection::offsets(vse, dse);
 
         if matches!(cmd, Cmd::Yank) {
             let mut yanked = String::new();
@@ -155,9 +181,16 @@ impl VisualKeyInput {
                 }
 
                 // Newline to separate multi-cursor yanks.
-                yanked.push('\n');
+                if !linewise
+                    || !yanked.ends_with('\n')
+                    || end == dse.doc.data.len() && has_last_line
+                {
+                    yanked.push('\n');
+                }
             }
-            yanked.pop();
+            if !linewise {
+                yanked.pop();
+            }
 
             if !yanked.is_empty()
                 && let Ok(mut clipboard) = arboard::Clipboard::new()
@@ -166,6 +199,19 @@ impl VisualKeyInput {
             }
 
             return Self::escape(view);
+        }
+
+        if linewise {
+            for (start, end) in &mut offsets {
+                if matches!(cmd, Cmd::Change) {
+                    // Keep an empty line for the replacement.
+                    if *end > *start && (*end < dse.doc.data.len() || !has_last_line) {
+                        *end -= 1;
+                    }
+                } else if *start > 0 && *end == dse.doc.data.len() && has_last_line {
+                    *start -= 1;
+                }
+            }
         }
 
         let mut cmds = vec![FCmd::Action(ActionCmd::StartCommit { doc })];
@@ -200,7 +246,7 @@ impl KeyInputHandler for VisualKeyInput {
         let view = s.active_view()?;
         let vse = s.view_store.get(&view).unwrap();
 
-        if vse.mode() != ViewStoreTypes::Mode::Visual {
+        if !matches!(vse.mode(), ViewStoreTypes::Mode::Visual | ViewStoreTypes::Mode::VisualLine) {
             return None;
         }
 

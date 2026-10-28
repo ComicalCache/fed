@@ -41,7 +41,9 @@ impl ManageKeyInput {
             Cmd::Yank(motion) => common::yank(s, view, motion),
             Cmd::YankLine => common::yank_line(s, view),
             Cmd::ScrollView(motion) => Some(common::scroll_view(s, view, motion)),
-            Cmd::Jump => common::jump(s, view),
+            Cmd::FindFile => Some(common::find_file(s)),
+            Cmd::SelectTheme => Some(common::select_theme()),
+            Cmd::Jump => common::jump(s, view, true),
             Cmd::Select => Some(vec![FCmd::Manage(ManageCmd::Select)]),
             Cmd::Close => Some(vec![FCmd::Manage(ManageCmd::Close)]),
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),
@@ -52,6 +54,10 @@ impl ManageKeyInput {
             Cmd::EnterVisualMode => Some(vec![FCmd::Action(ActionCmd::PushViewMode {
                 view,
                 mode: ViewStoreTypes::Mode::Visual,
+            })]),
+            Cmd::EnterVisualLineMode => Some(vec![FCmd::Action(ActionCmd::PushViewMode {
+                view,
+                mode: ViewStoreTypes::Mode::VisualLine,
             })]),
             Cmd::EnterSearchMode => {
                 Some(vec![FCmd::Search(SearchCmd::Search { view, doc, bounds: None })])

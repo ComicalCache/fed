@@ -254,6 +254,7 @@ impl Fed {
             let mode = match mode.to_lowercase().as_str() {
                 "insert" => ViewStoreTypes::Mode::Insert,
                 "visual" => ViewStoreTypes::Mode::Visual,
+                "visual-line" => ViewStoreTypes::Mode::VisualLine,
                 "search" => ViewStoreTypes::Mode::Search,
                 _ => ViewStoreTypes::Mode::Normal,
             };

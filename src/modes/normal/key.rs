@@ -1,30 +1,14 @@
-use std::path::PathBuf;
-use std::time::Duration;
-
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
-use tokio::sync::mpsc::UnboundedSender;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::fed::FCmd;
 use crate::modes::common;
 use crate::modes::normal::cmd::Cmd;
 use crate::modes::normal::keymap;
-use crate::modes::picker::entries::ScanEntry;
-use crate::modes::picker::entries::ThemeEntry;
-use crate::piece_table::Chunks;
 use crate::protocols::action::ActionCmd;
-use crate::protocols::action::ActionProtocol;
 use crate::protocols::dir::DirCmd;
-use crate::protocols::dir::DirProtocol;
-use crate::protocols::doc_view::DocViewCmd;
-use crate::protocols::doc_view::DocViewProtocol;
-use crate::protocols::io::IoFuture;
-use crate::protocols::io::IoProtocol;
 use crate::protocols::manage::ManageCmd;
-use crate::protocols::mp::MpCmd;
-use crate::protocols::picker::PickerCmd;
-use crate::protocols::picker::PickerEntry;
 use crate::protocols::search::SearchCmd;
 use crate::state::DocId;
 use crate::state::State;
@@ -36,7 +20,6 @@ use crate::types::KeyInputPriority;
 use crate::types::Keymap;
 use crate::types::Motion;
 use crate::types::ParseResult;
-use crate::types::Theme;
 use crate::util;
 
 pub struct NormalKeyInput {
@@ -144,10 +127,10 @@ impl NormalKeyInput {
 
                 Self::replace_char(s, view, doc, ch)
             }
-            Cmd::SaveFile => Some(Self::save_file(s, doc)),
-            Cmd::FindFile => Some(Self::find_file(s)),
-            Cmd::SelectTheme => Some(Self::select_theme()),
-            Cmd::Jump => common::jump(s, view),
+            Cmd::SaveFile => Some(common::save_file(s, doc)),
+            Cmd::FindFile => Some(common::find_file(s)),
+            Cmd::SelectTheme => Some(common::select_theme()),
+            Cmd::Jump => common::jump(s, view, true),
             Cmd::SplitWindow(direction) => common::split_window(s, doc, direction),
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),
             Cmd::EnterDirMode => {
@@ -174,6 +157,10 @@ impl NormalKeyInput {
             Cmd::EnterVisualMode => Some(vec![FCmd::Action(ActionCmd::PushViewMode {
                 view,
                 mode: ViewStoreTypes::Mode::Visual,
+            })]),
+            Cmd::EnterVisualLineMode => Some(vec![FCmd::Action(ActionCmd::PushViewMode {
+                view,
+                mode: ViewStoreTypes::Mode::VisualLine,
             })]),
             Cmd::EnterSearchMode => {
                 Some(vec![FCmd::Search(SearchCmd::Search { view, doc, bounds: None })])
@@ -213,6 +200,11 @@ impl NormalKeyInput {
 
         let mut lines: Vec<_> =
             vse.cursors.list.iter().map(|c| dse.doc.data.line_idx_at_offset(c.offset)).collect();
+
+        if matches!(cmd, Cmd::Indent | Cmd::Dedent) {
+            return common::indentation(s, view, lines, matches!(cmd, Cmd::Dedent));
+        }
+
         lines.sort_unstable();
         lines.dedup();
 
@@ -263,33 +255,6 @@ impl NormalKeyInput {
                     view,
                     mode: ViewStoreTypes::Mode::Insert,
                 }));
-            }
-            Cmd::Indent => {
-                // FIXME: option to convert tab to spaces.
-                for y in lines.into_iter().rev() {
-                    cmds.push(FCmd::Action(ActionCmd::InsertAt {
-                        view,
-                        text: "\t".to_string(),
-                        offset: dse.doc.data.line_start_offset(y),
-                    }));
-                }
-            }
-            Cmd::Dedent => {
-                // FIXME: option to also respect leading spaces.
-                for y in lines.into_iter().rev() {
-                    let start = dse.doc.data.line_start_offset(y);
-                    let end = dse.doc.data.line_end_offset(y);
-
-                    if dse
-                        .doc
-                        .data
-                        .chunks(start..end)
-                        .next()
-                        .is_some_and(|chunk| chunk.starts_with('\t'))
-                    {
-                        cmds.push(FCmd::Action(ActionCmd::Remove { view, offset: start, len: 1 }));
-                    }
-                }
             }
             _ => unreachable!(),
         }
@@ -405,129 +370,6 @@ impl NormalKeyInput {
         cmds.push(FCmd::Action(ActionCmd::EndCommit { doc }));
 
         Some(cmds)
-    }
-
-    fn find_file(s: &State) -> Vec<FCmd> {
-        let window = s.workspace.active_window.unwrap();
-        let entries =
-            s.p.io
-                .scan_list
-                .iter()
-                .cloned()
-                .map(|entry| Box::new(entry) as Box<dyn PickerEntry>)
-                .collect();
-
-        let callback = Box::new(move |s: &mut State, selected: Option<Box<dyn PickerEntry>>| {
-            if s.workspace.get_rect(window).is_none() {
-                return;
-            }
-
-            let Some(selected) = selected else { return };
-
-            let entry = selected.into_any().downcast::<ScanEntry>().unwrap();
-            ActionProtocol::set_active_window(s, Some(window));
-
-            if entry.dir {
-                DirProtocol::exec(s, DirCmd::Show { window, path: Some(entry.path) });
-            } else {
-                DocViewProtocol::exec(
-                    s,
-                    DocViewCmd::OpenFile { window, path: entry.path, force: false },
-                );
-            }
-        });
-
-        vec![FCmd::Picker(PickerCmd::Open {
-            width: s.workspace.rect().width * 9 / 10,
-            height: s.workspace.rect().height * 9 / 10,
-            entries,
-            callback,
-        })]
-    }
-
-    fn select_theme() -> Vec<FCmd> {
-        let entries: Vec<Box<dyn PickerEntry>> = vec![
-            Box::new(ThemeEntry { name: "Dark", theme: Theme::dark() }),
-            Box::new(ThemeEntry { name: "Light", theme: Theme::light() }),
-        ];
-
-        let callback = Box::new(|s: &mut State, selected: Option<Box<dyn PickerEntry>>| {
-            let Some(selected) = selected else { return };
-
-            let entry = selected.into_any().downcast::<ThemeEntry>().unwrap();
-            s.theme = entry.theme;
-        });
-
-        vec![FCmd::Picker(PickerCmd::Open { width: 24, height: 9, entries, callback })]
-    }
-
-    fn save_file(s: &State, doc: DocId) -> Vec<FCmd> {
-        let dse = s.doc_store.get(&doc).unwrap();
-
-        let path = dse.doc.path.as_ref().map_or_else(
-            || {
-                format!(
-                    "{}{}",
-                    std::env::current_dir().unwrap_or_default().display(),
-                    std::path::MAIN_SEPARATOR
-                )
-            },
-            |p| p.display().to_string(),
-        );
-
-        let pcallback = Box::new(move |s: &mut State, res: Option<String>| {
-            let Some(res) = res else { return };
-            if res.is_empty() {
-                return;
-            }
-
-            let dse = s.doc_store.get(&doc).unwrap();
-
-            let path = util::path::normalize(res);
-            let data = dse.doc.data.slice(0..dse.doc.data.len());
-
-            let cb_path = path.clone();
-            let async_fcmd_tx = s.async_fcmd_tx.clone();
-            let wcallback = Box::new(move |res| -> IoFuture {
-                Box::pin(
-                    async move { Self::save_file_completion(async_fcmd_tx, res, doc, cb_path) },
-                )
-            });
-
-            IoProtocol::write(s, path, data, wcallback);
-        });
-
-        vec![FCmd::Mp(MpCmd::Prompt {
-            prompt: "Save file: ".to_string(),
-            initial_text: if path.is_empty() { None } else { Some(path) },
-            pcallback,
-            tx: None,
-        })]
-    }
-
-    fn save_file_completion(
-        async_fcmd_tx: UnboundedSender<FCmd>, res: Result<(), String>, doc: DocId, path: PathBuf,
-    ) {
-        match res {
-            Ok(()) => {
-                let _ = async_fcmd_tx
-                    .send(FCmd::Action(ActionCmd::SetDocPath { doc, path: Some(path) }));
-                let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::Saved { doc }));
-
-                util::mp::async_message(
-                    async_fcmd_tx,
-                    "File saved".to_string(),
-                    Duration::from_secs(3),
-                );
-            }
-            Err(err) => {
-                util::mp::async_message(
-                    async_fcmd_tx,
-                    format!("Error saving file: {err}"),
-                    Duration::from_secs(3),
-                );
-            }
-        }
     }
 }
 

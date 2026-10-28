@@ -1,15 +1,28 @@
+use std::path::PathBuf;
+use std::time::Duration;
+
 use crossterm::event::KeyModifiers;
 use crossterm::event::MouseButton;
 use crossterm::event::MouseEvent;
 use crossterm::event::MouseEventKind;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;
 
 use crate::fed::FCmd;
+use crate::modes::picker::entries::ThemeEntry;
 use crate::piece_table::Chunks;
 use crate::protocols::action::ActionCmd;
 use crate::protocols::action::ActionProtocol;
+use crate::protocols::dir::DirCmd;
+use crate::protocols::dir::DirProtocol;
 use crate::protocols::doc_view::DocViewCmd;
+use crate::protocols::doc_view::DocViewProtocol;
+use crate::protocols::io::IoFuture;
+use crate::protocols::io::IoProtocol;
+use crate::protocols::io::ScanEntry;
 use crate::protocols::mp::MpCmd;
+use crate::protocols::picker::PickerCmd;
+use crate::protocols::picker::PickerEntry;
 use crate::protocols::view::ViewCmd;
 use crate::state::DocId;
 use crate::state::State;
@@ -18,6 +31,7 @@ use crate::state::ViewStoreTypes;
 use crate::types::Motion;
 use crate::types::Pos;
 use crate::types::RectSplit;
+use crate::types::Theme;
 use crate::types::render::WindowId;
 use crate::util;
 
@@ -54,7 +68,11 @@ pub fn mouse(s: &State, window: WindowId, view: ViewId, event: MouseEvent) -> Ve
             None => cmds.push(FCmd::Action(ActionCmd::CreateCursorAtPos { view, pos })),
         }
     } else {
-        cmds.push(FCmd::Action(ActionCmd::MoveCursorToPos { view, pos, move_anchor: true }));
+        cmds.push(FCmd::Action(ActionCmd::MoveCursorToPos {
+            view,
+            pos,
+            move_anchor: vse.mode() != ViewStoreTypes::Mode::VisualLine,
+        }));
     }
 
     cmds
@@ -113,7 +131,7 @@ pub fn scroll_view(s: &State, view: ViewId, motion: Motion) -> Vec<FCmd> {
     vec![FCmd::View(ViewCmd::ScrollTo { view, pos: scroll })]
 }
 
-pub fn jump(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
+pub fn jump(s: &State, view: ViewId, move_anchor: bool) -> Option<Vec<FCmd>> {
     let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
     let cursor = vse.cursors.list.first()?;
 
@@ -143,7 +161,7 @@ pub fn jump(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
             x = val.saturating_sub(1);
         }
 
-        ActionProtocol::move_cursor_to_pos(s, view, Pos::new(x, y), true);
+        ActionProtocol::move_cursor_to_pos(s, view, Pos::new(x, y), move_anchor);
     });
 
     Some(vec![FCmd::Mp(MpCmd::Prompt {
@@ -226,6 +244,51 @@ pub fn yank_line(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
     }
 
     Some(Vec::new())
+}
+
+pub fn indentation(
+    s: &State, view: ViewId, mut lines: Vec<usize>, dedent: bool,
+) -> Option<Vec<FCmd>> {
+    let doc = s.index.view_to_doc(view).unwrap();
+    let dse = s.doc_store.get(&doc).unwrap();
+
+    if dse.read_only {
+        return None;
+    }
+
+    lines.sort_unstable();
+    lines.dedup();
+
+    let mut cmds = Vec::new();
+    if dedent {
+        // FIXME: option to also respect leading spaces.
+        for y in lines.into_iter().rev() {
+            let start = dse.doc.data.line_start_offset(y);
+            let end = dse.doc.data.line_end_offset(y);
+
+            if dse.doc.data.chunks(start..end).next().is_some_and(|chunk| chunk.starts_with('\t')) {
+                cmds.push(FCmd::Action(ActionCmd::Remove { view, offset: start, len: 1 }));
+            }
+        }
+    } else {
+        // FIXME: option to convert tab to spaces.
+        for y in lines.into_iter().rev() {
+            cmds.push(FCmd::Action(ActionCmd::InsertAt {
+                view,
+                text: "\t".to_string(),
+                offset: dse.doc.data.line_start_offset(y),
+            }));
+        }
+    }
+
+    if cmds.is_empty() {
+        return None;
+    }
+
+    cmds.insert(0, FCmd::Action(ActionCmd::StartCommit { doc }));
+    cmds.push(FCmd::Action(ActionCmd::EndCommit { doc }));
+
+    Some(cmds)
 }
 
 pub fn swap_lines(
@@ -410,4 +473,124 @@ pub fn split_window(s: &State, doc: DocId, direction: RectSplit) -> Option<Vec<F
         raw: false,
         tx: Some(tx),
     })])
+}
+pub fn save_file(s: &State, doc: DocId) -> Vec<FCmd> {
+    let dse = s.doc_store.get(&doc).unwrap();
+
+    let path = dse.doc.path.as_ref().map_or_else(
+        || {
+            format!(
+                "{}{}",
+                std::env::current_dir().unwrap_or_default().display(),
+                std::path::MAIN_SEPARATOR
+            )
+        },
+        |p| p.display().to_string(),
+    );
+
+    let pcallback = Box::new(move |s: &mut State, res: Option<String>| {
+        let Some(res) = res else { return };
+        if res.is_empty() {
+            return;
+        }
+
+        let dse = s.doc_store.get(&doc).unwrap();
+
+        let path = util::path::normalize(res);
+        let data = dse.doc.data.slice(0..dse.doc.data.len());
+
+        let cb_path = path.clone();
+        let async_fcmd_tx = s.async_fcmd_tx.clone();
+        let wcallback = Box::new(move |res| -> IoFuture {
+            Box::pin(async move { save_file_completion(async_fcmd_tx, res, doc, cb_path) })
+        });
+
+        IoProtocol::write(s, path, data, wcallback);
+    });
+
+    vec![FCmd::Mp(MpCmd::Prompt {
+        prompt: "Save file: ".to_string(),
+        initial_text: if path.is_empty() { None } else { Some(path) },
+        pcallback,
+        tx: None,
+    })]
+}
+
+fn save_file_completion(
+    async_fcmd_tx: UnboundedSender<FCmd>, res: Result<(), String>, doc: DocId, path: PathBuf,
+) {
+    match res {
+        Ok(()) => {
+            let _ =
+                async_fcmd_tx.send(FCmd::Action(ActionCmd::SetDocPath { doc, path: Some(path) }));
+            let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::Saved { doc }));
+
+            util::mp::async_message(
+                async_fcmd_tx,
+                "File saved".to_string(),
+                Duration::from_secs(3),
+            );
+        }
+        Err(err) => {
+            util::mp::async_message(
+                async_fcmd_tx,
+                format!("Error saving file: {err}"),
+                Duration::from_secs(3),
+            );
+        }
+    }
+}
+
+pub fn find_file(s: &State) -> Vec<FCmd> {
+    let window = s.workspace.active_window.unwrap();
+    let entries =
+        s.p.io
+            .scan_list
+            .iter()
+            .cloned()
+            .map(|entry| Box::new(entry) as Box<dyn PickerEntry>)
+            .collect();
+
+    let callback = Box::new(move |s: &mut State, selected: Option<Box<dyn PickerEntry>>| {
+        if s.workspace.get_rect(window).is_none() {
+            return;
+        }
+
+        let Some(selected) = selected else { return };
+
+        let entry = selected.into_any().downcast::<ScanEntry>().unwrap();
+        ActionProtocol::set_active_window(s, Some(window));
+
+        if entry.dir {
+            DirProtocol::exec(s, DirCmd::Show { window, path: Some(entry.path) });
+        } else {
+            DocViewProtocol::exec(
+                s,
+                DocViewCmd::OpenFile { window, path: entry.path, force: false },
+            );
+        }
+    });
+
+    vec![FCmd::Picker(PickerCmd::Open {
+        width: s.workspace.rect().width * 9 / 10,
+        height: s.workspace.rect().height * 9 / 10,
+        entries,
+        callback,
+    })]
+}
+
+pub fn select_theme() -> Vec<FCmd> {
+    let entries: Vec<Box<dyn PickerEntry>> = vec![
+        Box::new(ThemeEntry { name: "Dark", theme: Theme::dark() }),
+        Box::new(ThemeEntry { name: "Light", theme: Theme::light() }),
+    ];
+
+    let callback = Box::new(|s: &mut State, selected: Option<Box<dyn PickerEntry>>| {
+        let Some(selected) = selected else { return };
+
+        let entry = selected.into_any().downcast::<ThemeEntry>().unwrap();
+        s.theme = entry.theme;
+    });
+
+    vec![FCmd::Picker(PickerCmd::Open { width: 24, height: 9, entries, callback })]
 }

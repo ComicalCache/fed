@@ -6,6 +6,8 @@ pub enum Cmd {
     Yank(Motion),
     YankLine,
     ScrollView(Motion),
+    FindFile,
+    SelectTheme,
     Jump,
     Create,
     Rename,
@@ -15,6 +17,7 @@ pub enum Cmd {
     FocusWindow(Motion),
     EnterManageMode,
     EnterVisualMode,
+    EnterVisualLineMode,
     EnterSearchMode,
     Quit,
 }

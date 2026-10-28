@@ -17,7 +17,7 @@ impl MouseInputHandler for VisualMouseInput {
         let view = s.index.window_to_views(window).unwrap()[0];
         let (vse, _) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
-        if vse.mode() != ViewStoreTypes::Mode::Visual {
+        if !matches!(vse.mode(), ViewStoreTypes::Mode::Visual | ViewStoreTypes::Mode::VisualLine) {
             return None;
         }
 

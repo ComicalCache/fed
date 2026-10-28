@@ -35,6 +35,7 @@ pub enum Cmd {
     EnterDirMode,
     EnterManageMode,
     EnterVisualMode,
+    EnterVisualLineMode,
     EnterSearchMode,
     Quit,
 }

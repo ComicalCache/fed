@@ -34,6 +34,10 @@ pub fn keymap() -> Keymap<Cmd> {
     );
     keymap
         .bind(&[KeyChord::new(KeyCode::Tab, KeyModifiers::empty())], Cmd::Input("\t".to_string()));
+    keymap.bind(&[KeyChord::new(KeyCode::Char('s'), KeyModifiers::CONTROL)], Cmd::SaveFile);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('f'), KeyModifiers::CONTROL)], Cmd::FindFile);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('t'), KeyModifiers::CONTROL)], Cmd::SelectTheme);
+
     keymap.bind(&[KeyChord::new(KeyCode::Esc, KeyModifiers::empty())], Cmd::Escape);
 
     keymap

@@ -3,6 +3,7 @@ use crossterm::event::KeyEvent;
 use crossterm::event::KeyModifiers;
 
 use crate::fed::FCmd;
+use crate::modes::common;
 use crate::modes::insert::cmd::Cmd;
 use crate::modes::insert::keymap;
 use crate::protocols::action::ActionCmd;
@@ -64,6 +65,19 @@ impl InsertKeyInput {
 
                 Some(vec![FCmd::Action(ActionCmd::Delete { view })])
             }
+            Cmd::SaveFile => {
+                self.whitespace = false;
+
+                let mut cmds = vec![
+                    FCmd::Action(ActionCmd::EndCommit { doc }),
+                    FCmd::Action(ActionCmd::StartCommit { doc }),
+                ];
+                cmds.extend(common::save_file(s, doc));
+
+                Some(cmds)
+            }
+            Cmd::FindFile => Some(common::find_file(s)),
+            Cmd::SelectTheme => Some(common::select_theme()),
             Cmd::Escape => {
                 self.whitespace = false;
 

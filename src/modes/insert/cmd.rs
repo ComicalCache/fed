@@ -6,5 +6,8 @@ pub enum Cmd {
     Move(Motion),
     Backspace,
     Delete,
+    SaveFile,
+    FindFile,
+    SelectTheme,
     Escape,
 }

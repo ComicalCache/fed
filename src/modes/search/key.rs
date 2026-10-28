@@ -2,9 +2,12 @@ use crossterm::event::KeyEvent;
 
 use crate::decorators::SearchDecorator;
 use crate::fed::FCmd;
+use crate::modes::common;
 use crate::modes::search::cmd::Cmd;
 use crate::modes::search::keymap;
 use crate::protocols::action::ActionCmd;
+use crate::protocols::dir::DirCmd;
+use crate::protocols::manage::ManageCmd;
 use crate::protocols::search::SearchCmd;
 use crate::state::State;
 use crate::state::ViewId;
@@ -37,6 +40,9 @@ impl SearchKeyInput {
             Cmd::Move(motion) => {
                 Some(vec![FCmd::Action(ActionCmd::MoveCursors { view, motion, move_anchor: true })])
             }
+            Cmd::Yank(motion) => common::yank(s, view, motion),
+            Cmd::YankLine => common::yank_line(s, view),
+            Cmd::ScrollView(motion) => Some(common::scroll_view(s, view, motion)),
             Cmd::NextMatch => Self::navigate_match(s, view, true),
             Cmd::PrevMatch => Self::navigate_match(s, view, false),
             Cmd::CursorsBegin => Self::cursors(s, view, true),
@@ -48,6 +54,26 @@ impl SearchKeyInput {
 
                 Some(vec![FCmd::Search(SearchCmd::Replace { view, doc })])
             }
+            Cmd::SaveFile => {
+                if dse.read_only {
+                    return None;
+                }
+
+                Some(common::save_file(s, doc))
+            }
+            Cmd::FindFile => Some(common::find_file(s)),
+            Cmd::SelectTheme => Some(common::select_theme()),
+            Cmd::Jump => common::jump(s, view, true),
+            Cmd::FocusWindow(motion) => common::focus_window(s, motion),
+            Cmd::EnterDirMode => {
+                let window = s.workspace.active_window?;
+                Some(vec![FCmd::Dir(DirCmd::Show { window, path: None })])
+            }
+            Cmd::EnterManageMode => {
+                let window = s.workspace.active_window?;
+                Some(vec![FCmd::Manage(ManageCmd::Show { window })])
+            }
+            Cmd::Quit => common::quit(s, view),
             Cmd::Escape => Some(Self::escape(view)),
         }
     }
