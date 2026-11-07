@@ -128,6 +128,13 @@ impl NormalKeyInput {
                 Self::replace_char(s, view, doc, ch)
             }
             Cmd::SaveFile => Some(common::save_file(s, doc)),
+            Cmd::DiscardChanges => {
+                if dse.read_only {
+                    return None;
+                }
+
+                Some(vec![FCmd::Action(ActionCmd::DiscardChanges { doc })])
+            }
             Cmd::FindFile => Some(common::find_file(s)),
             Cmd::SelectTheme => Some(common::select_theme()),
             Cmd::Jump => common::jump(s, view, true),

@@ -1,11 +1,14 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
 use unicode_segmentation::UnicodeSegmentation;
 
+use crate::fed::FCmd;
 use crate::fed::FEvent;
 use crate::piece_table::Kind;
 use crate::piece_table::PieceTable;
 use crate::protocols::action::ActionCmd;
+use crate::protocols::io::IoProtocol;
 use crate::state::DocId;
 use crate::state::DocStoreTypes;
 use crate::state::State;
@@ -53,6 +56,10 @@ impl ActionProtocol {
             ActionCmd::HotRedo { view } => Self::hot_redo(s, view),
 
             ActionCmd::Saved { doc } => Self::saved(s, doc),
+            ActionCmd::DiscardChanges { doc } => Self::discard_changes(s, doc),
+            ActionCmd::DiscardCompletion { doc, revision, res } => {
+                Self::discard_changes_completion(s, doc, revision, res);
+            }
 
             ActionCmd::Insert { view, text } => Self::insert(s, view, text),
             ActionCmd::InsertAt { view, text, offset } => {
@@ -244,6 +251,72 @@ impl ActionProtocol {
                 path,
                 bytes_written: dse.doc.data.len(),
             }));
+        }
+    }
+
+    pub fn discard_changes(s: &mut State, doc: DocId) {
+        let dse = s.doc_store.get(&doc).unwrap();
+        assert!(!dse.read_only);
+
+        if !dse.doc.modified {
+            return;
+        }
+
+        let revision = dse.doc.revision;
+        let Some(path) = dse.doc.path.clone() else {
+            Self::discard_changes_completion(s, doc, revision, Ok(String::new()));
+            return;
+        };
+
+        let tx = s.async_fcmd_tx.clone();
+        IoProtocol::read(
+            path,
+            Box::new(move |res| {
+                Box::pin(async move {
+                    let _ =
+                        tx.send(FCmd::Action(ActionCmd::DiscardCompletion { doc, revision, res }));
+                })
+            }),
+        );
+    }
+
+    fn discard_changes_completion(
+        s: &mut State, doc: DocId, revision: u64, result: Result<String, String>,
+    ) {
+        let Some(dse) = s.doc_store.get_mut(&doc) else { return };
+
+        if dse.read_only || !dse.doc.modified || dse.doc.revision != revision {
+            return;
+        }
+
+        let text = match result {
+            Ok(text) => text,
+            Err(err) => {
+                util::mp::message(
+                    s,
+                    format!("Error discarding changes: {err}"),
+                    Duration::from_secs(3),
+                );
+
+                return;
+            }
+        };
+
+        let mut edits = Vec::new();
+        if !dse.doc.data.is_empty() {
+            edits.push((0, Kind::Deletion, dse.doc.data.slice(..)));
+        }
+        if !text.is_empty() {
+            edits.push((0, Kind::Insertion, text.clone()));
+        }
+        dse.doc.data = PieceTable::from(text);
+        Self::process_edits(s, doc, edits);
+
+        s.doc_store.get_mut(&doc).unwrap().doc.modified = false;
+
+        let views = s.index.doc_to_views(doc).cloned().unwrap_or_default();
+        for view in views {
+            Self::move_cursor_to_pos(s, view, Pos::default(), true);
         }
     }
 

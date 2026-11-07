@@ -26,6 +26,7 @@ pub enum Cmd {
     Replace,
     ReplaceChar(char),
     SaveFile,
+    DiscardChanges,
     FindFile,
     SelectTheme,
     Jump,

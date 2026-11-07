@@ -11,37 +11,116 @@ use crate::types::render::WindowId;
 
 #[allow(unused)]
 pub enum ActionCmd {
-    MoveCursors { view: ViewId, motion: Motion, move_anchor: bool },
-    MoveCursorToPos { view: ViewId, pos: Pos, move_anchor: bool },
-    CreateCursorAtPos { view: ViewId, pos: Pos },
-    CreateCursorsAtOffsets { view: ViewId, offsets: Vec<usize> },
-    RemoveCursors { view: ViewId, offsets: Vec<usize> },
-    ResetCursorAnchors { view: ViewId },
+    MoveCursors {
+        view: ViewId,
+        motion: Motion,
+        move_anchor: bool,
+    },
+    MoveCursorToPos {
+        view: ViewId,
+        pos: Pos,
+        move_anchor: bool,
+    },
+    CreateCursorAtPos {
+        view: ViewId,
+        pos: Pos,
+    },
+    CreateCursorsAtOffsets {
+        view: ViewId,
+        offsets: Vec<usize>,
+    },
+    RemoveCursors {
+        view: ViewId,
+        offsets: Vec<usize>,
+    },
+    ResetCursorAnchors {
+        view: ViewId,
+    },
 
-    StartCommit { doc: DocId },
-    EndCommit { doc: DocId },
+    StartCommit {
+        doc: DocId,
+    },
+    EndCommit {
+        doc: DocId,
+    },
 
-    Undo { view: ViewId },
-    HotRedo { view: ViewId },
+    Undo {
+        view: ViewId,
+    },
+    HotRedo {
+        view: ViewId,
+    },
 
-    Saved { doc: DocId },
+    Saved {
+        doc: DocId,
+    },
+    DiscardChanges {
+        doc: DocId,
+    },
+    DiscardCompletion {
+        doc: DocId,
+        revision: u64,
+        res: Result<String, String>,
+    },
 
-    Insert { view: ViewId, text: String },
-    InsertAt { view: ViewId, text: String, offset: usize },
-    Backspace { view: ViewId },
-    Delete { view: ViewId },
-    Remove { view: ViewId, offset: usize, len: usize },
+    Insert {
+        view: ViewId,
+        text: String,
+    },
+    InsertAt {
+        view: ViewId,
+        text: String,
+        offset: usize,
+    },
+    Backspace {
+        view: ViewId,
+    },
+    Delete {
+        view: ViewId,
+    },
+    Remove {
+        view: ViewId,
+        offset: usize,
+        len: usize,
+    },
 
-    SetDocPath { doc: DocId, path: Option<PathBuf> },
+    SetDocPath {
+        doc: DocId,
+        path: Option<PathBuf>,
+    },
 
-    SetDocMode { doc: DocId, mode: DocStoreTypes::Mode },
-    PushViewMode { view: ViewId, mode: ViewStoreTypes::Mode },
-    PopViewMode { view: ViewId },
+    SetDocMode {
+        doc: DocId,
+        mode: DocStoreTypes::Mode,
+    },
+    PushViewMode {
+        view: ViewId,
+        mode: ViewStoreTypes::Mode,
+    },
+    PopViewMode {
+        view: ViewId,
+    },
 
-    SetDocDecorator { doc: DocId, decoration: DocStoreTypes::DecorationId, dec: Box<dyn Decorator> },
-    SetViewDecorator { view: ViewId, decoration: ViewStoreTypes::DecorationId, dec: Box<dyn Decorator> },
-    RemoveDocDecorator { doc: DocId, decoration: DocStoreTypes::DecorationId },
-    RemoveViewDecorator { view: ViewId, decoration: ViewStoreTypes::DecorationId },
+    SetDocDecorator {
+        doc: DocId,
+        decoration: DocStoreTypes::DecorationId,
+        dec: Box<dyn Decorator>,
+    },
+    SetViewDecorator {
+        view: ViewId,
+        decoration: ViewStoreTypes::DecorationId,
+        dec: Box<dyn Decorator>,
+    },
+    RemoveDocDecorator {
+        doc: DocId,
+        decoration: DocStoreTypes::DecorationId,
+    },
+    RemoveViewDecorator {
+        view: ViewId,
+        decoration: ViewStoreTypes::DecorationId,
+    },
 
-    SetActiveWindow { window: Option<WindowId> },
+    SetActiveWindow {
+        window: Option<WindowId>,
+    },
 }
