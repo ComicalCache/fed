@@ -7,8 +7,10 @@ use crate::modes::common;
 use crate::modes::normal::cmd::Cmd;
 use crate::modes::normal::keymap;
 use crate::protocols::action::ActionCmd;
+use crate::protocols::action::ActionProtocol;
 use crate::protocols::dir::DirCmd;
 use crate::protocols::manage::ManageCmd;
+use crate::protocols::mp::MpCmd;
 use crate::protocols::search::SearchCmd;
 use crate::state::DocId;
 use crate::state::State;
@@ -129,11 +131,11 @@ impl NormalKeyInput {
             }
             Cmd::SaveFile => Some(common::save_file(s, doc)),
             Cmd::DiscardChanges => {
-                if dse.read_only {
+                if dse.read_only || !dse.doc.modified {
                     return None;
                 }
 
-                Some(vec![FCmd::Action(ActionCmd::DiscardChanges { doc })])
+                Some(Self::discard_changes(s, doc))
             }
             Cmd::FindFile => Some(common::find_file(s)),
             Cmd::SelectTheme => Some(common::select_theme()),
@@ -374,6 +376,33 @@ impl NormalKeyInput {
         cmds.push(FCmd::Action(ActionCmd::EndCommit { doc }));
 
         Some(cmds)
+    }
+
+    fn discard_changes(s: &State, doc: DocId) -> Vec<FCmd> {
+        let dse = s.doc_store.get(&doc).unwrap();
+        let revision = dse.doc.revision;
+
+        let pcallback = Box::new(move |s: &mut State, res: Option<String>| {
+            let Some(res) = res else { return };
+            if res.to_lowercase() != "y" {
+                return;
+            }
+
+            let Some(dse) = s.doc_store.get(&doc) else { return };
+
+            if dse.read_only || !dse.doc.modified || dse.doc.revision != revision {
+                return;
+            }
+
+            ActionProtocol::discard_changes(s, doc);
+        });
+
+        vec![FCmd::Mp(MpCmd::Prompt {
+            prompt: format!("Discard unsaved changes? (y/N): "),
+            initial_text: None,
+            pcallback,
+            tx: None,
+        })]
     }
 }
 

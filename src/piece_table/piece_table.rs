@@ -155,9 +155,6 @@ impl PieceTable {
         self.add_buffer.push_str(text);
     }
 
-    /// Appends text at the end of the document.
-    pub fn append<S: AsRef<str>>(&mut self, text: S) { self.insert(self.byte_len, text); }
-
     pub fn remove(&mut self, offset: usize, byte_len: usize) {
         enum Removal {
             End { piece_idx: usize, byte_len: usize },
