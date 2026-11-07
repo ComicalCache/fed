@@ -1,3 +1,4 @@
+mod align;
 mod cmd;
 mod key;
 mod keymap;

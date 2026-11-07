@@ -3,6 +3,7 @@ use crossterm::event::KeyEvent;
 use crate::fed::FCmd;
 use crate::modes::common;
 use crate::modes::visual::VisualPasteInput;
+use crate::modes::visual::align;
 use crate::modes::visual::cmd::Cmd;
 use crate::modes::visual::keymap;
 use crate::piece_table::Chunks;
@@ -67,7 +68,8 @@ impl VisualKeyInput {
             | Cmd::Indent
             | Cmd::Dedent
             | Cmd::Sort
-            | Cmd::SortReverse => {
+            | Cmd::SortReverse
+            | Cmd::Align => {
                 if dse.read_only {
                     return None;
                 }
@@ -123,7 +125,7 @@ impl VisualKeyInput {
             let (start, end) = util::selection::lines(cursor, dse);
 
             if vse.mode() == ViewStoreTypes::Mode::VisualLine
-                || matches!(cmd, Cmd::Sort | Cmd::SortReverse)
+                || matches!(cmd, Cmd::Sort | Cmd::SortReverse | Cmd::Align)
             {
                 lines.extend(start..=end);
             } else {
@@ -151,6 +153,7 @@ impl VisualKeyInput {
             Cmd::Sort | Cmd::SortReverse => {
                 common::sort_lines(s, view, lines, matches!(cmd, Cmd::SortReverse))
             }
+            Cmd::Align => Some(align::prompt(s, view, lines)),
             _ => unreachable!(),
         }
     }

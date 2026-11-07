@@ -41,6 +41,7 @@ pub fn keymap() -> Keymap<Cmd> {
 
     keymap.bind(&[KeyChord::new(KeyCode::Tab, KeyModifiers::empty())], Cmd::Indent);
     keymap.bind(&[KeyChord::new(KeyCode::BackTab, KeyModifiers::SHIFT)], Cmd::Dedent);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('a'), KeyModifiers::CONTROL)], Cmd::Align);
     keymap.bind(&[KeyChord::new(KeyCode::Char('o'), KeyModifiers::CONTROL)], Cmd::Sort);
     keymap.bind(
         &[KeyChord::new(KeyCode::Char('o'), KeyModifiers::CONTROL | KeyModifiers::SHIFT)],
