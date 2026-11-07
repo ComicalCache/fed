@@ -15,6 +15,7 @@ pub enum Cmd {
     Sort,
     SortReverse,
     Align,
+    AlignRepeated,
     EnterVisualMode,
     EnterVisualLineMode,
     EnterSearchMode,

@@ -462,8 +462,6 @@ pub fn sort_lines(
             .map(|y| {
                 let start = dse.doc.data.line_start_offset(y);
                 let mut end = dse.doc.data.line_end_offset(y);
-
-                // Ignore newline character.
                 if y + 1 != dse.doc.data.line_count() {
                     end -= 1;
                 }
@@ -481,8 +479,6 @@ pub fn sort_lines(
             let y = start + idx;
             let start = dse.doc.data.line_start_offset(y);
             let mut end = dse.doc.data.line_end_offset(y);
-
-            // Ignore newline character.
             if y + 1 != dse.doc.data.line_count() {
                 end -= 1;
             }

@@ -69,7 +69,8 @@ impl VisualKeyInput {
             | Cmd::Dedent
             | Cmd::Sort
             | Cmd::SortReverse
-            | Cmd::Align => {
+            | Cmd::Align
+            | Cmd::AlignRepeated => {
                 if dse.read_only {
                     return None;
                 }
@@ -125,7 +126,7 @@ impl VisualKeyInput {
             let (start, end) = util::selection::lines(cursor, dse);
 
             if vse.mode() == ViewStoreTypes::Mode::VisualLine
-                || matches!(cmd, Cmd::Sort | Cmd::SortReverse | Cmd::Align)
+                || matches!(cmd, Cmd::Sort | Cmd::SortReverse | Cmd::Align | Cmd::AlignRepeated)
             {
                 lines.extend(start..=end);
             } else {
@@ -153,7 +154,9 @@ impl VisualKeyInput {
             Cmd::Sort | Cmd::SortReverse => {
                 common::sort_lines(s, view, lines, matches!(cmd, Cmd::SortReverse))
             }
-            Cmd::Align => Some(align::prompt(s, view, lines)),
+            Cmd::Align | Cmd::AlignRepeated => {
+                Some(align::prompt(s, view, lines, matches!(cmd, Cmd::AlignRepeated)))
+            }
             _ => unreachable!(),
         }
     }
