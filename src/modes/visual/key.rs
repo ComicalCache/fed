@@ -62,7 +62,12 @@ impl VisualKeyInput {
 
                 VisualPasteInput {}.paste(s, &arboard::Clipboard::new().ok()?.get_text().ok()?)
             }
-            Cmd::SwapLineDown | Cmd::SwapLineUp | Cmd::Indent | Cmd::Dedent => {
+            Cmd::SwapLineDown
+            | Cmd::SwapLineUp
+            | Cmd::Indent
+            | Cmd::Dedent
+            | Cmd::Sort
+            | Cmd::SortReverse => {
                 if dse.read_only {
                     return None;
                 }
@@ -117,7 +122,9 @@ impl VisualKeyInput {
         for cursor in &vse.cursors.list {
             let (start, end) = util::selection::lines(cursor, dse);
 
-            if vse.mode() == ViewStoreTypes::Mode::VisualLine {
+            if vse.mode() == ViewStoreTypes::Mode::VisualLine
+                || matches!(cmd, Cmd::Sort | Cmd::SortReverse)
+            {
                 lines.extend(start..=end);
             } else {
                 let first = cursor.anchor.min(cursor.offset);
@@ -140,6 +147,9 @@ impl VisualKeyInput {
             }
             Cmd::Indent | Cmd::Dedent => {
                 common::indentation(s, view, lines, matches!(cmd, Cmd::Dedent))
+            }
+            Cmd::Sort | Cmd::SortReverse => {
+                common::sort_lines(s, view, lines, matches!(cmd, Cmd::SortReverse))
             }
             _ => unreachable!(),
         }

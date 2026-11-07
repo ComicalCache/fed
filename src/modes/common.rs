@@ -425,6 +425,96 @@ pub fn swap_lines(
     Some(cmds)
 }
 
+pub fn sort_lines(
+    s: &State, view: ViewId, mut lines: Vec<usize>, reverse: bool,
+) -> Option<Vec<FCmd>> {
+    let doc = s.index.view_to_doc(view).unwrap();
+    let dse = s.doc_store.get(&doc).unwrap();
+
+    if dse.read_only {
+        return None;
+    }
+
+    lines.sort_unstable();
+    lines.dedup();
+    // Ignore the trailing empty line.
+    lines.retain(|&y| dse.doc.data.line_start_offset(y) < dse.doc.data.len());
+
+    let mut blocks: Vec<(usize, usize)> = Vec::new();
+    for y in lines {
+        if let Some(last) = blocks.last_mut()
+            && last.1 + 1 == y
+        {
+            last.1 = y;
+            continue;
+        }
+
+        blocks.push((y, y));
+    }
+
+    let mut cmds = Vec::new();
+    for (start, end) in blocks.into_iter().rev() {
+        if start == end {
+            continue;
+        }
+
+        let mut text: Vec<_> = (start..=end)
+            .map(|y| {
+                let start = dse.doc.data.line_start_offset(y);
+                let mut end = dse.doc.data.line_end_offset(y);
+
+                // Ignore newline character.
+                if y + 1 != dse.doc.data.line_count() {
+                    end -= 1;
+                }
+
+                dse.doc.data.slice(start..end)
+            })
+            .collect();
+        text.sort_unstable();
+
+        if reverse {
+            text.reverse();
+        }
+
+        for (idx, text) in text.into_iter().enumerate().rev() {
+            let y = start + idx;
+            let start = dse.doc.data.line_start_offset(y);
+            let mut end = dse.doc.data.line_end_offset(y);
+
+            // Ignore newline character.
+            if y + 1 != dse.doc.data.line_count() {
+                end -= 1;
+            }
+
+            if text == dse.doc.data.slice(start..end) {
+                continue;
+            }
+
+            if end > start {
+                cmds.push(FCmd::Action(ActionCmd::Remove {
+                    view,
+                    offset: start,
+                    len: end - start,
+                }));
+            }
+
+            if !text.is_empty() {
+                cmds.push(FCmd::Action(ActionCmd::InsertAt { view, text, offset: start }));
+            }
+        }
+    }
+
+    if cmds.is_empty() {
+        return None;
+    }
+
+    cmds.insert(0, FCmd::Action(ActionCmd::StartCommit { doc }));
+    cmds.push(FCmd::Action(ActionCmd::EndCommit { doc }));
+
+    Some(cmds)
+}
+
 pub fn remove_offsets(view: ViewId, offsets: Vec<(usize, usize)>) -> Vec<FCmd> {
     let mut regions: Vec<_> = offsets.into_iter().map(|(s, e)| (s.min(e), s.max(e))).collect();
     regions.sort_by_key(|&(s, _)| s);

@@ -31,6 +31,9 @@ use crossterm::event::EnableBracketedPaste;
 use crossterm::event::EnableMouseCapture;
 use crossterm::event::Event;
 use crossterm::event::EventStream;
+use crossterm::event::KeyboardEnhancementFlags;
+use crossterm::event::PopKeyboardEnhancementFlags;
+use crossterm::event::PushKeyboardEnhancementFlags;
 use crossterm::execute;
 use crossterm::terminal::EndSynchronizedUpdate;
 use crossterm::terminal::EnterAlternateScreen;
@@ -85,6 +88,7 @@ async fn main() -> std::io::Result<()> {
         let _ = execute!(stdout, Show);
         let _ = execute!(stdout, DisableMouseCapture);
         let _ = execute!(stdout, DisableBracketedPaste);
+        let _ = execute!(stdout, PopKeyboardEnhancementFlags);
         let _ = execute!(stdout, LeaveAlternateScreen);
         let _ = disable_raw_mode();
 
@@ -120,6 +124,10 @@ async fn main() -> std::io::Result<()> {
     execute!(stdout, EnterAlternateScreen)?;
     execute!(stdout, EnableMouseCapture)?;
     execute!(stdout, EnableBracketedPaste)?;
+    execute!(
+        stdout,
+        PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+    )?;
     execute!(stdout, Hide)?;
 
     let (input_tx, input_rx) = unbounded_channel();
@@ -138,6 +146,7 @@ async fn main() -> std::io::Result<()> {
     execute!(stdout, Show)?;
     execute!(stdout, DisableMouseCapture)?;
     execute!(stdout, DisableBracketedPaste)?;
+    execute!(stdout, PopKeyboardEnhancementFlags)?;
     execute!(stdout, LeaveAlternateScreen)?;
 
     disable_raw_mode()
