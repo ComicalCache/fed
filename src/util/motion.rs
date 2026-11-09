@@ -57,7 +57,7 @@ fn up(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
         // FIXME: is this ever none?
         .unwrap_or_else(|| vom.first().unwrap());
 
-    cursor.offset = vo.offset;
+    cursor.offset = vo.byte_start;
 }
 
 fn down(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
@@ -78,7 +78,7 @@ fn down(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
         // FIXME: is this ever none?
         .unwrap_or_else(|| vom.first().unwrap());
 
-    cursor.offset = vo.offset;
+    cursor.offset = vo.byte_start;
 }
 
 fn left(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry) {
@@ -459,7 +459,8 @@ fn update_pref_x(cursor: &mut Cursor, vse: &ViewStoreEntry, dse: &DocStoreEntry)
     let y = dse.doc.data.line_idx_at_offset(cursor.offset);
 
     let (vom, _) = util::layout::vom(y, vse, dse);
-    cursor.pref_x = vom.iter().find(|vo| vo.offset == cursor.offset).map_or(0, |vo| vo.visual_x);
+    cursor.pref_x =
+        vom.iter().find(|vo| vo.byte_start == cursor.offset).map_or(0, |vo| vo.visual_x);
 }
 
 struct TextReader<'a> {

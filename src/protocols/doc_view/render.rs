@@ -3,6 +3,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::layers::CursorLayer;
 use crate::layers::RulerLayer;
+use crate::layers::SearchLayer;
 use crate::layers::SelectionLayer;
 use crate::protocols::view::ViewRenderer;
 use crate::state::State;
@@ -23,12 +24,17 @@ pub struct DocViewRenderer {
 impl DocViewRenderer {
     pub fn new(view: ViewId, raw: bool) -> Self {
         if raw {
-            Self { inner: ViewRenderer::new(vec![Box::new(CursorLayer {})]), view, raw }
+            Self {
+                inner: ViewRenderer::new(vec![Box::new(SearchLayer {}), Box::new(CursorLayer {})]),
+                view,
+                raw,
+            }
         } else {
             Self {
                 inner: ViewRenderer::new(vec![
-                    Box::new(SelectionLayer {}),
                     Box::new(RulerLayer {}),
+                    Box::new(SearchLayer {}),
+                    Box::new(SelectionLayer {}),
                     Box::new(CursorLayer {}),
                 ]),
                 view,

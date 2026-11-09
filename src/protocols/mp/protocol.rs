@@ -84,10 +84,9 @@ impl MpProtocol {
         s.p.mp.next_id += 1;
 
         let vse = s.view_store.get_mut(&s.p.mp.view).unwrap();
-        vse.decs.decorators.insert(
-            ViewStoreTypes::DecorationId::Mp,
-            Box::new(MpDecorator::new(prompt, s.theme.mp)),
-        );
+        vse.decs
+            .decorators
+            .insert(ViewStoreTypes::DecorationId::Mp, Box::new(MpDecorator::new(prompt)));
 
         s.p.mp.mp = mp;
         s.p.mp.kind = MpKind::Prompt;

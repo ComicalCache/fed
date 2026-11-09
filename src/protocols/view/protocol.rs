@@ -31,11 +31,6 @@ impl ViewProtocol {
             | DocStoreTypes::Event::PathChanged { doc, .. } => doc,
         };
 
-        // Event may be received after the doc has already been removed again.
-        if !s.doc_store.contains_key(doc) {
-            return;
-        }
-
         for view in s.index.doc_to_views(*doc).cloned().unwrap_or_default() {
             Self::update(s, view);
         }

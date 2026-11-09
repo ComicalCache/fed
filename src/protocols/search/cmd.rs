@@ -1,7 +1,7 @@
-use crate::decorators::SearchMatch;
 use crate::protocols::search::pstate::SearchRequest;
 use crate::state::DocId;
 use crate::state::ViewId;
+use crate::state::ViewStoreTypes::SearchMatch;
 
 pub enum SearchCmd {
     Search {

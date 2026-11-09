@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use tokio::sync::mpsc::UnboundedSender;
 
+use crate::decorators::SpanDecorator;
 use crate::fed::FCmd;
 use crate::protocols::action::ActionProtocol;
 use crate::protocols::dir::DirCmd;
@@ -13,8 +14,12 @@ use crate::protocols::dir::PrintableDirEntry;
 use crate::protocols::doc_view::DocViewCmd;
 use crate::protocols::doc_view::DocViewProtocol;
 use crate::protocols::view::ViewProtocol;
+use crate::state::DocStoreTypes;
 use crate::state::State;
+use crate::types::Decoration;
+use crate::types::Face;
 use crate::types::Pos;
+use crate::types::Span;
 use crate::types::render::WindowId;
 use crate::util::format;
 use crate::util::{self};
@@ -104,6 +109,7 @@ impl DirProtocol {
         ActionProtocol::move_cursor_to_pos(s, s.p.dir.view, Pos::new(0, 1), true);
 
         s.doc_store.get_mut(&s.p.dir.doc).unwrap().read_only = true;
+        Self::decorate(s);
     }
 
     pub fn show(s: &mut State, window: WindowId) {
@@ -347,5 +353,38 @@ impl DirProtocol {
 
         let _ =
             async_fcmd_tx.send(FCmd::Dir(DirCmd::InitCompletion { entries, printables, revision }));
+    }
+
+    pub fn decorate(s: &mut State) {
+        let dse = s.doc_store.get(&s.p.dir.doc).unwrap();
+
+        let face = Face { fg: s.theme.gutter.fg, ..Face::default() };
+        let mut spans = Vec::new();
+        for (y, entry) in s.p.dir.entries.iter().enumerate() {
+            let path = match entry.kind {
+                DirEntryKind::File => None,
+                DirEntryKind::Dir => Some(Face { fg: s.theme.selection.bg, ..Face::default() }),
+                DirEntryKind::Symlink => Some(Face { fg: s.theme.gutter.fg, ..Face::default() }),
+                DirEntryKind::Header => continue,
+            };
+
+            let start = dse.doc.data.line_start_offset(y);
+            let path_start = start + entry.path_offset;
+            spans.push(Span { start, end: path_start, data: Decoration::Style { face } });
+            if let Some(face) = path {
+                spans.push(Span {
+                    start: path_start,
+                    end: dse.doc.data.line_end_offset(y),
+                    data: Decoration::Style { face },
+                });
+            }
+        }
+
+        ActionProtocol::set_doc_decorator(
+            s,
+            s.p.dir.doc,
+            DocStoreTypes::DecorationId::Directory,
+            Box::new(SpanDecorator::new(spans)),
+        );
     }
 }

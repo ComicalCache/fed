@@ -674,6 +674,7 @@ pub fn select_theme() -> Vec<FCmd> {
 
         let entry = selected.into_any().downcast::<ThemeEntry>().unwrap();
         s.theme = entry.theme;
+        DirProtocol::decorate(s);
     });
 
     vec![FCmd::Picker(PickerCmd::Open { width: 24, height: 9, entries, callback })]

@@ -3,7 +3,8 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::layers::CurrLineLayer;
 use crate::layers::CursorLayer;
-use crate::layers::DirLayer;
+use crate::layers::DirHeaderLayer;
+use crate::layers::SearchLayer;
 use crate::layers::SelectionLayer;
 use crate::protocols::view::ViewRenderer;
 use crate::state::State;
@@ -21,8 +22,9 @@ impl DirRenderer {
     pub fn new() -> Self {
         Self {
             inner: ViewRenderer::new(vec![
-                Box::new(DirLayer {}),
+                Box::new(DirHeaderLayer {}),
                 Box::new(CurrLineLayer {}),
+                Box::new(SearchLayer {}),
                 Box::new(SelectionLayer {}),
                 Box::new(CursorLayer {}),
             ]),

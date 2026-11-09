@@ -11,330 +11,199 @@ use crate::types::render::Cell;
 
 pub struct VisualOffsetMapping {
     pub visual_x: usize,
-    pub offset: usize,
-    pub width: usize,
+    pub visual_width: usize,
+
+    pub byte_start: usize,
+    pub byte_end: usize,
 }
 
 impl VisualOffsetMapping {
     pub fn at(mappings: &[Self], visual_x: usize) -> Option<&Self> {
-        let idx = mappings.partition_point(|vo| vo.visual_x + vo.width <= visual_x);
+        let idx = mappings.partition_point(|vo| vo.visual_x + vo.visual_width <= visual_x);
         mappings.get(idx).filter(|vo| visual_x >= vo.visual_x)
     }
 }
 
-pub fn layout_cells(
-    line: &str, mut offset: usize, end: usize, decs: &[Span<Decoration>],
-    layout: &ViewStoreTypes::Layout, theme: &Theme,
-) -> Vec<Cell> {
-    let mut cells = Vec::with_capacity(line.len().min(end));
+pub struct Layout {
+    pub cells: Vec<Cell>,
+    pub voms: Vec<VisualOffsetMapping>,
+    pub next_byte_offset: usize,
+}
 
-    let mut visual_x = 0;
-    for ch in line.graphemes(true) {
-        if visual_x >= end {
-            return cells;
-        }
+impl Layout {
+    /// Creates the layout for a given line. If `theme` is `None`, no `Cell`s
+    /// are being created.
+    pub fn new(
+        line: &str, mut offset: usize, end: usize, decs: &[Span<Decoration>],
+        layout: &ViewStoreTypes::Layout, theme: Option<&Theme>,
+    ) -> Layout {
+        let capacity = line.len().min(end);
+        let mut result = Layout {
+            // Don't create cells if no theme was supplied.
+            cells: if theme.is_some() { Vec::with_capacity(capacity) } else { Vec::new() },
+            voms: Vec::with_capacity(capacity),
+            next_byte_offset: offset + line.len(),
+        };
 
-        let ch_len = ch.len();
-        let mut face = Face::default();
-        let mut replace = false;
-        let mut replacement = None;
-        let mut virtual_texts = Vec::new();
-
-        for span in decs {
-            let zero_width = span.start == span.end;
-            if span.start >= offset + ch_len
-                || zero_width && span.start < offset
-                || !zero_width && span.end <= offset
-            {
-                continue;
+        let mut visual_x = 0;
+        for ch in line.graphemes(true) {
+            if visual_x >= end {
+                return result;
             }
 
-            match &span.data {
-                Decoration::Style { face: layer_face } => face.merge(*layer_face),
-                Decoration::Replace { text, face } => {
-                    replace = true;
-                    if offset == span.start {
-                        replacement = Some((text.as_str(), *face));
-                    }
+            let mut face = Face::default();
+            let mut replace = false;
+            let mut replacement = None;
+            let mut virtual_texts = Vec::new();
+
+            for span in decs {
+                let zero_width = span.start == span.end;
+                if span.start >= offset + ch.len()
+                    || zero_width && span.start < offset
+                    || !zero_width && span.end <= offset
+                {
+                    continue;
                 }
-                Decoration::VirtualText { text, face } => {
-                    if offset == span.start {
-                        virtual_texts.push((text.as_str(), *face));
+
+                match &span.data {
+                    Decoration::Style { face: layer_face } => face.merge(*layer_face),
+                    Decoration::Replace { text, face } => {
+                        replace = true;
+
+                        if offset == span.start {
+                            replacement = Some((text.as_str(), *face, span.end));
+                        }
+                    }
+                    Decoration::VirtualText { text, face } => {
+                        if offset == span.start {
+                            virtual_texts.push((text.as_str(), *face));
+                        }
                     }
                 }
             }
-        }
 
-        for (text, face) in virtual_texts {
-            for ch in text.graphemes(true) {
-                if visual_x >= end {
-                    return cells;
+            for (text, face) in virtual_texts {
+                visual_x =
+                    self::inject(text, visual_x, end, face, theme.map(|_| &mut result.cells));
+            }
+
+            let start_x = visual_x;
+            if replace {
+                if let Some((text, face, replacement_end)) = replacement {
+                    visual_x =
+                        self::inject(text, visual_x, end, face, theme.map(|_| &mut result.cells));
+                    result.voms.push(VisualOffsetMapping {
+                        visual_x: start_x,
+                        visual_width: visual_x - start_x,
+                        byte_start: offset,
+                        byte_end: replacement_end,
+                    });
                 }
+            } else {
+                let width = match ch {
+                    "\t" => *layout.tab_width - (visual_x % *layout.tab_width),
+                    "\n" => layout
+                        .replacements
+                        .newline
+                        .map_or(0, |(ch, _)| ch.width().unwrap_or_default()),
+                    _ => ch.width(),
+                };
 
-                let width = ch.width();
-                if width == 0 {
-                    break;
-                }
+                result.voms.push(VisualOffsetMapping {
+                    visual_x,
+                    visual_width: if ch == "\n" { width.max(1) } else { width },
+                    byte_start: offset,
+                    byte_end: if ch == "\n" && width == 0 { offset } else { offset + ch.len() },
+                });
 
-                cells.push(Cell::new(ch.to_string(), width, face));
-
-                for _ in 1..width {
-                    cells.push(Cell::new(String::new(), 0, face));
+                if let Some(theme) = theme
+                    && visual_x < end
+                    && width > 0
+                {
+                    self::emit(&mut result.cells, ch, width, end - visual_x, face, layout, theme);
                 }
 
                 visual_x += width;
             }
+
+            offset += ch.len();
         }
 
-        if visual_x >= end {
-            return cells;
-        }
-
-        if replace {
-            let Some((text, face)) = replacement else {
-                offset += ch_len;
-                continue;
-            };
-
-            for ch in text.graphemes(true) {
-                if visual_x >= end {
-                    return cells;
+        if !line.ends_with('\n') {
+            for span in decs {
+                if span.start == offset
+                    && let Decoration::VirtualText { text, face } = &span.data
+                {
+                    visual_x =
+                        self::inject(text, visual_x, end, *face, theme.map(|_| &mut result.cells));
                 }
-
-                let width = ch.width();
-                if width == 0 {
-                    break;
-                }
-
-                cells.push(Cell::new(ch.to_string(), width, face));
-
-                for _ in 1..width {
-                    cells.push(Cell::new(String::new(), 0, face));
-                }
-
-                visual_x += width;
             }
 
-            offset += ch_len;
+            result.voms.push(VisualOffsetMapping {
+                visual_x,
+                visual_width: 1,
+                byte_start: offset,
+                byte_end: offset,
+            });
+        }
+
+        result
+    }
+}
+
+fn inject(
+    text: &str, mut visual_x: usize, end: usize, face: Face, mut cells: Option<&mut Vec<Cell>>,
+) -> usize {
+    for ch in text.graphemes(true) {
+        let width = ch.width();
+        if width == 0 {
             continue;
         }
 
-        let ch_width = if ch == "\t" {
-            *layout.tab_width - (visual_x % *layout.tab_width)
-        } else if ch == "\n" {
-            if let Some((newline, _)) = layout.replacements.newline {
-                newline.width().unwrap_or_default()
-            } else {
-                // "\n".width() == 1!
-                0
+        if visual_x < end
+            && let Some(cells) = cells.as_deref_mut()
+        {
+            cells.push(Cell::new(ch.to_string(), width, face));
+            for _ in 1..width {
+                cells.push(Cell::new(String::new(), 0, face));
             }
-        } else {
-            ch.width()
-        };
-
-        if ch_width > 0 {
-            if ch == "\t" {
-                if let Some(((start, fill), tab_face)) = layout.replacements.tab {
-                    let mut face = face;
-                    face.merge(theme.whitespace);
-                    face.merge(tab_face);
-
-                    cells.push(Cell::new(
-                        start.to_string(),
-                        start.width().unwrap_or_default(),
-                        face,
-                    ));
-                    for _ in 1..ch_width.min(end - visual_x) {
-                        cells.push(Cell::new(
-                            fill.to_string(),
-                            fill.width().unwrap_or_default(),
-                            face,
-                        ));
-                    }
-                } else {
-                    for _ in 0..ch_width.min(end - visual_x) {
-                        cells.push(Cell::new(" ".to_string(), 1, face));
-                    }
-                }
-            } else if ch == "\n" {
-                if let Some((newline, newline_face)) = layout.replacements.newline {
-                    let mut face = face;
-                    face.merge(theme.whitespace);
-                    face.merge(newline_face);
-
-                    cells.push(Cell::new(
-                        newline.to_string(),
-                        newline.width().unwrap_or_default(),
-                        face,
-                    ));
-                }
-            } else if ch == " " {
-                if let Some((space, space_face)) = layout.replacements.space {
-                    let mut face = face;
-                    face.merge(theme.whitespace);
-                    face.merge(space_face);
-
-                    cells.push(Cell::new(
-                        space.to_string(),
-                        space.width().unwrap_or_default(),
-                        face,
-                    ));
-                } else {
-                    cells.push(Cell::new(" ".to_string(), 1, face));
-                }
-            } else {
-                cells.push(Cell::new(ch.to_string(), ch_width, face));
-                for _ in 1..ch_width {
-                    cells.push(Cell::new(String::new(), 0, face));
-                }
-            }
-
-            visual_x += ch_width;
         }
 
-        offset += ch_len;
+        visual_x += width;
     }
 
-    if !line.ends_with('\n') {
-        // EOF edge case for empty documents.
-        let mut virtual_texts = Vec::new();
-        for span in decs {
-            if span.start != offset {
-                continue;
-            }
-
-            if let Decoration::VirtualText { text, face } = &span.data {
-                virtual_texts.push((text.clone(), face));
-            }
-        }
-
-        for (text, &face) in virtual_texts {
-            for ch in text.graphemes(true) {
-                if visual_x >= end {
-                    return cells;
-                }
-
-                let width = ch.width();
-                if width == 0 {
-                    break;
-                }
-
-                cells.push(Cell::new(ch.to_string(), width, face));
-
-                for _ in 1..width {
-                    cells.push(Cell::new(String::new(), 0, face));
-                }
-
-                visual_x += width;
-            }
-        }
-    }
-
-    cells
+    visual_x
 }
 
-pub fn layout_vom(
-    line: &str, mut offset: usize, end: usize, decs: &[Span<Decoration>],
-    layout: &ViewStoreTypes::Layout,
-) -> (Vec<VisualOffsetMapping>, usize) {
-    let max_offset = offset + line.len();
+fn emit(
+    cells: &mut Vec<Cell>, ch: &str, width: usize, available_width: usize, mut face: Face,
+    layout: &ViewStoreTypes::Layout, theme: &Theme,
+) {
+    let replacement = match ch {
+        "\t" => layout.replacements.tab.map(|((start, fill), face)| (start, Some(fill), face)),
+        "\n" => layout.replacements.newline.map(|(ch, face)| (ch, None, face)),
+        " " => layout.replacements.space.map(|(ch, face)| (ch, None, face)),
+        _ => None,
+    };
 
-    let mut vom = Vec::with_capacity(line.len().min(end));
+    if let Some((start, fill, replacement_face)) = replacement {
+        face.merge(theme.whitespace);
+        face.merge(replacement_face);
 
-    let mut visual_x = 0;
-    for ch in line.graphemes(true) {
-        if visual_x >= end {
-            return (vom, max_offset);
-        }
-
-        let ch_len = ch.len();
-        let mut replace = false;
-        let mut replacement_text = None;
-        let mut virtual_texts = Vec::new();
-
-        for span in decs {
-            let zero_width = span.start == span.end;
-            if span.start >= offset + ch_len
-                || zero_width && span.start < offset
-                || !zero_width && span.end <= offset
-            {
-                continue;
-            }
-
-            match &span.data {
-                Decoration::Style { .. } => {}
-                Decoration::Replace { text, .. } => {
-                    replace = true;
-
-                    if offset == span.start {
-                        replacement_text = Some(text);
-                    }
-                }
-                Decoration::VirtualText { text, .. } => {
-                    if offset == span.start {
-                        virtual_texts.push(text);
-                    }
-                }
+        cells.push(Cell::new(start.to_string(), start.width().unwrap_or_default(), face));
+        if let Some(fill) = fill {
+            for _ in 1..width.min(available_width) {
+                cells.push(Cell::new(fill.to_string(), fill.width().unwrap_or_default(), face));
             }
         }
-
-        for text in virtual_texts {
-            for ch in text.graphemes(true) {
-                visual_x += ch.width();
-            }
+    } else if ch == "\t" {
+        for _ in 0..width.min(available_width) {
+            cells.push(Cell::new(" ".to_string(), 1, face));
         }
-
-        let mut ch_width = 0;
-        let mut map_width = 0;
-
-        if replace {
-            if let Some(text) = replacement_text {
-                ch_width = text.graphemes(true).map(UnicodeWidthStr::width).sum();
-                map_width = ch_width;
-            }
-        } else if ch == "\t" {
-            ch_width = *layout.tab_width - (visual_x % *layout.tab_width);
-            map_width = ch_width;
-        } else if ch == "\n" {
-            if let Some((newline, _)) = layout.replacements.newline {
-                ch_width = newline.width().unwrap_or_default();
-            }
-
-            map_width = ch_width.max(1);
-        } else {
-            ch_width = ch.width();
-            map_width = ch_width;
+    } else {
+        cells.push(Cell::new(ch.to_string(), width, face));
+        for _ in 1..width {
+            cells.push(Cell::new(String::new(), 0, face));
         }
-
-        if !replace || replacement_text.is_some() {
-            vom.push(VisualOffsetMapping { visual_x, offset, width: map_width });
-        }
-
-        visual_x += ch_width;
-        offset += ch_len;
     }
-
-    if !line.ends_with('\n') {
-        // EOF edge case for empty documents.
-        let mut virtual_texts = Vec::new();
-        for span in decs {
-            if span.start != offset {
-                continue;
-            }
-
-            if let Decoration::VirtualText { text, .. } = &span.data {
-                virtual_texts.push(text);
-            }
-        }
-
-        for text in virtual_texts {
-            for ch in text.graphemes(true) {
-                visual_x += ch.width();
-            }
-        }
-
-        vom.push(VisualOffsetMapping { visual_x, offset, width: 1 });
-    }
-
-    (vom, offset)
 }

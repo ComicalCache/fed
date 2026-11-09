@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use crate::types::Decoration;
 use crate::types::Decorator;
 use crate::types::Span;
@@ -13,7 +11,22 @@ impl SpanDecorator {
 }
 
 impl Decorator for SpanDecorator {
-    fn edit(&mut self, _: usize, _: usize, _: usize) {}
+    fn edit(&mut self, offset: usize, remove: usize, insert: usize) {
+        self.spans.retain_mut(|span| {
+            let zero = span.start == span.end;
+            for position in [&mut span.start, &mut span.end] {
+                if *position > offset {
+                    *position -= remove.min(*position - offset);
+                }
+
+                if *position > offset {
+                    *position += insert;
+                }
+            }
+
+            zero || span.start < span.end
+        });
+    }
 
     fn update(&mut self, _: usize, _: usize) {}
 
@@ -28,8 +41,4 @@ impl Decorator for SpanDecorator {
             }
         }
     }
-
-    fn any(&self) -> &dyn Any { self }
-
-    fn any_mut(&mut self) -> &mut dyn Any { self }
 }

@@ -7,9 +7,8 @@ mod workspace;
 mod z_layer;
 
 pub use cell::Cell;
+pub use layout::Layout;
 pub use layout::VisualOffsetMapping;
-pub use layout::layout_cells;
-pub use layout::layout_vom;
 pub use mode_line::ModeLineConfig;
 pub use mode_line::ModeLineWidget;
 pub use screen::Screen;

@@ -3,6 +3,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::layers::CurrLineLayer;
 use crate::layers::CursorLayer;
+use crate::layers::SearchLayer;
 use crate::layers::SelectionLayer;
 use crate::protocols::view::ViewRenderer;
 use crate::state::State;
@@ -21,6 +22,7 @@ impl ManageRenderer {
         Self {
             inner: ViewRenderer::new(vec![
                 Box::new(CurrLineLayer {}),
+                Box::new(SearchLayer {}),
                 Box::new(SelectionLayer {}),
                 Box::new(CursorLayer {}),
             ]),

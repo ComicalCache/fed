@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use crate::types::Decoration;
 use crate::types::Decorator;
 use crate::types::Face;
@@ -7,11 +5,10 @@ use crate::types::Span;
 
 pub struct MpDecorator {
     pub prompt: String,
-    pub face: Face,
 }
 
 impl MpDecorator {
-    pub const fn new(prompt: String, face: Face) -> Self { Self { prompt, face } }
+    pub const fn new(prompt: String) -> Self { Self { prompt } }
 }
 
 impl Decorator for MpDecorator {
@@ -27,11 +24,7 @@ impl Decorator for MpDecorator {
         callback(Span {
             start,
             end: 0,
-            data: Decoration::VirtualText { text: self.prompt.clone(), face: self.face },
+            data: Decoration::VirtualText { text: self.prompt.clone(), face: Face::default() },
         });
     }
-
-    fn any(&self) -> &dyn Any { self }
-
-    fn any_mut(&mut self) -> &mut dyn Any { self }
 }

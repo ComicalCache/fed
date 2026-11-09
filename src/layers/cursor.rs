@@ -31,7 +31,7 @@ impl Layer for CursorLayer {
             };
 
             for cursor in &vse.cursors.list {
-                if cursor.offset == vo.offset {
+                if cursor.offset == vo.byte_start {
                     cell.face.merge(face);
                     break;
                 }

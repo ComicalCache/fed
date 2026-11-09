@@ -2,8 +2,6 @@ use std::time::Duration;
 
 use fancy_regex::Regex;
 
-use crate::decorators::SearchDecorator;
-use crate::decorators::SearchMatch;
 use crate::fed::FCmd;
 use crate::protocols::action::ActionProtocol;
 use crate::protocols::mp::MpKind;
@@ -11,9 +9,12 @@ use crate::protocols::mp::MpProtocol;
 use crate::protocols::search::SearchCmd;
 use crate::protocols::search::SearchRequest;
 use crate::state::DocId;
+use crate::state::DocStoreTypes;
 use crate::state::State;
 use crate::state::ViewId;
 use crate::state::ViewStoreTypes;
+use crate::state::ViewStoreTypes::SearchMatch;
+use crate::state::ViewStoreTypes::SearchState;
 use crate::util;
 
 pub struct SearchProtocol {}
@@ -40,6 +41,32 @@ impl SearchProtocol {
         }
     }
 
+    pub fn exec_doc_event(s: &mut State, event: &DocStoreTypes::Event) {
+        let doc = match event {
+            DocStoreTypes::Event::Inserted { doc, .. }
+            | DocStoreTypes::Event::Removed { doc, .. } => *doc,
+            _ => return,
+        };
+
+        // Event may be received after the doc has already been removed again.
+        let Some(dse) = s.doc_store.get(&doc) else { return };
+
+        let revision = dse.doc.revision;
+        for view in s.index.doc_to_views(doc).cloned().unwrap_or_default() {
+            let stale = s
+                .view_store
+                .get(&view)
+                .and_then(|vse| vse.search.as_ref())
+                .is_some_and(|search| search.revision != revision);
+
+            if stale {
+                Self::close(s, view);
+            } else if s.p.search.searches.get(&view).is_some_and(|r| r.revision != revision) {
+                s.p.search.searches.remove(&view);
+            }
+        }
+    }
+
     pub fn exec_view_event(s: &mut State, event: &ViewStoreTypes::Event) {
         match event {
             ViewStoreTypes::Event::ModeChanged { view, .. }
@@ -52,14 +79,10 @@ impl SearchProtocol {
                 let Some(vse) = s.view_store.get_mut(view) else { return };
 
                 let offset = vse.cursors.list.first().map(|c| c.offset);
-                if let Some(decorator) = vse
-                    .decs
-                    .decorators
-                    .get_mut(&ViewStoreTypes::DecorationId::Search)
-                    .and_then(|dec| dec.any_mut().downcast_mut::<SearchDecorator>())
-                    && decorator.replaced_at != offset
+                if let Some(search) = vse.search.as_mut()
+                    && search.replaced_at != offset
                 {
-                    decorator.replaced_at = None;
+                    search.replaced_at = None;
                 }
             }
             _ => {}
@@ -81,10 +104,8 @@ impl SearchProtocol {
                 return;
             }
 
-            let dse = s.doc_store.get(&doc).unwrap();
-
             // TODO: somehow don't require copying the entire doc anymore?
-            let text = dse.doc.data.slice(..);
+            let text = s.doc_store.get(&request.doc).unwrap().doc.data.slice(..);
             let tx = s.async_fcmd_tx.clone();
             tokio::spawn(async move {
                 let regex = match Regex::new(&query) {
@@ -101,8 +122,11 @@ impl SearchProtocol {
 
                 let matches = regex
                     .find_iter(&text)
-                    .flatten()
-                    .filter_map(|m| {
+                    .filter_map(|result| {
+                        let m = match result {
+                            Ok(m) => m,
+                            Err(err) => return Some(Err(err)),
+                        };
                         let (start, end) = (m.start(), m.end());
                         if bounds
                             .as_ref()
@@ -111,12 +135,17 @@ impl SearchProtocol {
                             return None;
                         }
 
-                        Some(SearchMatch { start, end, replacement: None })
+                        Some(Ok(SearchMatch { start, end, replacement: None }))
                     })
                     .collect();
 
-                let _ =
-                    tx.send(FCmd::Search(SearchCmd::SearchCompletion { request, query, matches }));
+                let cmd = match matches {
+                    Ok(matches) => SearchCmd::SearchCompletion { request, query, matches },
+                    Err(err) => {
+                        SearchCmd::Failed { request, message: format!("Search failed: {err}") }
+                    }
+                };
+                let _ = tx.send(FCmd::Search(cmd));
             });
         });
 
@@ -135,14 +164,8 @@ impl SearchProtocol {
             return;
         }
 
-        let decorator =
-            SearchDecorator::new(query, matches, s.theme.search_match, request.revision);
-        ActionProtocol::set_view_decorator(
-            s,
-            request.view,
-            ViewStoreTypes::DecorationId::Search,
-            Box::new(decorator),
-        );
+        let vse = s.view_store.get_mut(&request.view).unwrap();
+        vse.search = Some(SearchState::new(query, matches, request.revision));
         ActionProtocol::push_view_mode(s, request.view, ViewStoreTypes::Mode::Search);
     }
 
@@ -153,10 +176,9 @@ impl SearchProtocol {
             return;
         }
 
-        let decorator = vse.decs.decorators.get_mut(&ViewStoreTypes::DecorationId::Search).unwrap();
-        let decorator = decorator.any_mut().downcast_mut::<SearchDecorator>().unwrap();
+        let search = vse.search.as_mut().unwrap();
 
-        let matches = &decorator.matches;
+        let matches = &search.matches;
         if matches.is_empty() {
             return;
         }
@@ -165,7 +187,7 @@ impl SearchProtocol {
         let offset = offsets.first().copied().unwrap_or(0);
 
         let target = if forward {
-            let after_replace = decorator.replaced_at.take() == Some(offset);
+            let after_replace = search.replaced_at.take() == Some(offset);
             let next = matches.partition_point(|m| {
                 if after_replace { m.start < offset } else { m.start <= offset }
             });
@@ -190,15 +212,15 @@ impl SearchProtocol {
             return;
         }
 
-        let decorator = vse.decs.decorators.get(&ViewStoreTypes::DecorationId::Search).unwrap();
-        let decorator = decorator.any().downcast_ref::<SearchDecorator>().unwrap();
+        let search = vse.search.as_ref().unwrap();
 
-        if decorator.revision != dse.doc.revision {
+        if search.revision != dse.doc.revision {
+            Self::close(s, view);
             util::mp::message(s, "Document changed".to_string(), Duration::from_secs(3));
             return;
         }
 
-        if decorator.matches.is_empty() {
+        if search.matches.is_empty() {
             util::mp::message(s, "No matches found".to_string(), Duration::from_secs(3));
             return;
         }
@@ -212,20 +234,20 @@ impl SearchProtocol {
             None
         } else {
             let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
-            let next = decorator.matches.partition_point(|m| {
+            let next = search.matches.partition_point(|m| {
                 if m.start == m.end { m.start < offset } else { m.end <= offset }
             });
 
-            Some(if next < decorator.matches.len() { next } else { 0 })
+            Some(if next < search.matches.len() { next } else { 0 })
         };
 
-        if decorator.replacement.is_some() {
+        if search.replacement.is_some() {
             Self::apply(s, view, doc, index);
             return;
         }
 
-        let query = decorator.query.clone();
-        let matches = decorator.matches.clone();
+        let query = search.query.clone();
+        let matches = search.matches.clone();
         let request = Self::init(s, view, doc).unwrap();
 
         let callback = Box::new(move |s: &mut State, replacement: Option<String>| {
@@ -254,11 +276,10 @@ impl SearchProtocol {
             return;
         }
 
-        let decorator = vse.decs.decorators.get_mut(&ViewStoreTypes::DecorationId::Search).unwrap();
-        let decorator = decorator.any_mut().downcast_mut::<SearchDecorator>().unwrap();
+        let search = vse.search.as_mut().unwrap();
 
-        decorator.matches = matches;
-        decorator.replacement = Some(replacement);
+        search.matches = matches;
+        search.replacement = Some(replacement);
 
         Self::apply(s, request.view, request.doc, index);
     }
@@ -266,14 +287,14 @@ impl SearchProtocol {
     pub fn close(s: &mut State, view: ViewId) {
         s.p.search.searches.remove(&view);
 
-        let vse = s.view_store.get(&view).unwrap();
+        let vse = s.view_store.get_mut(&view).unwrap();
 
-        if vse.mode() != ViewStoreTypes::Mode::Search {
-            return;
+        vse.search = None;
+        if vse.mode() == ViewStoreTypes::Mode::Search {
+            ActionProtocol::pop_view_mode(s, view);
+        } else {
+            vse.modes.retain(|mode| *mode != ViewStoreTypes::Mode::Search);
         }
-
-        ActionProtocol::remove_view_decorator(s, view, ViewStoreTypes::DecorationId::Search);
-        ActionProtocol::pop_view_mode(s, view);
     }
 
     fn init(s: &mut State, view: ViewId, doc: DocId) -> Option<SearchRequest> {
@@ -359,14 +380,13 @@ impl SearchProtocol {
 
     fn apply(s: &mut State, view: ViewId, doc: DocId, index: Option<usize>) {
         let vse = s.view_store.get_mut(&view).unwrap();
-        let decorator = vse.decs.decorators.get_mut(&ViewStoreTypes::DecorationId::Search).unwrap();
-        let decorator = decorator.any_mut().downcast_mut::<SearchDecorator>().unwrap();
+        let search = vse.search.as_mut().unwrap();
 
-        if decorator.matches.is_empty() {
+        if search.matches.is_empty() {
             return;
         }
 
-        if decorator.matches.windows(2).any(|pair| pair[0].end > pair[1].start) {
+        if search.matches.windows(2).any(|pair| pair[0].end > pair[1].start) {
             util::mp::message(
                 s,
                 "Overlapping matches can't be replaced".to_string(),
@@ -375,7 +395,7 @@ impl SearchProtocol {
             return;
         }
 
-        let mut matches = std::mem::take(&mut decorator.matches);
+        let mut matches = std::mem::take(&mut search.matches);
         let first = index.unwrap_or(0);
         let last = index.map_or(matches.len(), |idx| idx + 1);
         let replaced_at = matches[first].start;
@@ -411,12 +431,11 @@ impl SearchProtocol {
         // Has to be fetched again for the borrow checker to be happy.
         let vse = s.view_store.get_mut(&view).unwrap();
         let revision = s.doc_store.get(&doc).unwrap().doc.revision;
-        let decorator = vse.decs.decorators.get_mut(&ViewStoreTypes::DecorationId::Search).unwrap();
-        let decorator = decorator.any_mut().downcast_mut::<SearchDecorator>().unwrap();
+        let search = vse.search.as_mut().unwrap();
 
-        decorator.matches = matches;
-        decorator.revision = revision;
-        decorator.replaced_at = Some(replaced_at);
+        search.matches = matches;
+        search.revision = revision;
+        search.replaced_at = Some(replaced_at);
 
         let offsets: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();
         ActionProtocol::remove_cursors(s, view, &offsets);

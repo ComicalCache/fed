@@ -40,9 +40,9 @@ impl ViewRenderer {
                 break;
             }
 
-            let (vom, next_offset) = render::layout_vom(line, offset, end, &decs, &vse.layout);
-            let cells = render::layout_cells(line, offset, end, &decs, &vse.layout, &s.theme);
-            offset = next_offset;
+            let render::Layout { cells, voms, next_byte_offset } =
+                render::Layout::new(line, offset, end, &decs, &vse.layout, Some(&s.theme));
+            offset = next_byte_offset;
 
             let mut row = vec![Cell::default(); width];
 
@@ -84,7 +84,7 @@ impl ViewRenderer {
             }
 
             for layer in &self.layers {
-                layer.apply(s, &mut row, vse.scroll.y + y, vse.scroll, &vom, vse, dse);
+                layer.apply(s, &mut row, vse.scroll.y + y, vse.scroll, &voms, vse, dse);
             }
 
             for (idx, cell) in row.into_iter().enumerate() {

@@ -1,7 +1,5 @@
 use crossterm::event::KeyEvent;
 
-use crate::decorators::SearchDecorator;
-use crate::decorators::SearchMatch;
 use crate::fed::FCmd;
 use crate::modes::common;
 use crate::modes::search::cmd::Cmd;
@@ -13,6 +11,7 @@ use crate::protocols::search::SearchCmd;
 use crate::state::State;
 use crate::state::ViewId;
 use crate::state::ViewStoreTypes;
+use crate::state::ViewStoreTypes::SearchMatch;
 use crate::types::KeyChord;
 use crate::types::KeyInputHandler;
 use crate::types::KeyInputPriority;
@@ -88,7 +87,7 @@ impl SearchKeyInput {
     fn cursors(s: &State, view: ViewId, front: bool) -> Option<Vec<FCmd>> {
         let mut cmds = Vec::new();
 
-        let (_, matches, offsets) = Self::search_state(s, view)?;
+        let (matches, offsets) = Self::search_state(s, view)?;
         cmds.push(FCmd::Action(ActionCmd::RemoveCursors { view, offsets }));
         let offsets = matches.iter().map(|m| if front { m.start } else { m.end }).collect();
         cmds.push(FCmd::Action(ActionCmd::CreateCursorsAtOffsets { view, offsets }));
@@ -100,18 +99,17 @@ impl SearchKeyInput {
 
     fn escape(view: ViewId) -> Vec<FCmd> { vec![FCmd::Search(SearchCmd::Close { view })] }
 
-    fn search_state(s: &State, view: ViewId) -> Option<(&str, &[SearchMatch], Vec<usize>)> {
+    fn search_state(s: &State, view: ViewId) -> Option<(&[SearchMatch], Vec<usize>)> {
         let vse = s.view_store.get(&view).unwrap();
-        let decorator = vse.decs.decorators.get(&ViewStoreTypes::DecorationId::Search).unwrap();
-        let decorator = decorator.any().downcast_ref::<SearchDecorator>().unwrap();
+        let search = vse.search.as_ref()?;
 
-        if decorator.matches.is_empty() {
+        if search.matches.is_empty() {
             return None;
         }
 
         let offsets: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();
 
-        Some((&decorator.query, &decorator.matches, offsets))
+        Some((&search.matches, offsets))
     }
 }
 

@@ -13,6 +13,7 @@ mod theme;
 
 pub use cursor::Cursor;
 pub use decoration::Decoration;
+pub use decoration::Decorations;
 pub use decoration::Decorator;
 pub use face::Face;
 pub use input::KeyInputHandler;

@@ -135,6 +135,7 @@ impl Fed {
                 FEvent::Doc(event) => {
                     ManageProtocol::exec_doc_event(&mut self.s, &event);
                     ViewProtocol::exec_doc_event(&mut self.s, &event);
+                    SearchProtocol::exec_doc_event(&mut self.s, &event);
                 }
                 FEvent::View(event) => {
                     SearchProtocol::exec_view_event(&mut self.s, &event);
@@ -180,12 +181,12 @@ impl Fed {
             let text = decoration_parser.parsed.clone();
             let dec = Box::new(decoration_parser.decorator());
 
+            let _ = tx.send(FCmd::Action(ActionCmd::Insert { view, text }));
             let _ = tx.send(FCmd::Action(ActionCmd::SetDocDecorator {
                 doc,
                 decoration: DocStoreTypes::DecorationId::Span,
                 dec,
             }));
-            let _ = tx.send(FCmd::Action(ActionCmd::Insert { view, text }));
             let _ = tx.send(FCmd::Action(ActionCmd::Saved { doc }));
             let _ = tx.send(FCmd::Action(ActionCmd::MoveCursorToPos {
                 view,

@@ -4,6 +4,7 @@ mod event;
 mod layout;
 mod mode;
 mod scroll;
+mod search;
 mod view_cache;
 
 pub mod types {
@@ -17,6 +18,8 @@ pub mod types {
     pub use crate::state::view::layout::ViewLayout;
     pub use crate::state::view::mode::Mode;
     pub use crate::state::view::scroll::Scroll;
+    pub use crate::state::view::search::SearchMatch;
+    pub use crate::state::view::search::SearchState;
     pub use crate::state::view::view_cache::ViewCache;
 }
 
@@ -47,6 +50,7 @@ pub struct ViewStoreEntry {
     pub cursors: types::Cursors,
 
     pub decs: types::Decorations,
+    pub search: Option<types::SearchState>,
 }
 
 impl ViewStoreEntry {
@@ -84,6 +88,7 @@ impl Default for ViewStoreEntry {
             scroll: ViewStoreTypes::Scroll::default(),
             cursors: ViewStoreTypes::Cursors::default(),
             decs: ViewStoreTypes::Decorations::default(),
+            search: None,
         }
     }
 }

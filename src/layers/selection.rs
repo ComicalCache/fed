@@ -31,7 +31,7 @@ impl Layer for SelectionLayer {
 
             for (x, cell) in row.iter_mut().enumerate() {
                 if let Some(vo) = VisualOffsetMapping::at(voms, scroll.x + x)
-                    && vo.offset < end
+                    && vo.byte_start < end
                 {
                     cell.face.merge(s.theme.selection);
                 }
@@ -51,7 +51,7 @@ impl Layer for SelectionLayer {
                 let start = cursor.offset.min(cursor.anchor);
                 let end = cursor.offset.max(cursor.anchor);
 
-                if start <= vo.offset && vo.offset <= end {
+                if start <= vo.byte_start && vo.byte_start <= end {
                     cell.face.merge(s.theme.selection);
                     break;
                 }

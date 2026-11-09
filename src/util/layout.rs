@@ -14,5 +14,6 @@ pub fn vom(
     dse.decs.range(start, end, &mut decs);
     vse.decs.range(start, end, &mut decs);
 
-    render::layout_vom(&line, start, usize::MAX, &decs, &vse.layout)
+    let result = render::Layout::new(&line, start, usize::MAX, &decs, &vse.layout, None);
+    (result.voms, result.next_byte_offset)
 }

@@ -582,6 +582,7 @@ impl ActionProtocol {
                     Kind::Deletion => (data.len(), 0),
                     Kind::Insertion => (0, data.len()),
                 };
+
                 vse.decs.edit(*offset, remove, insert);
             }
         }
