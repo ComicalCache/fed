@@ -1,23 +1,17 @@
 use std::any::Any;
 use std::fmt;
-use std::path::PathBuf;
 
+use crate::protocols::io::FileEntry;
 use crate::protocols::picker::PickerEntry;
 use crate::types::Theme;
 
-#[derive(Clone)]
-pub struct ScanEntry {
-    pub path: PathBuf,
-    pub dir: bool,
-}
-
-impl fmt::Display for ScanEntry {
+impl fmt::Display for FileEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}{}", self.path.display(), if self.dir { "/" } else { "" })
+        write!(f, "{}{}", self.relative_path.display(), if self.dir { "/" } else { "" })
     }
 }
 
-impl PickerEntry for ScanEntry {
+impl PickerEntry for FileEntry {
     fn as_any(&self) -> &dyn Any { self }
 
     fn into_any(self: Box<Self>) -> Box<dyn Any + Send> { self }

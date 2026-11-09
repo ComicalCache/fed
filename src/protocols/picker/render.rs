@@ -45,7 +45,7 @@ impl Renderer for PickerRenderer {
                 }
             }
 
-            for (x, ch) in "No matches".chars().enumerate() {
+            for (x, ch) in "No matches".chars().take(list.width()).enumerate() {
                 list.set(Pos::new(x, 0), Cell::new(ch.to_string(), 1, s.theme.default));
             }
         } else {

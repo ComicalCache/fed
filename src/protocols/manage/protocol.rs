@@ -46,7 +46,7 @@ impl ManageProtocol {
         let mut text = String::new();
 
         let mut docs: Vec<_> = s.doc_store.iter().map(|(id, dse)| (*id, dse)).collect();
-        docs.sort_by_key(|(id, _)| id.0);
+        docs.sort_unstable_by_key(|(id, _)| id.0);
 
         for (id, dse) in docs {
             let modified = if dse.doc.modified { "[*]" } else { "" };

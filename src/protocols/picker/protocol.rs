@@ -1,3 +1,17 @@
+use std::cmp::Reverse;
+use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
+
+use nucleo_matcher::Config;
+use nucleo_matcher::Matcher;
+use nucleo_matcher::Utf32String;
+use nucleo_matcher::pattern::AtomKind;
+use nucleo_matcher::pattern::CaseMatching;
+use nucleo_matcher::pattern::Normalization;
+use nucleo_matcher::pattern::Pattern;
+
+use crate::fed::FCmd;
 use crate::fed::FEvent;
 use crate::protocols::action::ActionProtocol;
 use crate::protocols::mp::MpKind;
@@ -25,6 +39,9 @@ impl PickerProtocol {
             PickerCmd::Close => Self::close(s, None),
 
             PickerCmd::FilterList => Self::filter_list(s),
+            PickerCmd::FilterCompletion { filtered, revision } => {
+                Self::filter_completion(s, filtered, revision);
+            }
             PickerCmd::ChangeSelection(motion) => Self::change_selection(s, motion),
             PickerCmd::ScrollList(motion) => Self::scroll_list(s, motion),
             PickerCmd::Select => Self::select(s),
@@ -62,7 +79,8 @@ impl PickerProtocol {
             .iter()
             .map(|e| e.to_string().replace('\r', "\\r").replace('\n', "\\n"))
             .collect();
-        s.p.picker.search_text = s.p.picker.display_text.iter().map(|l| l.to_lowercase()).collect();
+        s.p.picker.search_text =
+            s.p.picker.display_text.iter().map(|label| Utf32String::from(label.as_str())).collect();
         s.p.picker.entries = entries;
         s.p.picker.offset = 0;
         s.p.picker.pcallback = Some(callback);
@@ -76,6 +94,7 @@ impl PickerProtocol {
 
     pub fn close(s: &mut State, selected: Option<Box<dyn PickerEntry>>) {
         let Some(window) = s.p.picker.window.take() else { return };
+        s.p.picker.filter_revision.fetch_add(1, Ordering::Relaxed);
 
         let callback = s.p.picker.pcallback.take().unwrap();
         let previous = s.p.picker.prev_window.take();
@@ -96,7 +115,7 @@ impl PickerProtocol {
 
         s.p.picker.entries = Vec::new();
         s.p.picker.display_text = Vec::new();
-        s.p.picker.search_text = Vec::new();
+        s.p.picker.search_text = Arc::default();
         s.p.picker.filtered = Vec::new();
         s.p.picker.offset = 0;
 
@@ -114,24 +133,43 @@ impl PickerProtocol {
         }
 
         let dse = s.doc_store.get(&s.p.picker.input_doc).unwrap();
-        let query = dse.doc.data.slice(0..dse.doc.data.len()).to_lowercase();
+        let query = dse.doc.data.slice(0..dse.doc.data.len());
 
         let picker = &mut s.p.picker;
-        picker.filtered.clear();
+        let revision = picker.filter_revision.fetch_add(1, Ordering::Relaxed) + 1;
 
-        if query.is_empty() {
-            picker.filtered.extend(0..picker.entries.len());
-        } else {
-            picker.filtered.extend(
-                picker
-                    .search_text
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(idx, label)| label.contains(&query).then_some(idx)),
-            );
+        if !query.trim().is_empty() {
+            let candidates = picker.search_text.clone();
+            let curr_revision = picker.filter_revision.clone();
+            let tx = s.async_fcmd_tx.clone();
+            tokio::task::spawn_blocking(move || {
+                if let Some(filtered) = Self::rank(&candidates, &query, revision, &curr_revision) {
+                    let _ =
+                        tx.send(FCmd::Picker(PickerCmd::FilterCompletion { filtered, revision }));
+                }
+            });
+
+            return;
         }
-        picker.offset = 0;
 
+        picker.filtered.clear();
+        picker.filtered.extend(0..picker.entries.len());
+        picker.offset = 0;
+        Self::update_list(s, 0);
+    }
+
+    fn filter_completion(s: &mut State, filtered: Vec<usize>, revision: u64) {
+        let picker = &mut s.p.picker;
+
+        if picker.window.is_none()
+            || revision != picker.filter_revision.load(Ordering::Relaxed)
+            || picker.filtered == filtered
+        {
+            return;
+        }
+
+        picker.filtered = filtered;
+        picker.offset = 0;
         Self::update_list(s, 0);
     }
 
@@ -224,6 +262,37 @@ impl PickerProtocol {
                 .unwrap();
 
         s.p.picker.offset + dse.doc.data.line_idx_at_offset(vse.cursors.list[0].offset)
+    }
+
+    fn rank(
+        candidates: &[Utf32String], query: &str, revision: u64, curr_revision: &AtomicU64,
+    ) -> Option<Vec<usize>> {
+        if curr_revision.load(Ordering::Relaxed) != revision {
+            return None;
+        }
+
+        let pattern =
+            Pattern::new(query, CaseMatching::Smart, Normalization::Smart, AtomKind::Fuzzy);
+        let mut matcher = Matcher::new(Config::DEFAULT.match_paths());
+
+        let mut scored = Vec::new();
+        for (idx, candidate) in candidates.iter().enumerate() {
+            if curr_revision.load(Ordering::Relaxed) != revision {
+                return None;
+            }
+
+            if let Some(score) = pattern.score(candidate.slice(..), &mut matcher) {
+                scored.push((Reverse(score), idx));
+            }
+        }
+
+        scored.sort_unstable();
+
+        if curr_revision.load(Ordering::Relaxed) != revision {
+            return None;
+        }
+
+        Some(scored.into_iter().map(|(_, index)| index).collect())
     }
 
     fn update_list(s: &mut State, selection: usize) {

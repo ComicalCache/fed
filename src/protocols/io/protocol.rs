@@ -2,9 +2,11 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 
+use ignore::WalkBuilder;
+
 use crate::fed::FCmd;
+use crate::protocols::io::FileEntry;
 use crate::protocols::io::IoCmd;
-use crate::protocols::io::ScanEntry;
 use crate::protocols::io::cmd::RCallback;
 use crate::protocols::io::cmd::WCallback;
 use crate::state::State;
@@ -17,8 +19,8 @@ impl IoProtocol {
             IoCmd::Read { path, rcallback } => Self::read(path, rcallback),
             IoCmd::Write { path, data, wcallback } => Self::write(s, path, data, wcallback),
             IoCmd::Scan { path } => Self::scan(s, path),
-            IoCmd::ScanCompletion { path, revision, entries } => {
-                Self::scan_completion(s, path, revision, entries);
+            IoCmd::ScanCompletion { entries, revision } => {
+                Self::scan_completion(s, entries, revision);
             }
         }
     }
@@ -46,19 +48,18 @@ impl IoProtocol {
 
         let revision = s.p.io.scan_revision;
         let tx = s.async_fcmd_tx.clone();
-        tokio::spawn(async move {
-            let entries = Self::scan_entries(&path).await;
-            let _ = tx.send(FCmd::Io(IoCmd::ScanCompletion { path, revision, entries }));
+        tokio::task::spawn_blocking(move || {
+            let entries = Self::scan_entries(&path);
+            let _ = tx.send(FCmd::Io(IoCmd::ScanCompletion { entries, revision }));
         });
     }
 
-    fn scan_completion(s: &mut State, path: PathBuf, revision: u64, entries: Vec<ScanEntry>) {
+    fn scan_completion(s: &mut State, entries: Vec<FileEntry>, revision: u64) {
         if revision != s.p.io.scan_revision {
             return;
         }
 
         s.p.io.scan_list = entries;
-        s.p.io.scan_root = Some(path);
     }
 
     pub fn can_quit(s: &State) -> Result<(), String> {
@@ -66,31 +67,28 @@ impl IoProtocol {
         if writers > 0 { Err(format!("{writers} ongoing writes in progress")) } else { Ok(()) }
     }
 
-    async fn scan_entries(root: &Path) -> Vec<ScanEntry> {
+    fn scan_entries(root: &Path) -> Vec<FileEntry> {
         let mut entries = Vec::new();
-        let mut directories = vec![root.to_path_buf()];
-        while let Some(path) = directories.pop() {
-            let Ok(metadata) = tokio::fs::metadata(&path).await else { continue };
-            if !metadata.is_dir() {
+
+        let walker = WalkBuilder::new(root)
+            .hidden(false)
+            .require_git(false)
+            .filter_entry(|e| e.file_name() != ".git")
+            .build();
+        for entry in walker {
+            let Ok(entry) = entry else { continue };
+            if entry.depth() == 0 {
                 continue;
             }
 
-            let Ok(mut directory) = tokio::fs::read_dir(&path).await else { continue };
-
-            while let Ok(Some(entry)) = directory.next_entry().await {
-                let path = entry.path();
-                let Ok(file_type) = entry.file_type().await else { continue };
-
-                if !file_type.is_dir() && !file_type.is_file() {
-                    continue;
-                }
-
-                if file_type.is_dir() {
-                    directories.push(path.clone());
-                }
-
-                entries.push(ScanEntry { path, dir: file_type.is_dir() });
+            let Some(file_type) = entry.file_type() else { continue };
+            if !file_type.is_dir() && !file_type.is_file() {
+                continue;
             }
+
+            let path = entry.into_path();
+            let relative_path = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
+            entries.push(FileEntry { path, relative_path, dir: file_type.is_dir() });
         }
 
         entries.sort_unstable_by(|a, b| a.path.cmp(&b.path));

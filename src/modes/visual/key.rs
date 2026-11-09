@@ -165,7 +165,7 @@ impl VisualKeyInput {
         let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         let mut offsets = util::selection::offsets(vse, dse);
-        offsets.sort_by_key(|&(s, _)| s);
+        offsets.sort_unstable_by_key(|&(s, _)| s);
 
         let mut bounds: Vec<(usize, usize)> = Vec::new();
         for (start, end) in offsets {

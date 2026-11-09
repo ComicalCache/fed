@@ -1,4 +1,6 @@
 use std::ffi::CStr;
+use std::mem::MaybeUninit;
+use std::ptr;
 
 pub fn permissions(mode: u32) -> String {
     let rwx = |mode, r, w, x| {
@@ -19,29 +21,69 @@ pub fn permissions(mode: u32) -> String {
 }
 
 pub fn user_name(uid: u32) -> String {
-    unsafe {
-        let pw = libc::getpwuid(uid);
-        if !pw.is_null()
-            && let Ok(name) = CStr::from_ptr((*pw).pw_name).to_str()
-        {
-            return name.to_string();
-        }
-    }
+    let mut buffer = vec![0u8; 1024];
+    loop {
+        let mut entry = MaybeUninit::<libc::passwd>::uninit();
+        let mut result = ptr::null_mut();
 
-    uid.to_string()
+        let status = unsafe {
+            libc::getpwuid_r(
+                uid,
+                entry.as_mut_ptr(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                &raw mut result,
+            )
+        };
+
+        if status == libc::ERANGE && self::grow_buffer(&mut buffer) {
+            continue;
+        }
+
+        if status == 0 && !result.is_null() {
+            let name = unsafe { (*result).pw_name };
+            if !name.is_null()
+                && let Ok(name) = unsafe { CStr::from_ptr(name) }.to_str()
+            {
+                return name.to_owned();
+            }
+        }
+
+        return uid.to_string();
+    }
 }
 
 pub fn group_name(gid: u32) -> String {
-    unsafe {
-        let gr = libc::getgrgid(gid);
-        if !gr.is_null()
-            && let Ok(name) = CStr::from_ptr((*gr).gr_name).to_str()
-        {
-            return name.to_string();
-        }
-    }
+    let mut buffer = vec![0u8; 1024];
+    loop {
+        let mut entry = MaybeUninit::<libc::group>::uninit();
+        let mut result = ptr::null_mut();
 
-    gid.to_string()
+        let status = unsafe {
+            libc::getgrgid_r(
+                gid,
+                entry.as_mut_ptr(),
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                &raw mut result,
+            )
+        };
+
+        if status == libc::ERANGE && self::grow_buffer(&mut buffer) {
+            continue;
+        }
+
+        if status == 0 && !result.is_null() {
+            let name = unsafe { (*result).gr_name };
+            if !name.is_null()
+                && let Ok(name) = unsafe { CStr::from_ptr(name) }.to_str()
+            {
+                return name.to_owned();
+            }
+        }
+
+        return gid.to_string();
+    }
 }
 
 pub fn size(bytes: u64) -> String {
@@ -54,4 +96,18 @@ pub fn size(bytes: u64) -> String {
     } else {
         format!("{:.1}G", bytes as f64 / (1024.0 * 1024.0 * 1024.0)).replace(".0", "")
     }
+}
+
+fn grow_buffer(buffer: &mut Vec<u8>) -> bool {
+    let Some(size) = buffer.len().checked_mul(2) else {
+        return false;
+    };
+
+    if buffer.try_reserve_exact(buffer.len()).is_err() {
+        return false;
+    }
+
+    buffer.resize(size, 0);
+
+    true
 }

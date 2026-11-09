@@ -1,5 +1,9 @@
 use std::any::Any;
 use std::fmt::Display;
+use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
+
+use nucleo_matcher::Utf32String;
 
 use crate::state::DocId;
 use crate::state::State;
@@ -29,7 +33,10 @@ pub struct PickerPState {
 
     pub entries: Vec<Box<dyn PickerEntry>>,
     pub display_text: Vec<String>,
-    pub search_text: Vec<String>,
+    pub search_text: Arc<[Utf32String]>,
+
+    pub filter_revision: Arc<AtomicU64>,
+
     pub filtered: Vec<usize>,
     pub offset: usize,
     pub pcallback: Option<PCallback>,

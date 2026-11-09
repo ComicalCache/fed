@@ -145,12 +145,16 @@ impl Fed {
         }
     }
 
-    pub async fn stage1(tx: UnboundedSender<FCmd>, doc: DocId, cli: Cli) {
-        if let Ok(path) = std::env::current_dir() {
+    pub async fn stage1(tx: UnboundedSender<FCmd>, doc: DocId, mut cli: Cli) {
+        if let Ok(path) = tokio::task::spawn_blocking(std::env::current_dir).await.unwrap() {
             let _ = tx.send(FCmd::Io(IoCmd::Scan { path }));
         }
 
-        let dir = cli.path.clone().is_some_and(|p| p.is_dir());
+        let dir = if let Some(path) = &cli.path {
+            tokio::fs::metadata(path).await.is_ok_and(|metadata| metadata.is_dir())
+        } else {
+            false
+        };
 
         let (vw_tx, vw_rx) = oneshot::channel();
         let _ = tx.send(FCmd::DocView(DocViewCmd::CreateTile {
@@ -169,17 +173,22 @@ impl Fed {
 
         if dir {
             let _ = tx.send(FCmd::Dir(DirCmd::Show { window, path: cli.path.clone() }));
-        } else if let Some(text) = cli.piped.clone() {
-            let mut decoration_parser = util::ansi::DecorationParser::default();
-            let mut parser = Parser::<DefaultCharAccumulator>::new();
+        } else if let Some(text) = cli.piped.take() {
+            let (text, dec) = tokio::task::spawn_blocking(move || {
+                let mut decoration_parser = util::ansi::DecorationParser::default();
+                let mut parser = Parser::<DefaultCharAccumulator>::new();
 
-            for byte in text.as_bytes() {
-                parser.advance(&mut decoration_parser, *byte);
-            }
-            decoration_parser.commit();
+                for byte in text.as_bytes() {
+                    parser.advance(&mut decoration_parser, *byte);
+                }
+                decoration_parser.commit();
 
-            let text = decoration_parser.parsed.clone();
-            let dec = Box::new(decoration_parser.decorator());
+                let text = std::mem::take(&mut decoration_parser.parsed);
+                let dec = Box::new(decoration_parser.decorator());
+                (text, dec)
+            })
+            .await
+            .unwrap();
 
             let _ = tx.send(FCmd::Action(ActionCmd::Insert { view, text }));
             let _ = tx.send(FCmd::Action(ActionCmd::SetDocDecorator {

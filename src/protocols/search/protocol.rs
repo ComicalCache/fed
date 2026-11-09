@@ -107,7 +107,7 @@ impl SearchProtocol {
             // TODO: somehow don't require copying the entire doc anymore?
             let text = s.doc_store.get(&request.doc).unwrap().doc.data.slice(..);
             let tx = s.async_fcmd_tx.clone();
-            tokio::spawn(async move {
+            tokio::task::spawn_blocking(move || {
                 let regex = match Regex::new(&query) {
                     Ok(regex) => regex,
                     Err(_) => {
@@ -325,7 +325,7 @@ impl SearchProtocol {
         // TODO: somehow don't require copying the entire doc anymore?
         let data = s.doc_store.get(&request.doc).unwrap().doc.data.slice(..);
         let tx = s.async_fcmd_tx.clone();
-        tokio::spawn(async move {
+        tokio::task::spawn_blocking(move || {
             let regex = match Regex::new(&query) {
                 Ok(regex) => regex,
                 Err(_) => {

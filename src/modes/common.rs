@@ -17,9 +17,9 @@ use crate::protocols::dir::DirCmd;
 use crate::protocols::dir::DirProtocol;
 use crate::protocols::doc_view::DocViewCmd;
 use crate::protocols::doc_view::DocViewProtocol;
+use crate::protocols::io::FileEntry;
 use crate::protocols::io::IoFuture;
 use crate::protocols::io::IoProtocol;
-use crate::protocols::io::ScanEntry;
 use crate::protocols::mp::MpCmd;
 use crate::protocols::picker::PickerCmd;
 use crate::protocols::picker::PickerEntry;
@@ -513,7 +513,7 @@ pub fn sort_lines(
 
 pub fn remove_offsets(view: ViewId, offsets: Vec<(usize, usize)>) -> Vec<FCmd> {
     let mut regions: Vec<_> = offsets.into_iter().map(|(s, e)| (s.min(e), s.max(e))).collect();
-    regions.sort_by_key(|&(s, _)| s);
+    regions.sort_unstable_by_key(|&(s, _)| s);
 
     let mut merged: Vec<(usize, usize)> = Vec::new();
     for (start, end) in regions {
@@ -525,7 +525,7 @@ pub fn remove_offsets(view: ViewId, offsets: Vec<(usize, usize)>) -> Vec<FCmd> {
         }
         merged.push((start, end));
     }
-    merged.sort_by_key(|&(s, _)| std::cmp::Reverse(s));
+    merged.reverse();
 
     let mut cmds = Vec::new();
     for (start, end) in merged {
@@ -642,7 +642,7 @@ pub fn find_file(s: &State) -> Vec<FCmd> {
 
         let Some(selected) = selected else { return };
 
-        let entry = selected.into_any().downcast::<ScanEntry>().unwrap();
+        let entry = *selected.into_any().downcast::<FileEntry>().unwrap();
         ActionProtocol::set_active_window(s, Some(window));
 
         if entry.dir {

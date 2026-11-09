@@ -121,7 +121,7 @@ fn edits(
         edits.extend(block_edits(&mut rows, vse.layout.tab_width));
     }
 
-    edits.sort_unstable_by_key(|&(offset, _, _)| offset);
+    edits.sort_by_key(|&(offset, _, _)| offset);
     Ok(edits)
 }
 

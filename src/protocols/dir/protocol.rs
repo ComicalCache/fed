@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -230,6 +231,7 @@ impl DirProtocol {
     async fn fetch_entries(pwd: PathBuf, revision: u64, async_fcmd_tx: UnboundedSender<FCmd>) {
         let mut entries = Vec::new();
         let mut printables: Vec<PrintableDirEntry> = Vec::new();
+        let mut ownership = Vec::new();
 
         printables.push(PrintableDirEntry {
             perms: "PERMISSIONS".to_string(),
@@ -245,22 +247,18 @@ impl DirProtocol {
         if let Some(parent) = pwd.parent()
             && let Ok(metadata) = tokio::fs::metadata(parent).await
         {
-            let (perms, links, owner, group) = {
+            let (perms, links) = {
                 use std::os::unix::fs::MetadataExt;
 
-                (
-                    format::permissions(metadata.mode()),
-                    metadata.nlink().to_string(),
-                    format::user_name(metadata.uid()),
-                    format::group_name(metadata.gid()),
-                )
+                ownership.push((metadata.uid(), metadata.gid()));
+                (format::permissions(metadata.mode()), metadata.nlink().to_string())
             };
 
             printables.push(PrintableDirEntry {
                 perms: format!("d{perms}"),
                 links,
-                owner,
-                group,
+                owner: String::new(),
+                group: String::new(),
                 size: format::size(metadata.len()),
                 modified: metadata.modified().map_or_else(
                     |_| "n/a".to_string(),
@@ -287,13 +285,12 @@ impl DirProtocol {
             let Ok(Some(entry)) = read_dir.next_entry().await else { break };
             dir_entries.push(entry);
         }
-        dir_entries.sort_by(|a, b| {
-            a.path()
-                .file_name()
-                .unwrap_or_default()
-                .to_ascii_lowercase()
-                .cmp(&b.path().file_name().unwrap_or_default().to_ascii_lowercase())
-        });
+        let dir_entries = tokio::task::spawn_blocking(move || {
+            dir_entries.sort_by_cached_key(|entry| entry.file_name().to_ascii_lowercase());
+            dir_entries
+        })
+        .await
+        .unwrap();
 
         for entry in dir_entries {
             let Ok(metadata) = entry.metadata().await else {
@@ -310,15 +307,11 @@ impl DirProtocol {
                 DirEntryKind::File
             };
 
-            let (perms, links, owner, group) = {
+            let (perms, links) = {
                 use std::os::unix::fs::MetadataExt;
 
-                (
-                    format::permissions(metadata.mode()),
-                    metadata.nlink().to_string(),
-                    format::user_name(metadata.uid()),
-                    format::group_name(metadata.gid()),
-                )
+                ownership.push((metadata.uid(), metadata.gid()));
+                (format::permissions(metadata.mode()), metadata.nlink().to_string())
             };
 
             let perms = match kind {
@@ -347,9 +340,33 @@ impl DirProtocol {
                 name.push_str(&target.display().to_string());
             }
 
-            printables.push(PrintableDirEntry { perms, links, owner, group, size, modified, name });
+            printables.push(PrintableDirEntry {
+                perms,
+                links,
+                owner: String::new(),
+                group: String::new(),
+                size,
+                modified,
+                name,
+            });
             entries.push(DirEntry { path: entry.path(), kind, path_offset: 0 });
         }
+
+        let printables = tokio::task::spawn_blocking(move || {
+            let mut users = HashMap::new();
+            let mut groups = HashMap::new();
+
+            for (entry, (uid, gid)) in printables.iter_mut().skip(1).zip(ownership) {
+                entry.owner.clone_from(users.entry(uid).or_insert_with(|| format::user_name(uid)));
+                entry
+                    .group
+                    .clone_from(groups.entry(gid).or_insert_with(|| format::group_name(gid)));
+            }
+
+            printables
+        })
+        .await
+        .unwrap();
 
         let _ =
             async_fcmd_tx.send(FCmd::Dir(DirCmd::InitCompletion { entries, printables, revision }));

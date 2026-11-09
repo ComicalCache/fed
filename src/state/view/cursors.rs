@@ -7,7 +7,7 @@ pub struct Cursors {
 
 impl Cursors {
     pub fn normalize(&mut self) {
-        self.list.sort_unstable_by_key(|c| c.offset);
+        self.list.sort_by_key(|c| c.offset);
         self.list.dedup_by_key(|c| c.offset);
     }
 }
