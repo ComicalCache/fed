@@ -24,6 +24,7 @@ impl ViewProtocol {
         let doc = match event {
             DocStoreTypes::Event::Created { .. }
             | DocStoreTypes::Event::Destroyed { .. }
+            | DocStoreTypes::Event::ModifiedChanged { .. }
             | DocStoreTypes::Event::Written { .. } => return,
             DocStoreTypes::Event::Inserted { doc, .. }
             | DocStoreTypes::Event::Removed { doc, .. }

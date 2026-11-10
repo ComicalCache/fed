@@ -10,6 +10,7 @@ pub enum Event {
     Destroyed { doc: DocId },
     Inserted { doc: DocId, pos: usize, n: usize, str: String },
     Removed { doc: DocId, pos: usize, n: usize, str: String },
+    ModifiedChanged { doc: DocId, modified: bool },
     Written { doc: DocId, path: PathBuf, bytes_written: usize },
     ModeChanged { doc: DocId, mode: DocStoreTypes::Mode },
     PathChanged { doc: DocId, path: Option<PathBuf> },

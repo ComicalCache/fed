@@ -243,6 +243,9 @@ impl ActionProtocol {
         }
 
         dse.doc.modified = false;
+        let _ = s
+            .fevent_tx
+            .send(FEvent::Doc(DocStoreTypes::Event::ModifiedChanged { doc, modified: false }));
 
         let path = dse.doc.path.clone();
         if let Some(path) = path {
@@ -313,6 +316,9 @@ impl ActionProtocol {
         Self::process_edits(s, doc, edits);
 
         s.doc_store.get_mut(&doc).unwrap().doc.modified = false;
+        let _ = s
+            .fevent_tx
+            .send(FEvent::Doc(DocStoreTypes::Event::ModifiedChanged { doc, modified: false }));
 
         let views = s.index.doc_to_views(doc).cloned().unwrap_or_default();
         for view in views {
@@ -527,8 +533,14 @@ impl ActionProtocol {
         }
 
         let dse = s.doc_store.get_mut(&doc).unwrap();
-        dse.doc.modified = true;
         dse.doc.revision += 1;
+        if !dse.doc.modified {
+            dse.doc.modified = true;
+
+            let _ = s
+                .fevent_tx
+                .send(FEvent::Doc(DocStoreTypes::Event::ModifiedChanged { doc, modified: true }));
+        }
 
         for (offset, kind, data) in &edits {
             let (remove, insert) = match kind {

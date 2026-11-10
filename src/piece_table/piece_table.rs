@@ -293,6 +293,11 @@ impl PieceTable {
     pub const fn len(&self) -> usize { self.byte_len }
 
     #[must_use]
+    pub const fn memory_footprint(&self) -> usize {
+        self.original_buffer.len() + self.add_buffer.len()
+    }
+
+    #[must_use]
     pub const fn is_empty(&self) -> bool { self.byte_len == 0 }
 
     /// Reverts the piece table to the state *before* the last changes. Returns

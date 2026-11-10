@@ -138,6 +138,7 @@ impl Fed {
                     SearchProtocol::exec_doc_event(&mut self.s, &event);
                 }
                 FEvent::View(event) => {
+                    ManageProtocol::exec_view_event(&mut self.s, &event);
                     SearchProtocol::exec_view_event(&mut self.s, &event);
                     ViewProtocol::exec_view_event(&mut self.s, &event);
                 }
