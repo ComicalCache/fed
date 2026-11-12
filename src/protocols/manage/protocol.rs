@@ -145,7 +145,9 @@ impl ManageProtocol {
 
         let window = s.index.view_to_window(s.p.manage.view).unwrap();
         match dse.mode {
-            DocStoreTypes::Mode::Text | DocStoreTypes::Mode::Read => {
+            DocStoreTypes::Mode::Text
+            | DocStoreTypes::Mode::Read
+            | DocStoreTypes::Mode::Keybind => {
                 DocViewProtocol::show(s, doc, view, window, false, None);
             }
             DocStoreTypes::Mode::Dir => DirProtocol::show(s, window),
@@ -198,6 +200,7 @@ impl ManageProtocol {
                     DocStoreTypes::Mode::Picker => "PICKER",
                     DocStoreTypes::Mode::Grep => "GREP",
                     DocStoreTypes::Mode::Read => "READ",
+                    DocStoreTypes::Mode::Keybind => "KEYBIND",
                 }
                 .to_string()
             },

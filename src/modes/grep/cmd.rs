@@ -1,6 +1,6 @@
 use crate::types::Motion;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Cmd {
     Move(Motion),
     Yank(Motion),
@@ -22,5 +22,4 @@ pub enum Cmd {
     EnterSearchMode,
     EnterGrepMode,
     Quit,
-    Close,
 }

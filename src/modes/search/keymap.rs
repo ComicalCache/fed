@@ -11,10 +11,11 @@ pub fn keymap() -> Keymap<Cmd> {
     let mut keymap = Keymap::new();
 
     for (chord, motion) in MOTIONS {
-        keymap.bind(&[chord], Cmd::Move(motion));
+        keymap.bind(&[chord], Cmd::Move(motion), "Move the cursor with the motion");
         keymap.bind(
             &[KeyChord::new(KeyCode::Char('y'), KeyModifiers::empty()), chord],
             Cmd::Yank(motion),
+            "Yank the motion",
         );
     }
     keymap.bind(
@@ -23,74 +24,108 @@ pub fn keymap() -> Keymap<Cmd> {
             KeyChord::new(KeyCode::Char('y'), KeyModifiers::empty()),
         ],
         Cmd::YankLine,
+        "Yank the line",
+    );
+
+    for (ch, motion) in
+        [('H', Motion::Left), ('J', Motion::Down), ('K', Motion::Up), ('L', Motion::Right)]
+    {
+        keymap.bind(
+            &[KeyChord::new(KeyCode::Char(ch), KeyModifiers::SHIFT)],
+            Cmd::ScrollView(motion),
+            "Scroll the view",
+        );
+    }
+
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Char('n'), KeyModifiers::empty())],
+        Cmd::NextMatch,
+        "Jump to the next match",
+    );
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Char('N'), KeyModifiers::SHIFT)],
+        Cmd::PrevMatch,
+        "Jump to the previous match",
+    );
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Char('c'), KeyModifiers::empty())],
+        Cmd::CursorsBegin,
+        "Add cursors at the start of each match",
+    );
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Char('C'), KeyModifiers::SHIFT)],
+        Cmd::CursorsEnd,
+        "Add cursors at the end of each match",
     );
 
     keymap.bind(
-        &[KeyChord::new(KeyCode::Char('H'), KeyModifiers::SHIFT)],
-        Cmd::ScrollView(Motion::Left),
+        &[KeyChord::new(KeyCode::Char('r'), KeyModifiers::empty())],
+        Cmd::Replace,
+        "Replace the current match",
     );
     keymap.bind(
-        &[KeyChord::new(KeyCode::Char('J'), KeyModifiers::SHIFT)],
-        Cmd::ScrollView(Motion::Down),
+        &[KeyChord::new(KeyCode::Char('R'), KeyModifiers::SHIFT)],
+        Cmd::ReplaceAll,
+        "Replace all matches",
     );
-    keymap.bind(
-        &[KeyChord::new(KeyCode::Char('K'), KeyModifiers::SHIFT)],
-        Cmd::ScrollView(Motion::Up),
-    );
-    keymap.bind(
-        &[KeyChord::new(KeyCode::Char('L'), KeyModifiers::SHIFT)],
-        Cmd::ScrollView(Motion::Right),
-    );
-
-    keymap.bind(&[KeyChord::new(KeyCode::Char('n'), KeyModifiers::empty())], Cmd::NextMatch);
-    keymap.bind(&[KeyChord::new(KeyCode::Char('N'), KeyModifiers::SHIFT)], Cmd::PrevMatch);
-    keymap.bind(&[KeyChord::new(KeyCode::Char('c'), KeyModifiers::empty())], Cmd::CursorsBegin);
-    keymap.bind(&[KeyChord::new(KeyCode::Char('C'), KeyModifiers::SHIFT)], Cmd::CursorsEnd);
-
-    keymap.bind(&[KeyChord::new(KeyCode::Char('r'), KeyModifiers::empty())], Cmd::Replace);
-    keymap.bind(&[KeyChord::new(KeyCode::Char('R'), KeyModifiers::SHIFT)], Cmd::ReplaceAll);
-
-    keymap.bind(&[KeyChord::new(KeyCode::Char('s'), KeyModifiers::CONTROL)], Cmd::SaveFile);
-    keymap.bind(&[KeyChord::new(KeyCode::Char('f'), KeyModifiers::CONTROL)], Cmd::FindFile);
-    keymap.bind(&[KeyChord::new(KeyCode::Char('t'), KeyModifiers::CONTROL)], Cmd::SelectTheme);
-
-    keymap.bind(&[KeyChord::new(KeyCode::Char('j'), KeyModifiers::CONTROL)], Cmd::Jump);
 
     keymap.bind(
-        &[
-            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
-            KeyChord::new(KeyCode::Char('h'), KeyModifiers::empty()),
-        ],
-        Cmd::FocusWindow(Motion::Left),
+        &[KeyChord::new(KeyCode::Char('s'), KeyModifiers::CONTROL)],
+        Cmd::SaveFile,
+        "Save the file",
     );
     keymap.bind(
-        &[
-            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
-            KeyChord::new(KeyCode::Char('j'), KeyModifiers::empty()),
-        ],
-        Cmd::FocusWindow(Motion::Down),
+        &[KeyChord::new(KeyCode::Char('f'), KeyModifiers::CONTROL)],
+        Cmd::FindFile,
+        "Open the file selector",
     );
     keymap.bind(
-        &[
-            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
-            KeyChord::new(KeyCode::Char('k'), KeyModifiers::empty()),
-        ],
-        Cmd::FocusWindow(Motion::Up),
-    );
-    keymap.bind(
-        &[
-            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
-            KeyChord::new(KeyCode::Char('l'), KeyModifiers::empty()),
-        ],
-        Cmd::FocusWindow(Motion::Right),
+        &[KeyChord::new(KeyCode::Char('t'), KeyModifiers::CONTROL)],
+        Cmd::SelectTheme,
+        "Open the theme selector",
     );
 
-    keymap.bind(&[KeyChord::new(KeyCode::Char('d'), KeyModifiers::ALT)], Cmd::EnterDirMode);
-    keymap.bind(&[KeyChord::new(KeyCode::Char('b'), KeyModifiers::ALT)], Cmd::EnterManageMode);
-    keymap.bind(&[KeyChord::new(KeyCode::Char('F'), KeyModifiers::SHIFT)], Cmd::EnterGrepMode);
-    keymap.bind(&[KeyChord::new(KeyCode::Char('q'), KeyModifiers::CONTROL)], Cmd::Quit);
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Char('j'), KeyModifiers::CONTROL)],
+        Cmd::Jump,
+        "Jump to a line",
+    );
 
-    keymap.bind(&[KeyChord::new(KeyCode::Esc, KeyModifiers::empty())], Cmd::Escape);
+    for (ch, motion) in
+        [('h', Motion::Left), ('j', Motion::Down), ('k', Motion::Up), ('l', Motion::Right)]
+    {
+        keymap.bind(
+            &[
+                KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+                KeyChord::new(KeyCode::Char(ch), KeyModifiers::empty()),
+            ],
+            Cmd::FocusWindow(motion),
+            "Focus the window",
+        );
+    }
+
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Char('d'), KeyModifiers::ALT)],
+        Cmd::EnterDirMode,
+        "Open the directory viewer",
+    );
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Char('b'), KeyModifiers::ALT)],
+        Cmd::EnterManageMode,
+        "Open the document and view manager",
+    );
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Char('F'), KeyModifiers::SHIFT)],
+        Cmd::EnterGrepMode,
+        "Search the current working directory",
+    );
+    keymap.bind(&[KeyChord::new(KeyCode::Char('q'), KeyModifiers::CONTROL)], Cmd::Quit, "Quit fed");
+
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Esc, KeyModifiers::empty())],
+        Cmd::Escape,
+        "Exit search mode",
+    );
 
     keymap
 }

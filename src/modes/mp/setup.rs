@@ -1,5 +1,6 @@
 use crate::state::DocStoreTypes;
 use crate::state::State;
+use crate::state::ViewId;
 use crate::state::ViewStoreTypes::TabWidth;
 use crate::state::ViewStoreTypes::{self};
 
@@ -11,6 +12,11 @@ pub fn setup(s: &mut State) {
 
     s.p.mp.view = s.create_view(s.p.mp.doc);
     let vse = s.view_store.get_mut(&s.p.mp.view).unwrap();
+    vse.cursors.list.clear();
+}
+
+pub fn vmode(s: &mut State, view: ViewId) {
+    let vse = s.view_store.get_mut(&view).unwrap();
     vse.layout = ViewStoreTypes::Layout {
         tab_width: TabWidth::default(),
         gutter: false,
@@ -18,5 +24,4 @@ pub fn setup(s: &mut State) {
         replacements: ViewStoreTypes::Replacements::none(),
         rulers: Vec::new(),
     };
-    vse.cursors.list.clear();
 }

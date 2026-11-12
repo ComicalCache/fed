@@ -26,6 +26,8 @@ pub use input::ResizeInputHandler;
 pub use input::ResizeInputPriority;
 pub use keymap::KeyChord;
 pub use keymap::Keymap;
+pub use keymap::KeymapHelp;
+pub use keymap::KeymapHelpBinding;
 pub use keymap::ParseResult;
 pub use motion::Motion;
 pub use pos::Pos;

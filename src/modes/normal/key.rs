@@ -10,6 +10,7 @@ use crate::protocols::action::ActionCmd;
 use crate::protocols::action::ActionProtocol;
 use crate::protocols::dir::DirCmd;
 use crate::protocols::grep::GrepCmd;
+use crate::protocols::keybind::KeybindCmd;
 use crate::protocols::manage::ManageCmd;
 use crate::protocols::mp::MpCmd;
 use crate::protocols::search::SearchCmd;
@@ -146,6 +147,10 @@ impl NormalKeyInput {
             Cmd::EnterDirMode => {
                 let window = s.workspace.active_window?;
                 Some(vec![FCmd::Dir(DirCmd::Show { window, path: None })])
+            }
+            Cmd::ShowKeybinds => {
+                let window = s.workspace.active_window?;
+                Some(vec![FCmd::Keybind(KeybindCmd::Show { window })])
             }
             Cmd::EnterManageMode => {
                 let window = s.workspace.active_window?;
@@ -413,6 +418,8 @@ impl NormalKeyInput {
 
 impl KeyInputHandler for NormalKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::NormalMode }
+
+    fn keymap(&self) -> crate::types::KeymapHelp { self.keymap.help("normal") }
 
     fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;

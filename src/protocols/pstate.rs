@@ -2,6 +2,7 @@ use crate::protocols::dir::DirPState;
 use crate::protocols::doc_view::DocViewPState;
 use crate::protocols::grep::GrepPState;
 use crate::protocols::io::IoPState;
+use crate::protocols::keybind::KeybindPState;
 use crate::protocols::manage::ManagePState;
 use crate::protocols::mp::MpPState;
 use crate::protocols::picker::PickerPState;
@@ -15,6 +16,7 @@ pub struct PState {
     pub manage: ManagePState,
     pub dir: DirPState,
     pub doc_view: DocViewPState,
+    pub keybind: KeybindPState,
     pub picker: PickerPState,
     pub search: SearchPState,
     pub grep: GrepPState,
@@ -29,6 +31,7 @@ impl PState {
             manage: ManagePState::default(),
             dir: DirPState::default(),
             doc_view: DocViewPState::default(),
+            keybind: KeybindPState::default(),
             picker: PickerPState::default(),
             search: SearchPState::default(),
             grep: GrepPState::default(),

@@ -41,5 +41,4 @@ pub enum GrepCmd {
         result: Result<HashMap<PathBuf, String>, String>,
         revision: u64,
     },
-    Close,
 }

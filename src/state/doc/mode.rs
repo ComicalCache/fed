@@ -11,8 +11,8 @@ pub enum Mode {
     Manage,
     Picker,
     Grep,
-
     Read,
+    Keybind,
 }
 
 impl Mode {

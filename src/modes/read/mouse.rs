@@ -17,7 +17,8 @@ impl MouseInputHandler for ReadMouseInput {
         let view = s.index.window_to_views(window).unwrap()[0];
         let (_, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
-        if dse.mode != DocStoreTypes::Mode::Read {
+        // FIXME: kind of a hack.
+        if !matches!(dse.mode, DocStoreTypes::Mode::Read | DocStoreTypes::Mode::Keybind) {
             return None;
         }
 

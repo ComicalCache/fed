@@ -20,6 +20,7 @@ use crate::modes;
 use crate::piece_table::PieceTable;
 use crate::protocols::pstate::PState;
 use crate::state::index::Index;
+use crate::types::KeymapHelp;
 use crate::types::Pos;
 use crate::types::Rect;
 use crate::types::Theme;
@@ -42,6 +43,7 @@ pub struct State {
     pub view_store: ViewStore,
 
     pub theme: Theme,
+    pub keymap_help: Vec<KeymapHelp>,
 
     pub fevent_tx: UnboundedSender<FEvent>,
     pub async_fcmd_tx: UnboundedSender<FCmd>,
@@ -50,7 +52,7 @@ pub struct State {
 impl State {
     pub fn new(
         width: usize, height: usize, fevent_tx: UnboundedSender<FEvent>,
-        async_fcmd_tx: UnboundedSender<FCmd>,
+        async_fcmd_tx: UnboundedSender<FCmd>, keymap_help: Vec<KeymapHelp>,
     ) -> Self {
         let mut s = Self {
             next_doc_id: 1,
@@ -61,6 +63,7 @@ impl State {
             doc_store: DocStore::default(),
             view_store: ViewStore::default(),
             theme: Theme::default(),
+            keymap_help,
             fevent_tx,
             async_fcmd_tx,
         };
@@ -70,6 +73,7 @@ impl State {
         modes::manage::setup::setup(&mut s);
         modes::picker::setup::setup(&mut s);
         modes::grep::setup::setup(&mut s);
+        modes::keybind::setup::setup(&mut s);
 
         s
     }
@@ -95,7 +99,7 @@ impl State {
             ..Default::default()
         };
         self.doc_store.insert(doc, entry);
-        self.dinit(doc);
+        self.dmode(doc);
 
         let _ = self.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Created { doc }));
 
@@ -128,7 +132,7 @@ impl State {
         self.view_store.insert(view, entry);
 
         self.index.link_view_to_doc(view, doc);
-        self.vinit(view);
+        self.vmode(view);
 
         let _ = self.fevent_tx.send(FEvent::View(ViewStoreTypes::Event::Created { view }));
 
@@ -213,39 +217,10 @@ impl State {
         Some(views[0])
     }
 
-    fn dinit(&mut self, doc: DocId) {
-        match self.doc_store.get(&doc).unwrap().mode {
-            DocStoreTypes::Mode::Text
-            | DocStoreTypes::Mode::Mp
-            | DocStoreTypes::Mode::Dir
-            | DocStoreTypes::Mode::Manage
-            | DocStoreTypes::Mode::Picker
-            | DocStoreTypes::Mode::Grep
-            | DocStoreTypes::Mode::Read => {}
-        }
-
-        self.dmode(doc);
-    }
-
-    fn vinit(&mut self, view: ViewId) {
-        let doc = self.index.view_to_doc(view).unwrap();
-
-        match self.doc_store.get(&doc).unwrap().mode {
-            DocStoreTypes::Mode::Read => modes::read::setup::vinit(self, view),
-            DocStoreTypes::Mode::Text
-            | DocStoreTypes::Mode::Mp
-            | DocStoreTypes::Mode::Dir
-            | DocStoreTypes::Mode::Manage
-            | DocStoreTypes::Mode::Picker
-            | DocStoreTypes::Mode::Grep => {}
-        }
-
-        self.vmode(view);
-    }
-
     pub fn dmode(&mut self, doc: DocId) {
         match self.doc_store.get(&doc).unwrap().mode {
             DocStoreTypes::Mode::Read => modes::read::setup::dmode(self, doc),
+            DocStoreTypes::Mode::Keybind => modes::keybind::setup::dmode(self, doc),
             DocStoreTypes::Mode::Text
             | DocStoreTypes::Mode::Mp
             | DocStoreTypes::Mode::Dir
@@ -253,9 +228,47 @@ impl State {
             | DocStoreTypes::Mode::Picker
             | DocStoreTypes::Mode::Grep => {}
         }
+
+        let views = self.index.doc_to_views(doc).cloned().unwrap_or_default();
+        for view in views {
+            self.vmode(view);
+        }
     }
 
-    pub fn vmode(&mut self, _view: ViewId) {}
+    pub fn vmode(&mut self, view: ViewId) {
+        let doc = self.index.view_to_doc(view).unwrap();
+        let vse = self.view_store.get_mut(&view).unwrap();
+        vse.layout = ViewStoreTypes::Layout::default();
+        vse.mode_line_config = Default::default();
+
+        // If the view mode changes, it can cause changes depending on the doc
+        // mode.
+        match self.doc_store.get(&doc).unwrap().mode {
+            DocStoreTypes::Mode::Text => {}
+            DocStoreTypes::Mode::Read => modes::read::setup::vmode(self, view),
+            DocStoreTypes::Mode::Keybind => modes::keybind::setup::vmode(self, view),
+            DocStoreTypes::Mode::Dir => modes::dir::setup::vmode(self, view),
+            DocStoreTypes::Mode::Manage => modes::manage::setup::vmode(self, view),
+            DocStoreTypes::Mode::Grep => modes::grep::setup::vmode(self, view),
+            DocStoreTypes::Mode::Mp => modes::mp::setup::vmode(self, view),
+            DocStoreTypes::Mode::Picker => modes::picker::setup::vmode(self, view),
+        }
+
+        // View mode changes independent of doc mode.
+        match self.view_store.get(&view).unwrap().mode() {
+            ViewStoreTypes::Mode::Normal
+            | ViewStoreTypes::Mode::Insert
+            | ViewStoreTypes::Mode::Visual
+            | ViewStoreTypes::Mode::VisualLine
+            | ViewStoreTypes::Mode::Search => {}
+        }
+
+        let vse = self.view_store.get_mut(&view).unwrap();
+        if vse.raw {
+            vse.layout.gutter = false;
+            vse.layout.mode_line = 0;
+        }
+    }
 
     pub fn vse_and_dse<'a>(
         view_store: &'a ViewStore, doc_store: &'a DocStore, index: &Index, view: ViewId,

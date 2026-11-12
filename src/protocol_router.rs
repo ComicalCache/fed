@@ -4,6 +4,7 @@ use crate::protocols::dir::DirProtocol;
 use crate::protocols::doc_view::DocViewProtocol;
 use crate::protocols::grep::GrepProtocol;
 use crate::protocols::io::IoProtocol;
+use crate::protocols::keybind::KeybindProtocol;
 use crate::protocols::manage::ManageProtocol;
 use crate::protocols::mp::MpProtocol;
 use crate::protocols::picker::PickerProtocol;
@@ -26,6 +27,7 @@ impl ProtocolRouter {
             FCmd::Screen(cmd) => ScreenProtocol::exec(s, screen, cmd),
             FCmd::View(cmd) => ViewProtocol::exec(s, cmd),
             FCmd::DocView(cmd) => DocViewProtocol::exec(s, cmd),
+            FCmd::Keybind(cmd) => KeybindProtocol::exec(s, cmd),
             FCmd::Dir(cmd) => DirProtocol::exec(s, cmd),
             FCmd::Manage(cmd) => ManageProtocol::exec(s, cmd),
             FCmd::Picker(cmd) => PickerProtocol::exec(s, cmd),

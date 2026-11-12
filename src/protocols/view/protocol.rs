@@ -41,9 +41,9 @@ impl ViewProtocol {
         let view = match event {
             ViewStoreTypes::Event::Created { view }
             | ViewStoreTypes::Event::Resized { view }
-            | ViewStoreTypes::Event::CursorsMoved { view } => *view,
+            | ViewStoreTypes::Event::CursorsMoved { view }
+            | ViewStoreTypes::Event::ModeChanged { view, .. } => *view,
             ViewStoreTypes::Event::CursorsChanged { .. }
-            | ViewStoreTypes::Event::ModeChanged { .. }
             | ViewStoreTypes::Event::Destroyed { .. } => return,
         };
 

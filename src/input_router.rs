@@ -32,6 +32,7 @@ use crate::protocols::screen::ScreenResizeInput;
 use crate::protocols::view::ViewResizeInput;
 use crate::state::State;
 use crate::types::KeyInputHandler;
+use crate::types::KeymapHelp;
 use crate::types::MouseInputHandler;
 use crate::types::PasteInputHandler;
 use crate::types::ResizeInputHandler;
@@ -87,6 +88,13 @@ impl InputRouter {
             }
             _ => Vec::new(),
         }
+    }
+
+    pub fn keymap_help(&self) -> Vec<KeymapHelp> {
+        let mut keymaps: Vec<_> = self.key_handlers.iter().map(|h| h.keymap()).collect();
+        keymaps.sort_by_key(|keymap| keymap.mode);
+
+        keymaps
     }
 }
 

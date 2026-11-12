@@ -42,6 +42,7 @@ pub struct ViewStoreEntry {
 
     pub view_cache: types::ViewCache,
 
+    pub raw: bool,
     pub layout: types::Layout,
     pub mode_line_config: ModeLineConfig,
 
@@ -82,6 +83,7 @@ impl Default for ViewStoreEntry {
             rect: Rect::default(),
             modes: vec![ViewStoreTypes::Mode::Normal],
             view_cache: ViewStoreTypes::ViewCache::default(),
+            raw: false,
             layout: ViewStoreTypes::Layout::default(),
             mode_line_config: ModeLineConfig::default(),
             scroll: ViewStoreTypes::Scroll::default(),

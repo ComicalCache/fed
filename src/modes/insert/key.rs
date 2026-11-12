@@ -93,6 +93,8 @@ impl InsertKeyInput {
 impl KeyInputHandler for InsertKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::InsertMode }
 
+    fn keymap(&self) -> crate::types::KeymapHelp { self.keymap.help("insert") }
+
     fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;
         let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();

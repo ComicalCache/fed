@@ -1,5 +1,6 @@
 use crate::state::DocStoreTypes;
 use crate::state::State;
+use crate::state::ViewId;
 use crate::state::ViewStoreTypes::TabWidth;
 use crate::state::ViewStoreTypes::{self};
 
@@ -15,17 +16,17 @@ pub fn setup(s: &mut State) {
     list_dse.read_only = true;
     list_dse.max_cursors = Some(1);
 
-    let layout = ViewStoreTypes::Layout {
+    s.p.picker.input_view = s.create_view(s.p.picker.input_doc);
+    s.p.picker.list_view = s.create_view(s.p.picker.list_doc);
+}
+
+pub fn vmode(s: &mut State, view: ViewId) {
+    let vse = s.view_store.get_mut(&view).unwrap();
+    vse.layout = ViewStoreTypes::Layout {
         tab_width: TabWidth::default(),
         gutter: false,
         mode_line: 0,
         replacements: ViewStoreTypes::Replacements::none(),
         rulers: Vec::new(),
     };
-
-    s.p.picker.input_view = s.create_view(s.p.picker.input_doc);
-    s.view_store.get_mut(&s.p.picker.input_view).unwrap().layout = layout.clone();
-
-    s.p.picker.list_view = s.create_view(s.p.picker.list_doc);
-    s.view_store.get_mut(&s.p.picker.list_view).unwrap().layout = layout;
 }

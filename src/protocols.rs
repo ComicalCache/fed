@@ -3,6 +3,7 @@ pub mod dir;
 pub mod doc_view;
 pub mod grep;
 pub mod io;
+pub mod keybind;
 pub mod manage;
 pub mod mp;
 pub mod picker;

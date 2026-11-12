@@ -51,7 +51,6 @@ impl GrepProtocol {
             GrepCmd::ReplaceCompletion { target, replacement, result, revision } => {
                 Self::replace_completion(s, target.as_ref(), replacement, result, revision);
             }
-            GrepCmd::Close => Self::close(s),
         }
     }
 
@@ -364,13 +363,6 @@ impl GrepProtocol {
                 Duration::from_secs(3),
             );
         }
-    }
-
-    pub fn close(s: &mut State) {
-        s.p.grep.revision.fetch_add(1, Ordering::Relaxed);
-        s.p.grep.matches.clear();
-
-        s.view_store.get_mut(&s.p.grep.view).unwrap().search = None;
     }
 
     fn opened_docs(s: &State) -> HashMap<PathBuf, String> {

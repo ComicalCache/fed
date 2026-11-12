@@ -168,6 +168,8 @@ impl DirKeyInput {
 impl KeyInputHandler for DirKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::DirMode }
 
+    fn keymap(&self) -> crate::types::KeymapHelp { self.keymap.help("dir") }
+
     fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;
         let (_, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();

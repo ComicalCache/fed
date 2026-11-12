@@ -1,6 +1,4 @@
-use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
-use crossterm::event::KeyModifiers;
 
 use crate::fed::FCmd;
 use crate::modes::common;
@@ -73,13 +71,14 @@ impl GrepKeyInput {
                 Some(vec![FCmd::Grep(GrepCmd::Search { window })])
             }
             Cmd::Quit => common::quit(s, view),
-            Cmd::Close => Some(vec![FCmd::Grep(GrepCmd::Close)]),
         }
     }
 }
 
 impl KeyInputHandler for GrepKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::GrepMode }
+
+    fn keymap(&self) -> crate::types::KeymapHelp { self.keymap.help("grep") }
 
     fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         let Some(view) = s.active_view() else {
@@ -91,12 +90,6 @@ impl KeyInputHandler for GrepKeyInput {
         if view != s.p.grep.view || dse.mode != DocStoreTypes::Mode::Grep {
             self.pending_keys.clear();
             return None;
-        }
-
-        // Escape must close even while a multi-key binding is pending.
-        if event.code == KeyCode::Esc && event.modifiers == KeyModifiers::NONE {
-            self.pending_keys.clear();
-            return Self::exec(s, Cmd::Close);
         }
 
         self.pending_keys.push(KeyChord::from(event));

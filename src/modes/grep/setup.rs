@@ -1,5 +1,6 @@
 use crate::state::DocStoreTypes;
 use crate::state::State;
+use crate::state::ViewId;
 use crate::state::ViewStoreTypes;
 use crate::state::ViewStoreTypes::TabWidth;
 use crate::types::Face;
@@ -14,7 +15,10 @@ pub fn setup(s: &mut State) {
     dse.max_cursors = Some(1);
 
     s.p.grep.view = s.create_view(s.p.grep.doc);
-    let vse = s.view_store.get_mut(&s.p.grep.view).unwrap();
+}
+
+pub fn vmode(s: &mut State, view: ViewId) {
+    let vse = s.view_store.get_mut(&view).unwrap();
     vse.layout = ViewStoreTypes::Layout {
         tab_width: TabWidth::default(),
         gutter: true,

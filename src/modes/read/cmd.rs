@@ -1,7 +1,7 @@
 use crate::types::Motion;
 use crate::types::RectSplit;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Cmd {
     Move(Motion),
     Yank(Motion),

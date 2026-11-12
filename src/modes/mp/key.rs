@@ -49,6 +49,8 @@ impl MpKeyInput {
 impl KeyInputHandler for MpKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::MpMode }
 
+    fn keymap(&self) -> crate::types::KeymapHelp { self.keymap.help("mp") }
+
     fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         if s.p.mp.window.is_none() || s.workspace.active_window != s.p.mp.window {
             return None;

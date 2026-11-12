@@ -2,6 +2,7 @@ mod common;
 pub mod dir;
 pub mod grep;
 pub mod insert;
+pub mod keybind;
 pub mod manage;
 mod motions;
 pub mod mp;

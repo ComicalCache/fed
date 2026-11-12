@@ -3,12 +3,15 @@ use crossterm::event::MouseEvent;
 
 use crate::fed::FCmd;
 use crate::state::State;
+use crate::types::KeymapHelp;
 use crate::types::render::WindowId;
 
 pub trait KeyInputHandler {
     /// The _static_ priority of the handler. This determines in which order
     /// handlers are called.
     fn priority(&self) -> KeyInputPriority;
+
+    fn keymap(&self) -> KeymapHelp;
 
     /// Processes, or ignores, an input `Event::Key`. If the handler consumes
     /// the event, `Some` is to be returned, `None` otherwise.

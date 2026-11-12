@@ -79,11 +79,14 @@ impl ReadKeyInput {
 impl KeyInputHandler for ReadKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::ReadMode }
 
+    fn keymap(&self) -> crate::types::KeymapHelp { self.keymap.help("read") }
+
     fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;
         let (_, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
-        if dse.mode != DocStoreTypes::Mode::Read {
+        // FIXME: kind of a hack.
+        if !matches!(dse.mode, DocStoreTypes::Mode::Read | DocStoreTypes::Mode::Keybind) {
             return None;
         }
 

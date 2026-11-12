@@ -19,6 +19,7 @@ use crate::protocols::io::IoCmd;
 use crate::protocols::io::IoFileEntry;
 use crate::protocols::io::IoFuture;
 use crate::protocols::io::IoProtocol;
+use crate::protocols::keybind::KeybindProtocol;
 use crate::protocols::mp::MpCmd;
 use crate::protocols::picker::PickerCmd;
 use crate::protocols::picker::PickerEntry;
@@ -684,6 +685,7 @@ pub fn select_theme() -> Vec<FCmd> {
         let entry = selected.into_any().downcast::<ThemeEntry>().unwrap();
         s.theme = entry.theme;
         DirProtocol::decorate(s);
+        KeybindProtocol::decorate(s);
     });
 
     vec![FCmd::Picker(PickerCmd::Open { width: 24, height: 9, entries, callback })]

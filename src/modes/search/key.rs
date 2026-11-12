@@ -121,6 +121,8 @@ impl SearchKeyInput {
 impl KeyInputHandler for SearchKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::SearchMode }
 
+    fn keymap(&self) -> crate::types::KeymapHelp { self.keymap.help("search") }
+
     fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;
         let vse = s.view_store.get(&view).unwrap();

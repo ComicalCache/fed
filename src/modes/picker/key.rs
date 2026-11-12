@@ -68,6 +68,8 @@ impl PickerKeyInput {
 impl KeyInputHandler for PickerKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::PickerMode }
 
+    fn keymap(&self) -> crate::types::KeymapHelp { self.keymap.help("picker") }
+
     fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         if s.p.picker.window.is_none() || s.workspace.active_window != s.p.picker.window {
             return None;

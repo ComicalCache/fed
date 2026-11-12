@@ -18,6 +18,7 @@ use crate::protocols::doc_view::DocViewCmd;
 use crate::protocols::grep::GrepCmd;
 use crate::protocols::grep::GrepProtocol;
 use crate::protocols::io::IoCmd;
+use crate::protocols::keybind::KeybindCmd;
 use crate::protocols::manage::ManageCmd;
 use crate::protocols::manage::ManageProtocol;
 use crate::protocols::mp::MpCmd;
@@ -48,6 +49,7 @@ pub enum FCmd {
     Screen(ScreenCmd),
     View(ViewCmd),
     DocView(DocViewCmd),
+    Keybind(KeybindCmd),
     Dir(DirCmd),
     Manage(ManageCmd),
     Picker(PickerCmd),
@@ -87,7 +89,8 @@ impl Fed {
 
         let input_router = InputRouter::default();
         let screen = Screen::new(width, height);
-        let mut s = State::new(width, height, fevent_tx, async_fcmd_tx.clone());
+        let mut s =
+            State::new(width, height, fevent_tx, async_fcmd_tx.clone(), input_router.keymap_help());
 
         let doc = s.create_doc(path.filter(|p| !p.is_dir())).unwrap();
 

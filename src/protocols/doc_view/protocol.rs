@@ -183,11 +183,8 @@ impl DocViewProtocol {
     fn prepare_view(s: &mut State, doc: DocId, view: Option<ViewId>, raw: bool) -> ViewId {
         let view = view.unwrap_or_else(|| s.create_view(doc));
 
-        if raw {
-            let vse = s.view_store.get_mut(&view).unwrap();
-            vse.layout.gutter = false;
-            vse.layout.mode_line = 0;
-        }
+        s.view_store.get_mut(&view).unwrap().raw = raw;
+        s.vmode(view);
 
         view
     }

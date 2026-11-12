@@ -75,6 +75,8 @@ impl ManageKeyInput {
 impl KeyInputHandler for ManageKeyInput {
     fn priority(&self) -> KeyInputPriority { KeyInputPriority::ManageMode }
 
+    fn keymap(&self) -> crate::types::KeymapHelp { self.keymap.help("manage") }
+
     fn key(&mut self, s: &State, event: &KeyEvent) -> Option<Vec<FCmd>> {
         let view = s.active_view()?;
         let (_, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();

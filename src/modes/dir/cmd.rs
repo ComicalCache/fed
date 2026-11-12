@@ -1,6 +1,6 @@
 use crate::types::Motion;
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Cmd {
     Move(Motion),
     Yank(Motion),
