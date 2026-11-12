@@ -46,7 +46,7 @@ impl Layout {
         };
 
         let mut visual_x = 0;
-        for ch in line.graphemes(true) {
+        for ch in line.graphemes(true).flat_map(|ch| ch.split_inclusive('\r')) {
             if visual_x >= end {
                 return result;
             }
@@ -102,10 +102,13 @@ impl Layout {
             } else {
                 let width = match ch {
                     "\t" => *layout.tab_width - (visual_x % *layout.tab_width),
-                    "\n" => layout
+                    "\n" => {
+                        layout.replacements.newline.map_or(0, |ch| ch.width().unwrap_or_default())
+                    }
+                    "\r" => layout
                         .replacements
-                        .newline
-                        .map_or(0, |(ch, _)| ch.width().unwrap_or_default()),
+                        .carriage_return
+                        .map_or(0, |ch| ch.width().unwrap_or_default()),
                     _ => ch.width(),
                 };
 
@@ -155,6 +158,10 @@ fn inject(
     text: &str, mut visual_x: usize, end: usize, face: Face, mut cells: Option<&mut Vec<Cell>>,
 ) -> usize {
     for ch in text.graphemes(true) {
+        if ch.contains('\r') {
+            continue;
+        }
+
         let width = ch.width();
         if width == 0 {
             continue;
@@ -180,15 +187,15 @@ fn emit(
     layout: &ViewStoreTypes::Layout, theme: &Theme,
 ) {
     let replacement = match ch {
-        "\t" => layout.replacements.tab.map(|((start, fill), face)| (start, Some(fill), face)),
-        "\n" => layout.replacements.newline.map(|(ch, face)| (ch, None, face)),
-        " " => layout.replacements.space.map(|(ch, face)| (ch, None, face)),
+        "\t" => layout.replacements.tab.map(|(start, fill)| (start, Some(fill))),
+        "\n" => layout.replacements.newline.map(|ch| (ch, None)),
+        "\r" => layout.replacements.carriage_return.map(|ch| (ch, None)),
+        " " => layout.replacements.space.map(|ch| (ch, None)),
         _ => None,
     };
 
-    if let Some((start, fill, replacement_face)) = replacement {
-        face.merge(theme.whitespace);
-        face.merge(replacement_face);
+    if let Some((start, fill)) = replacement {
+        face.merge(if ch == "\r" { theme.error_whitespace } else { theme.whitespace });
 
         cells.push(Cell::new(start.to_string(), start.width().unwrap_or_default(), face));
         if let Some(fill) = fill {

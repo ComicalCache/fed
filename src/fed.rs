@@ -18,7 +18,6 @@ use crate::protocols::doc_view::DocViewCmd;
 use crate::protocols::grep::GrepCmd;
 use crate::protocols::grep::GrepProtocol;
 use crate::protocols::io::IoCmd;
-use crate::protocols::io::IoProtocol;
 use crate::protocols::manage::ManageCmd;
 use crate::protocols::manage::ManageProtocol;
 use crate::protocols::mp::MpCmd;
@@ -98,9 +97,16 @@ impl Fed {
     }
 
     pub async fn run(&mut self) {
+        let mut initializing = true;
+
         loop {
             tokio::select! {
                 Some(event) = self.input_rx.recv() => {
+                    // Ignore input during initialization.
+                    if initializing && !matches!(event, Event::Resize(..)) {
+                        continue;
+                    }
+
                     let cmds = self.input_router.exec(&self.s, event);
                     if cmds.is_empty() {
                         continue;
@@ -122,6 +128,8 @@ impl Fed {
                 }
                 else => break,
             }
+
+            initializing &= self.s.workspace.active_window.is_none();
 
             if self.s.p.quit.quit {
                 let _ = self.shutdown_tx.send(());
@@ -151,10 +159,6 @@ impl Fed {
     }
 
     pub async fn stage1(tx: UnboundedSender<FCmd>, doc: DocId, mut cli: Cli) {
-        if let Ok(path) = std::env::current_dir() {
-            let _ = tx.send(FCmd::Io(IoCmd::Scan { path }));
-        }
-
         let dir = cli.path.as_ref().is_some_and(|path| path.is_dir());
 
         let (vw_tx, vw_rx) = oneshot::channel();
@@ -169,8 +173,6 @@ impl Fed {
             tx: Some(vw_tx),
         }));
         let (view, window) = vw_rx.await.unwrap();
-
-        let _ = tx.send(FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) }));
 
         if dir {
             let _ = tx.send(FCmd::Dir(DirCmd::Show { window, path: cli.path.clone() }));
@@ -204,51 +206,58 @@ impl Fed {
                 move_anchor: true,
             }));
 
-            Self::apply_modes(tx, doc, view, cli);
+            Self::apply_modes(&tx, doc, view, cli);
         } else {
             let _ = tx.send(FCmd::Dir(DirCmd::Init));
 
             if let Some(path) = cli.path.clone() {
-                IoProtocol::read(
+                let callback_tx = tx.clone();
+                let _ = tx.send(FCmd::Io(IoCmd::Read {
                     path,
-                    Box::new(move |res| {
-                        Box::pin(async move { Self::stage2(tx, view, doc, cli, res) })
+                    rcallback: Box::new(move |res| {
+                        Box::pin(
+                            async move { Self::stage2(&callback_tx, view, doc, window, cli, res) },
+                        )
                     }),
-                );
-            } else {
-                Self::apply_modes(tx, doc, view, cli);
-            }
-        }
-    }
-
-    fn stage2(
-        tx: UnboundedSender<FCmd>, view: ViewId, doc: DocId, cli: Cli, res: Result<String, String>,
-    ) {
-        let text = match res {
-            Ok(text) => text,
-            Err(err) => {
-                util::mp::async_message(
-                    tx,
-                    format!("Error reading file: {err}"),
-                    Duration::from_secs(3),
-                );
+                }));
 
                 return;
             }
-        };
 
-        let _ = tx.send(FCmd::Action(ActionCmd::Insert { view, text }));
-        let _ = tx.send(FCmd::Action(ActionCmd::Saved { doc }));
-        let _ = tx.send(FCmd::Action(ActionCmd::MoveCursorToPos {
-            view,
-            pos: Pos::new(0, 0),
-            move_anchor: true,
-        }));
+            Self::apply_modes(&tx, doc, view, cli);
+        }
 
-        Self::apply_modes(tx, doc, view, cli);
+        let _ = tx.send(FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) }));
     }
 
-    fn apply_modes(tx: UnboundedSender<FCmd>, doc: DocId, view: ViewId, cli: Cli) {
+    fn stage2(
+        tx: &UnboundedSender<FCmd>, view: ViewId, doc: DocId, window: WindowId, cli: Cli,
+        res: Result<String, String>,
+    ) {
+        match res {
+            Ok(text) => {
+                let _ = tx.send(FCmd::Action(ActionCmd::Insert { view, text }));
+                let _ = tx.send(FCmd::Action(ActionCmd::Saved { doc }));
+                let _ = tx.send(FCmd::Action(ActionCmd::MoveCursorToPos {
+                    view,
+                    pos: Pos::new(0, 0),
+                    move_anchor: true,
+                }));
+            }
+            Err(err) => {
+                util::mp::async_message(
+                    tx.clone(),
+                    format!("Error reading file: {err}"),
+                    Duration::from_secs(3),
+                );
+            }
+        }
+
+        Self::apply_modes(tx, doc, view, cli);
+        let _ = tx.send(FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) }));
+    }
+
+    fn apply_modes(tx: &UnboundedSender<FCmd>, doc: DocId, view: ViewId, cli: Cli) {
         if let Some(mode) = &cli.doc_mode {
             let mode = match mode.to_lowercase().as_str() {
                 "read" => DocStoreTypes::Mode::Read,

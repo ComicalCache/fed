@@ -10,6 +10,7 @@ use crate::protocols::action::ActionCmd;
 use crate::protocols::dir::DirCmd;
 use crate::protocols::grep::GrepCmd;
 use crate::protocols::manage::ManageCmd;
+use crate::protocols::search::SearchCmd;
 use crate::state::DocStoreTypes;
 use crate::state::State;
 use crate::state::ViewStoreTypes;
@@ -62,7 +63,12 @@ impl GrepKeyInput {
                 view,
                 mode: ViewStoreTypes::Mode::VisualLine,
             })]),
-            Cmd::Search => {
+            Cmd::EnterSearchMode => Some(vec![FCmd::Search(SearchCmd::Search {
+                view,
+                doc: s.p.grep.doc,
+                bounds: None,
+            })]),
+            Cmd::EnterGrepMode => {
                 let window = s.workspace.active_window?;
                 Some(vec![FCmd::Grep(GrepCmd::Search { window })])
             }

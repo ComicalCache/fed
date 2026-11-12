@@ -8,6 +8,7 @@ use crate::fed::FEvent;
 use crate::piece_table::Kind;
 use crate::piece_table::PieceTable;
 use crate::protocols::action::ActionCmd;
+use crate::protocols::dir::DirCmd;
 use crate::protocols::io::IoProtocol;
 use crate::state::DocId;
 use crate::state::DocStoreTypes;
@@ -56,9 +57,12 @@ impl ActionProtocol {
             ActionCmd::HotRedo { view } => Self::hot_redo(s, view),
 
             ActionCmd::Saved { doc } => Self::saved(s, doc),
+            ActionCmd::SaveCompletion { doc, path, res, request, revision } => {
+                Self::save_completion(s, doc, path, res, request, revision);
+            }
             ActionCmd::DiscardChanges { doc } => Self::discard_changes(s, doc),
-            ActionCmd::DiscardCompletion { doc, revision, res } => {
-                Self::discard_changes_completion(s, doc, revision, res);
+            ActionCmd::DiscardCompletion { doc, res, revision } => {
+                Self::discard_changes_completion(s, doc, res, revision);
             }
 
             ActionCmd::Insert { view, text } => Self::insert(s, view, text),
@@ -257,6 +261,42 @@ impl ActionProtocol {
         }
     }
 
+    fn save_completion(
+        s: &mut State, doc: DocId, path: PathBuf, res: Result<(), String>, request: u64,
+        revision: u64,
+    ) {
+        let curr_revision = s
+            .doc_store
+            .get(&doc)
+            .filter(|dse| dse.doc.io_request == request)
+            .map(|dse| dse.doc.revision);
+
+        let message = match res {
+            Ok(()) => {
+                if let Some(curr_revision) = curr_revision {
+                    Self::set_doc_path(s, doc, Some(path.clone()));
+
+                    if curr_revision == revision {
+                        Self::saved(s, doc);
+                    }
+                }
+
+                let _ = s.async_fcmd_tx.send(FCmd::Dir(DirCmd::Refresh { path }));
+
+                "File saved".to_string()
+            }
+            Err(err) => {
+                if curr_revision.is_some() {
+                    s.doc_store.get_mut(&doc).unwrap().doc.io_request += 1;
+                }
+
+                format!("Error saving file: {err}")
+            }
+        };
+
+        util::mp::async_message(s.async_fcmd_tx.clone(), message, Duration::from_secs(3));
+    }
+
     pub fn discard_changes(s: &mut State, doc: DocId) {
         let dse = s.doc_store.get(&doc).unwrap();
         assert!(!dse.read_only);
@@ -267,24 +307,25 @@ impl ActionProtocol {
 
         let revision = dse.doc.revision;
         let Some(path) = dse.doc.path.clone() else {
-            Self::discard_changes_completion(s, doc, revision, Ok(String::new()));
+            Self::discard_changes_completion(s, doc, Ok(String::new()), revision);
             return;
         };
 
         let tx = s.async_fcmd_tx.clone();
         IoProtocol::read(
+            s,
             path,
             Box::new(move |res| {
                 Box::pin(async move {
                     let _ =
-                        tx.send(FCmd::Action(ActionCmd::DiscardCompletion { doc, revision, res }));
+                        tx.send(FCmd::Action(ActionCmd::DiscardCompletion { doc, res, revision }));
                 })
             }),
         );
     }
 
     fn discard_changes_completion(
-        s: &mut State, doc: DocId, revision: u64, result: Result<String, String>,
+        s: &mut State, doc: DocId, result: Result<String, String>, revision: u64,
     ) {
         let Some(dse) = s.doc_store.get_mut(&doc) else { return };
 
@@ -354,6 +395,7 @@ impl ActionProtocol {
     pub fn set_doc_path(s: &mut State, doc: DocId, path: Option<PathBuf>) {
         let dse = s.doc_store.get_mut(&doc).unwrap();
         dse.doc.path.clone_from(&path);
+        dse.doc.io_request += 1;
 
         let _ = s.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::PathChanged { doc, path }));
     }

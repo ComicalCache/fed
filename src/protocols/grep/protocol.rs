@@ -220,6 +220,7 @@ impl GrepProtocol {
         let revision = s.p.grep.revision.fetch_add(1, Ordering::Relaxed) + 1;
         let tx = s.async_fcmd_tx.clone();
         IoProtocol::read(
+            s,
             path,
             Box::new(move |result| {
                 Box::pin(async move {
@@ -307,14 +308,14 @@ impl GrepProtocol {
 
     pub fn replace_completion(
         s: &mut State, target: Option<&(PathBuf, usize)>, replacement: String,
-        result: Result<GrepScan, String>, revision: u64,
+        result: Result<HashMap<PathBuf, String>, String>, revision: u64,
     ) {
         if revision != s.p.grep.revision.load(Ordering::Relaxed) {
             return;
         }
 
-        let mut scan = match result {
-            Ok(scan) => scan,
+        let texts = match result {
+            Ok(texts) => texts,
             Err(error) => {
                 util::mp::message(s, error, Duration::from_secs(3));
                 return;
@@ -322,10 +323,17 @@ impl GrepProtocol {
         };
 
         let query = s.p.grep.query.clone();
+        let mut files: Vec<_> =
+            s.p.grep
+                .files
+                .iter()
+                .filter(|f| target.is_none_or(|(p, _)| &f.path == p))
+                .cloned()
+                .collect();
         let offset = target.map(|(_, offset)| *offset);
-        let replacement_end =
-            match Self::apply_replacement(s, &mut scan.files, &query, &replacement, offset) {
-                Ok(after) => after,
+        let (replacement_end, skipped) =
+            match Self::apply_replacement(s, &mut files, &texts, &query, &replacement, offset) {
+                Ok(result) => result,
                 Err(error) => {
                     util::mp::message(s, error, Duration::from_secs(3));
                     return;
@@ -335,10 +343,10 @@ impl GrepProtocol {
         // Update the replaced files in pstate.
         if let Some((path, _)) = target {
             s.p.grep.files.retain(|file| &file.path != path);
-            s.p.grep.files.extend(scan.files);
+            s.p.grep.files.extend(files);
             s.p.grep.files.sort_unstable_by(|a, b| a.path.cmp(&b.path));
         } else {
-            s.p.grep.files = scan.files;
+            s.p.grep.files = files;
         }
 
         s.p.grep.files.retain(|file| !file.matches.is_empty());
@@ -349,10 +357,10 @@ impl GrepProtocol {
             target.map(|(path, offset)| (path.as_path(), replacement_end.unwrap_or(*offset)));
         Self::render(s, document, target);
 
-        if let Some(first) = scan.errors.first() {
+        if skipped > 0 {
             util::mp::message(
                 s,
-                format!("{} search error(s): {first}", scan.errors.len()),
+                format!("Skipped {skipped} changed match(es)"),
                 Duration::from_secs(3),
             );
         }
@@ -369,22 +377,31 @@ impl GrepProtocol {
         s.doc_store
             .values()
             .filter(|dse| !dse.mode.singleton())
-            .filter_map(|dse| {
-                dse.doc.path.as_ref().map(|path| (path.clone(), dse.doc.data.slice(..)))
-            })
+            .filter_map(|dse| dse.doc.path.as_ref().map(|p| (p.clone(), dse.doc.data.slice(..))))
             .collect()
     }
 
     fn _replace(s: &State, target: Option<(PathBuf, usize)>, replacement: String) {
-        let path = target.as_ref().map_or(&s.p.grep.root, |(path, _)| path).clone();
-        let query = s.p.grep.query.clone();
-        let open = Self::opened_docs(s);
+        let paths: Vec<_> =
+            s.p.grep
+                .files
+                .iter()
+                .filter(|f| target.as_ref().is_none_or(|(p, _)| &f.path == p))
+                .filter(|f| !s.doc_store.values().any(|dse| dse.doc.path.as_ref() == Some(&f.path)))
+                .map(|f| f.path.clone())
+                .collect();
         let revision = s.p.grep.revision.fetch_add(1, Ordering::Relaxed) + 1;
-        let current = s.p.grep.revision.clone();
 
         let tx = s.async_fcmd_tx.clone();
         tokio::task::spawn_blocking(move || {
-            let result = GrepScan::new(path, &query, open, revision, &current);
+            let result = paths
+                .into_iter()
+                .map(|path| {
+                    std::fs::read_to_string(&path)
+                        .map(|text| (path.clone(), text))
+                        .map_err(|err| format!("{}: {err}", path.display()))
+                })
+                .collect();
 
             let _ = tx.send(FCmd::Grep(GrepCmd::ReplaceCompletion {
                 target,
@@ -396,50 +413,60 @@ impl GrepProtocol {
     }
 
     fn apply_replacement(
-        s: &mut State, files: &mut [GrepFile], query: &str, replacement: &str,
-        target: Option<usize>,
-    ) -> Result<Option<usize>, String> {
+        s: &mut State, files: &mut [GrepFile], texts: &HashMap<PathBuf, String>, query: &str,
+        replacement: &str, target: Option<usize>,
+    ) -> Result<(Option<usize>, usize), String> {
         let regex = Regex::new(query).map_err(|err| format!("Invalid regex: {err}"))?;
         let mut plans = Vec::new();
         let mut next = None;
+        let mut skipped = 0;
 
         // Batch prepare all the modifications before applying them.
         for file in files.iter() {
             let doc = s
                 .doc_store
                 .iter()
-                .find(|(_, dse)| dse.doc.path.as_ref() == Some(&file.path))
-                .map(|(&doc, _)| doc);
-            let text =
-                doc.map_or_else(|| file.text.clone(), |doc| s.doc_store[&doc].doc.data.slice(..));
+                .find_map(|(&doc, dse)| (dse.doc.path.as_ref() == Some(&file.path)).then_some(doc));
+            let text = match doc {
+                Some(doc) => s.doc_store[&doc].doc.data.slice(..),
+                None => texts
+                    .get(&file.path)
+                    .cloned()
+                    .ok_or_else(|| format!("{} is no longer open", file.path.display()))?,
+            };
 
-            let mut edits = regex
-                .captures_iter(&text)
-                .map(|res| {
-                    let caps = res.map_err(|err| {
-                        format!("{}: replacement failed: {err}", file.path.display())
-                    })?;
+            let (matches, skipped_matches) =
+                Self::valid_matches(file, &text, &regex, replacement, target)?;
+            skipped += skipped_matches;
 
-                    let m = caps.get(0).unwrap();
-                    let mut text = String::new();
-                    caps.expand(replacement, &mut text);
+            let mut edits = Vec::new();
+            let mut updated =
+                GrepFile { path: file.path.clone(), text: file.text.clone(), matches: Vec::new() };
+            let mut removed = 0;
+            let mut inserted = 0;
 
-                    Ok(SearchMatch { start: m.start(), end: m.end(), replacement: Some(text) })
-                })
-                .collect::<Result<Vec<_>, String>>()?;
+            // If the replacement is still valid save it for editing, otherwise
+            // just shift the following matches.
+            for mut m in matches {
+                if let Some(new_text) = &m.replacement {
+                    if target.is_some() {
+                        next = Some(m.start - removed + inserted + new_text.len());
+                    }
 
-            // If we supply a target, only keep the replacement for the target.
-            if let Some(anchor) = target
-                && !edits.is_empty()
-            {
-                let idx = edits
-                    .iter()
-                    .position(|m| if m.start == m.end { m.start >= anchor } else { m.end > anchor })
-                    .unwrap_or(0);
-                let m = edits.remove(idx);
+                    removed += m.end - m.start;
+                    inserted += new_text.len();
 
-                next = Some(m.start + m.replacement.as_ref().unwrap().len());
-                edits = vec![m];
+                    edits.push(m);
+                } else {
+                    m.start = m.start - removed + inserted;
+                    m.end = m.end - removed + inserted;
+
+                    updated.matches.push(m);
+                }
+            }
+
+            for m in edits.iter().rev() {
+                updated.text.replace_range(m.start..m.end, m.replacement.as_ref().unwrap());
             }
 
             edits.retain(|m| text[m.start..m.end] != *m.replacement.as_ref().unwrap());
@@ -449,12 +476,6 @@ impl GrepProtocol {
             {
                 return Err(format!("{} is read only", file.path.display()));
             }
-
-            let mut tmp = text.clone();
-            for m in edits.iter().rev() {
-                tmp.replace_range(m.start..m.end, m.replacement.as_ref().unwrap());
-            }
-            let updated = GrepFile::new(file.path.clone(), tmp, &regex)?;
 
             plans.push((doc, text, edits, updated));
         }
@@ -474,8 +495,7 @@ impl GrepProtocol {
             let view = s
                 .index
                 .doc_to_views(doc)
-                .and_then(|views| views.first())
-                .copied()
+                .and_then(|v| v.first().copied())
                 .unwrap_or_else(|| s.create_view(doc));
 
             // Don't hijack an active commit with the replace.
@@ -504,7 +524,46 @@ impl GrepProtocol {
             *file = updated;
         }
 
-        Ok(next)
+        Ok((next, skipped))
+    }
+
+    fn valid_matches(
+        file: &GrepFile, text: &str, regex: &Regex, replacement: &str, target: Option<usize>,
+    ) -> Result<(Vec<SearchMatch>, usize), String> {
+        let mut matches = file.matches.clone();
+        let mut skipped = 0;
+
+        for m in &mut matches {
+            if target.is_some_and(|offset| m.start != offset) {
+                continue;
+            }
+
+            if text.get(m.start..m.end) != file.text.get(m.start..m.end) {
+                skipped += 1;
+                continue;
+            }
+
+            let captures = regex
+                .captures_from_pos(text, m.start)
+                .map_err(|err| format!("{}: replacement failed: {err}", file.path.display()))?;
+            let Some(captures) = captures else {
+                skipped += 1;
+                continue;
+            };
+
+            let found = captures.get(0).unwrap();
+            if found.start() != m.start || found.end() != m.end {
+                skipped += 1;
+                continue;
+            }
+
+            // Only prepare replacement if the exact match still exists.
+            let mut new_text = String::new();
+            captures.expand(replacement, &mut new_text);
+            m.replacement = Some(new_text);
+        }
+
+        Ok((matches, skipped))
     }
 
     fn render(s: &mut State, document: GrepDocument, target: Option<(&Path, usize)>) {

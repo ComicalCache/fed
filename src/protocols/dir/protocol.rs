@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::Path;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -34,6 +35,7 @@ impl DirProtocol {
             DirCmd::InitCompletion { entries, printables, revision } => {
                 Self::init_completion(s, entries, printables, revision);
             }
+            DirCmd::Refresh { path } => Self::refresh(s, path),
             DirCmd::Show { window, path } => {
                 if let Some(path) = path {
                     s.p.dir.pwd = util::path::normalize(path);
@@ -44,6 +46,7 @@ impl DirProtocol {
 
             DirCmd::Create { path, dir } => Self::create(s, path, dir),
             DirCmd::Rename { old, new } => Self::rename(s, old, new),
+            DirCmd::RenameCompletion { old, new } => Self::rename_completion(s, &old, &new),
             DirCmd::Delete { path, recursive } => Self::delete(s, path, recursive),
 
             DirCmd::Select => Self::select(s),
@@ -113,6 +116,13 @@ impl DirProtocol {
         Self::decorate(s);
     }
 
+    pub fn refresh(s: &mut State, path: PathBuf) {
+        let path = util::path::normalize(path);
+        if path.parent().is_some_and(|parent| parent.starts_with(&s.p.dir.pwd)) {
+            Self::init(s);
+        }
+    }
+
     pub fn show(s: &mut State, window: WindowId) {
         Self::init(s);
 
@@ -154,6 +164,9 @@ impl DirProtocol {
     }
 
     pub fn rename(s: &State, old: PathBuf, new: PathBuf) {
+        let old = util::path::normalize(old);
+        let new = util::path::normalize(new);
+
         let async_fcmd_tx = s.async_fcmd_tx.clone();
         tokio::spawn(async move {
             if let Err(err) = tokio::fs::rename(&old, &new).await {
@@ -163,9 +176,37 @@ impl DirProtocol {
                     Duration::from_secs(3),
                 );
             } else {
-                let _ = async_fcmd_tx.send(FCmd::Dir(DirCmd::Init));
+                let _ = async_fcmd_tx.send(FCmd::Dir(DirCmd::RenameCompletion { old, new }));
             }
         });
+    }
+
+    pub fn rename_completion(s: &mut State, old: &Path, new: &Path) {
+        let renamed_path = |path: &Path| -> Option<PathBuf> {
+            let relative = path.strip_prefix(old).ok()?;
+
+            Some(if relative.as_os_str().is_empty() {
+                new.to_path_buf()
+            } else {
+                new.join(relative)
+            })
+        };
+
+        let paths: Vec<_> = s
+            .doc_store
+            .iter()
+            .filter_map(|(&doc, dse)| Some((doc, renamed_path(dse.doc.path.as_ref()?)?)))
+            .collect();
+
+        for (doc, path) in paths {
+            ActionProtocol::set_doc_path(s, doc, Some(path));
+        }
+
+        if let Some(pwd) = renamed_path(&s.p.dir.pwd) {
+            s.p.dir.pwd = pwd;
+        }
+
+        Self::init(s);
     }
 
     pub fn delete(s: &State, path: PathBuf, recursive: bool) {

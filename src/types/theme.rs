@@ -10,6 +10,7 @@ pub struct Theme {
     pub mode_line: Face,
     pub ruler: Face,
     pub whitespace: Face,
+    pub error_whitespace: Face,
 
     pub mp: Face,
     pub selection: Face,
@@ -57,6 +58,11 @@ impl Theme {
             },
             ruler: Face { bg: Some(Rgb::new(59, 61, 66)), ..Face::default() },
             whitespace: Face { fg: Some(Rgb::new(68, 71, 79)), ..Face::default() },
+            error_whitespace: Face {
+                fg: Some(Rgb::new(41, 44, 51)),
+                bg: Some(Rgb::new(224, 108, 117)),
+                ..Face::default()
+            },
             search_match: Face {
                 fg: Some(Rgb::new(41, 44, 51)),
                 bg: Some(Rgb::new(229, 192, 123)),
@@ -105,6 +111,11 @@ impl Theme {
             },
             ruler: Face { bg: Some(Rgb::new(225, 226, 228)), ..Face::default() },
             whitespace: Face { fg: Some(Rgb::new(208, 210, 214)), ..Face::default() },
+            error_whitespace: Face {
+                fg: Some(Rgb::new(250, 250, 250)),
+                bg: Some(Rgb::new(202, 18, 67)),
+                ..Face::default()
+            },
             search_match: Face {
                 fg: Some(Rgb::new(56, 58, 66)),
                 bg: Some(Rgb::new(242, 217, 156)),

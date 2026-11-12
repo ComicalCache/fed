@@ -1,4 +1,3 @@
-use crate::types::Face;
 use crate::types::Rect;
 use crate::util::newtype;
 
@@ -10,21 +9,25 @@ impl Default for TabWidth {
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct Replacements {
-    pub space: Option<(char, Face)>,
-    pub tab: Option<((char, char), Face)>,
-    pub newline: Option<(char, Face)>,
+    pub space: Option<char>,
+    pub tab: Option<(char, char)>,
+    pub newline: Option<char>,
+    pub carriage_return: Option<char>,
 }
 
 impl Replacements {
-    pub const fn none() -> Self { Self { space: None, tab: None, newline: None } }
+    pub const fn none() -> Self {
+        Self { space: None, tab: None, newline: None, carriage_return: None }
+    }
 }
 
 impl Default for Replacements {
     fn default() -> Self {
         Self {
-            space: Some(('·', Face::default())),
-            tab: Some((('›', '—'), Face::default())),
-            newline: Some(('¬', Face::default())),
+            space: Some('·'),
+            tab: Some(('›', '—')),
+            newline: Some('¬'),
+            carriage_return: Some('␍'),
         }
     }
 }

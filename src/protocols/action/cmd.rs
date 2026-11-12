@@ -54,13 +54,20 @@ pub enum ActionCmd {
     Saved {
         doc: DocId,
     },
+    SaveCompletion {
+        doc: DocId,
+        path: PathBuf,
+        res: Result<(), String>,
+        request: u64,
+        revision: u64,
+    },
     DiscardChanges {
         doc: DocId,
     },
     DiscardCompletion {
         doc: DocId,
-        revision: u64,
         res: Result<String, String>,
+        revision: u64,
     },
 
     Insert {

@@ -1,6 +1,7 @@
+use std::collections::VecDeque;
+use std::collections::hash_map::Entry;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
 
 use ignore::WalkBuilder;
 
@@ -8,63 +9,108 @@ use crate::fed::FCmd;
 use crate::protocols::io::IoCmd;
 use crate::protocols::io::IoFileEntry;
 use crate::protocols::io::cmd::RCallback;
+use crate::protocols::io::cmd::SCallback;
 use crate::protocols::io::cmd::WCallback;
+use crate::protocols::io::pstate::IoRequest;
 use crate::state::State;
+use crate::util;
 
 pub struct IoProtocol {}
 
 impl IoProtocol {
     pub fn exec(s: &mut State, cmd: IoCmd) {
         match cmd {
-            IoCmd::Read { path, rcallback } => Self::read(path, rcallback),
-            IoCmd::Write { path, data, wcallback } => Self::write(s, path, data, wcallback),
-            IoCmd::Scan { path } => Self::scan(s, path),
-            IoCmd::ScanCompletion { entries, revision } => {
-                Self::scan_completion(s, entries, revision);
+            IoCmd::Read { path, rcallback } => Self::read(s, path, rcallback),
+            IoCmd::Write { path, data, wcallback, revision } => {
+                Self::write(s, path, data, wcallback, revision);
+            }
+            IoCmd::Completion { path } => Self::completion(s, path),
+            IoCmd::Scan { path, scallback } => Self::scan(s, path, scallback),
+            IoCmd::ScanCompletion { entries, scallback, revision } => {
+                Self::scan_completion(s, entries, scallback, revision);
             }
         }
     }
 
-    pub fn read(path: PathBuf, rcallback: RCallback) {
-        tokio::spawn(async move {
-            rcallback(tokio::fs::read_to_string(&path).await.map_err(|err| err.to_string())).await;
-        });
+    pub fn read(s: &mut State, path: PathBuf, rcallback: RCallback) {
+        Self::enqueue(s, path, IoRequest::Read { rcallback });
     }
 
-    pub fn write(s: &State, path: PathBuf, data: String, wcallback: WCallback) {
-        s.p.io.writers.fetch_add(1, Ordering::Relaxed);
-
-        let writers = s.p.io.writers.clone();
-        tokio::spawn(async move {
-            let data = tokio::fs::write(&path, data).await.map_err(|err| err.to_string());
-            writers.fetch_sub(1, Ordering::Relaxed);
-
-            wcallback(data).await;
-        });
+    pub fn write(s: &mut State, path: PathBuf, data: String, wcallback: WCallback, revision: u64) {
+        Self::enqueue(s, path, IoRequest::Write { data, wcallback, revision });
     }
 
-    pub fn scan(s: &mut State, path: PathBuf) {
+    fn completion(s: &mut State, path: PathBuf) {
+        let queue = s.p.io.queues.get_mut(&path).unwrap();
+
+        if let Some(request) = queue.pop_front() {
+            Self::start(s, path, request);
+        } else {
+            s.p.io.queues.remove(&path);
+        }
+    }
+
+    pub fn scan(s: &mut State, path: PathBuf, scallback: SCallback) {
         s.p.io.scan_revision += 1;
 
         let revision = s.p.io.scan_revision;
         let tx = s.async_fcmd_tx.clone();
         tokio::task::spawn_blocking(move || {
             let entries = Self::scan_entries(&path);
-            let _ = tx.send(FCmd::Io(IoCmd::ScanCompletion { entries, revision }));
+            let _ = tx.send(FCmd::Io(IoCmd::ScanCompletion { entries, scallback, revision }));
         });
     }
 
-    fn scan_completion(s: &mut State, entries: Vec<IoFileEntry>, revision: u64) {
+    fn scan_completion(
+        s: &mut State, entries: Vec<IoFileEntry>, scallback: SCallback, revision: u64,
+    ) {
         if revision != s.p.io.scan_revision {
             return;
         }
 
-        s.p.io.scan_list = entries;
+        scallback(s, entries);
     }
 
     pub fn can_quit(s: &State) -> Result<(), String> {
-        let writers = s.p.io.writers.load(Ordering::Relaxed);
-        if writers > 0 { Err(format!("{writers} ongoing writes in progress")) } else { Ok(()) }
+        let requests: usize = s.p.io.queues.values().map(|queue| queue.len() + 1).sum();
+        if requests > 0 { Err(format!("{requests} IO requests in progress")) } else { Ok(()) }
+    }
+
+    fn enqueue(s: &mut State, path: PathBuf, request: IoRequest) {
+        let mut path = util::path::normalize(path);
+
+        if let (Some(parent), Some(name)) = (path.parent(), path.file_name())
+            && let Ok(parent) = parent.canonicalize()
+        {
+            path = parent.join(name);
+        }
+
+        match s.p.io.queues.entry(path.clone()) {
+            Entry::Occupied(mut entry) => entry.get_mut().push_back(request),
+            Entry::Vacant(entry) => {
+                entry.insert(VecDeque::new());
+                Self::start(s, path, request);
+            }
+        }
+    }
+
+    fn start(s: &State, path: PathBuf, request: IoRequest) {
+        let tx = s.async_fcmd_tx.clone();
+        tokio::spawn(async move {
+            match request {
+                IoRequest::Read { rcallback } => {
+                    let result =
+                        tokio::fs::read_to_string(&path).await.map_err(|err| err.to_string());
+                    rcallback(result).await;
+                }
+                IoRequest::Write { data, wcallback, revision } => {
+                    let result = tokio::fs::write(&path, data).await.map_err(|err| err.to_string());
+                    wcallback(result, revision).await;
+                }
+            }
+
+            let _ = tx.send(FCmd::Io(IoCmd::Completion { path }));
+        });
     }
 
     fn scan_entries(root: &Path) -> Vec<IoFileEntry> {

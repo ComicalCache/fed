@@ -17,8 +17,8 @@ behaviour can be changed in `Cargo.toml` and `.cargo/config.toml`, if desired.
 
 > Disabling LTO will drastically reduce compile times.
 
-## piece-table
+## Piece Table
 
-`piece-table` is a fully featured implementation of a
+`src/piece_table` is a fully featured implementation of a
 [piece table](https://en.wikipedia.org/wiki/Piece_table) including a commit based undo/redo tree. It
-can be fully extracted as a standalone crate without any modifications necessary.
+is fully self-contained and can simply be extracted if so desired.

@@ -1,11 +1,9 @@
-use std::path::PathBuf;
 use std::time::Duration;
 
 use crossterm::event::KeyModifiers;
 use crossterm::event::MouseButton;
 use crossterm::event::MouseEvent;
 use crossterm::event::MouseEventKind;
-use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::oneshot;
 
 use crate::fed::FCmd;
@@ -17,12 +15,14 @@ use crate::protocols::dir::DirCmd;
 use crate::protocols::dir::DirProtocol;
 use crate::protocols::doc_view::DocViewCmd;
 use crate::protocols::doc_view::DocViewProtocol;
+use crate::protocols::io::IoCmd;
 use crate::protocols::io::IoFileEntry;
 use crate::protocols::io::IoFuture;
 use crate::protocols::io::IoProtocol;
 use crate::protocols::mp::MpCmd;
 use crate::protocols::picker::PickerCmd;
 use crate::protocols::picker::PickerEntry;
+use crate::protocols::picker::PickerProtocol;
 use crate::protocols::view::ViewCmd;
 use crate::state::DocId;
 use crate::state::State;
@@ -588,18 +588,30 @@ pub fn save_file(s: &State, doc: DocId) -> Vec<FCmd> {
             return;
         }
 
-        let dse = s.doc_store.get(&doc).unwrap();
+        let Some(dse) = s.doc_store.get_mut(&doc) else { return };
 
         let path = util::path::normalize(res);
         let data = dse.doc.data.slice(0..dse.doc.data.len());
+        let revision = dse.doc.revision;
+
+        dse.doc.io_request += 1;
 
         let cb_path = path.clone();
+        let request = dse.doc.io_request;
         let async_fcmd_tx = s.async_fcmd_tx.clone();
-        let wcallback = Box::new(move |res| -> IoFuture {
-            Box::pin(async move { save_file_completion(async_fcmd_tx, res, doc, cb_path) })
+        let wcallback = Box::new(move |res, revision| -> IoFuture {
+            Box::pin(async move {
+                let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::SaveCompletion {
+                    doc,
+                    path: cb_path,
+                    res,
+                    request,
+                    revision,
+                }));
+            })
         });
 
-        IoProtocol::write(s, path, data, wcallback);
+        IoProtocol::write(s, path, data, wcallback, revision);
     });
 
     vec![FCmd::Mp(MpCmd::Prompt {
@@ -610,40 +622,20 @@ pub fn save_file(s: &State, doc: DocId) -> Vec<FCmd> {
     })]
 }
 
-fn save_file_completion(
-    async_fcmd_tx: UnboundedSender<FCmd>, res: Result<(), String>, doc: DocId, path: PathBuf,
-) {
-    match res {
-        Ok(()) => {
-            let _ =
-                async_fcmd_tx.send(FCmd::Action(ActionCmd::SetDocPath { doc, path: Some(path) }));
-            let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::Saved { doc }));
-
-            util::mp::async_message(
-                async_fcmd_tx,
-                "File saved".to_string(),
-                Duration::from_secs(3),
-            );
-        }
-        Err(err) => {
-            util::mp::async_message(
-                async_fcmd_tx,
-                format!("Error saving file: {err}"),
-                Duration::from_secs(3),
-            );
-        }
-    }
-}
-
 pub fn find_file(s: &State) -> Vec<FCmd> {
     let window = s.workspace.active_window.unwrap();
-    let entries =
-        s.p.io
-            .scan_list
-            .iter()
-            .cloned()
-            .map(|entry| Box::new(entry) as Box<dyn PickerEntry>)
-            .collect();
+    let path = match std::env::current_dir() {
+        Ok(path) => path,
+        Err(err) => {
+            util::mp::async_message(
+                s.async_fcmd_tx.clone(),
+                format!("Failed to read pwd: {err}"),
+                Duration::from_secs(3),
+            );
+            return Vec::new();
+        }
+    };
+    let views = s.index.window_to_views(window).cloned();
 
     let callback = Box::new(move |s: &mut State, selected: Option<Box<dyn PickerEntry>>| {
         if s.workspace.get_rect(window).is_none() {
@@ -665,12 +657,19 @@ pub fn find_file(s: &State) -> Vec<FCmd> {
         }
     });
 
-    vec![FCmd::Picker(PickerCmd::Open {
-        width: s.workspace.rect().width * 9 / 10,
-        height: s.workspace.rect().height * 9 / 10,
-        entries,
-        callback,
-    })]
+    let scallback = Box::new(move |s: &mut State, entries: Vec<IoFileEntry>| {
+        if s.workspace.active_window != Some(window)
+            || s.index.window_to_views(window) != views.as_ref()
+        {
+            return;
+        }
+
+        let entries = entries.into_iter().map(|e| Box::new(e) as Box<dyn PickerEntry>).collect();
+        let rect = s.workspace.rect();
+        PickerProtocol::open(s, rect.width * 9 / 10, rect.height * 9 / 10, entries, callback);
+    });
+
+    vec![FCmd::Io(IoCmd::Scan { path, scallback })]
 }
 
 pub fn select_theme() -> Vec<FCmd> {

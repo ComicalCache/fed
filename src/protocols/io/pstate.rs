@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::atomic::AtomicUsize;
+
+use crate::protocols::io::cmd::RCallback;
+use crate::protocols::io::cmd::WCallback;
 
 #[derive(Clone)]
 pub struct IoFileEntry {
@@ -9,10 +12,14 @@ pub struct IoFileEntry {
     pub dir: bool,
 }
 
+pub enum IoRequest {
+    Read { rcallback: RCallback },
+    Write { data: String, wcallback: WCallback, revision: u64 },
+}
+
 #[derive(Default)]
 pub struct IoPState {
-    pub writers: Arc<AtomicUsize>,
+    pub queues: HashMap<PathBuf, VecDeque<IoRequest>>,
 
-    pub scan_list: Vec<IoFileEntry>,
     pub scan_revision: u64,
 }

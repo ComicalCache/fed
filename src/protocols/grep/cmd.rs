@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::protocols::grep::pstate::GrepDocument;
@@ -37,7 +38,7 @@ pub enum GrepCmd {
     ReplaceCompletion {
         target: Option<(PathBuf, usize)>,
         replacement: String,
-        result: Result<GrepScan, String>,
+        result: Result<HashMap<PathBuf, String>, String>,
         revision: u64,
     },
     Close,

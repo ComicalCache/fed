@@ -25,8 +25,8 @@ impl DocViewProtocol {
     pub fn exec(s: &mut State, cmd: DocViewCmd) {
         match cmd {
             DocViewCmd::OpenFile { window, path, force } => Self::open_file(s, window, path, force),
-            DocViewCmd::OpenFileCompletion { window, request_id, path, force, res } => {
-                Self::open_file_completion(s, window, request_id, path, force, res);
+            DocViewCmd::OpenFileCompletion { window, path, force, res, request } => {
+                Self::open_file_completion(s, window, path, force, res, request);
             }
             DocViewCmd::CreateTile { doc, view, split_window, direction, raw, tx } => {
                 Self::create_tile(s, doc, view, split_window, direction, raw, tx);
@@ -56,23 +56,24 @@ impl DocViewProtocol {
             return;
         }
 
-        let request_id = s.p.doc_view.revision;
+        let request = s.p.doc_view.revision;
         s.p.doc_view.revision += 1;
 
         let views = s.index.window_to_views(window).unwrap().clone();
-        s.p.doc_view.pending.insert(window, (request_id, views));
+        s.p.doc_view.pending.insert(window, (request, views));
 
         let tx = s.async_fcmd_tx.clone();
         IoProtocol::read(
+            s,
             path.clone(),
             Box::new(move |res| {
                 Box::pin(async move {
                     let _ = tx.send(FCmd::DocView(DocViewCmd::OpenFileCompletion {
                         window,
-                        request_id,
                         path,
                         force,
                         res,
+                        request,
                     }));
                 })
             }),
@@ -80,12 +81,15 @@ impl DocViewProtocol {
     }
 
     fn open_file_completion(
-        s: &mut State, window: WindowId, request_id: u64, path: PathBuf, force: bool,
-        result: Result<String, String>,
+        s: &mut State, window: WindowId, path: PathBuf, force: bool,
+        result: Result<String, String>, request: u64,
     ) {
-        if s.p.doc_view.pending.get(&window).is_none_or(|(pending_request_id, _)| {
-            *pending_request_id != request_id
-        }) {
+        if s.p
+            .doc_view
+            .pending
+            .get(&window)
+            .is_none_or(|(pending_request, _)| *pending_request != request)
+        {
             return;
         }
 

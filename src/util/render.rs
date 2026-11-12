@@ -60,7 +60,7 @@ pub fn render_mode_line(s: &State, viewport: &mut Viewport, view: ViewId) {
         let mut face = s.theme.mode_line;
         face.merge(span_face);
 
-        for grapheme in text.graphemes(true) {
+        for grapheme in text.graphemes(true).filter(|grapheme| !grapheme.contains('\r')) {
             let width = grapheme.width();
             if x >= viewport.width() {
                 break;
@@ -85,6 +85,7 @@ pub fn render_mode_line(s: &State, viewport: &mut Viewport, view: ViewId) {
     let right_width = right
         .iter()
         .flat_map(|(text, _)| text.graphemes(true))
+        .filter(|grapheme| !grapheme.contains('\r'))
         .map(UnicodeWidthStr::width)
         .sum::<usize>();
     let right_start = viewport.width().saturating_sub(right_width);
@@ -98,7 +99,7 @@ pub fn render_mode_line(s: &State, viewport: &mut Viewport, view: ViewId) {
         let mut face = s.theme.mode_line;
         face.merge(span_face);
 
-        for grapheme in text.graphemes(true) {
+        for grapheme in text.graphemes(true).filter(|grapheme| !grapheme.contains('\r')) {
             let width = grapheme.width();
             if x >= viewport.width() {
                 break;

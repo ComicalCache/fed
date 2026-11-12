@@ -19,7 +19,8 @@ pub enum Cmd {
     EnterManageMode,
     EnterVisualMode,
     EnterVisualLineMode,
-    Search,
+    EnterSearchMode,
+    EnterGrepMode,
     Quit,
     Close,
 }

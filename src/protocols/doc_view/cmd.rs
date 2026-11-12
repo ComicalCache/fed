@@ -18,10 +18,10 @@ pub enum DocViewCmd {
     },
     OpenFileCompletion {
         window: WindowId,
-        request_id: u64,
         path: PathBuf,
         force: bool,
         res: Result<String, String>,
+        request: u64,
     },
     CreateTile {
         doc: DocId,

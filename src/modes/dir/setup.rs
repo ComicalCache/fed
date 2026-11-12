@@ -27,7 +27,9 @@ pub fn setup(s: &mut State) {
     vse.mode_line_config = ModeLineConfig {
         left: vec![
             ModeLineWidget::Text { text: "[DIR]".to_string(), face: Face::default() },
-            ModeLineWidget::Custom(|s, _, _| (s.p.dir.pwd.display().to_string(), Face::default())),
+            ModeLineWidget::Custom(|s, _, _| {
+                (format!("[{}]", s.p.dir.pwd.display()), Face::default())
+            }),
         ],
         right: vec![
             ModeLineWidget::SearchMatches { face: Face::default() },
