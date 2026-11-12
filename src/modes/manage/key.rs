@@ -7,6 +7,7 @@ use crate::modes::manage::keymap;
 use crate::protocols::action::ActionCmd;
 use crate::protocols::dir::DirCmd;
 use crate::protocols::grep::GrepCmd;
+use crate::protocols::keybind::KeybindCmd;
 use crate::protocols::manage::ManageCmd;
 use crate::protocols::search::SearchCmd;
 use crate::state::DocStoreTypes;
@@ -51,6 +52,10 @@ impl ManageKeyInput {
             Cmd::EnterDirMode => {
                 let window = s.workspace.active_window?;
                 Some(vec![FCmd::Dir(DirCmd::Show { window, path: None })])
+            }
+            Cmd::ShowKeybinds => {
+                let window = s.workspace.active_window?;
+                Some(vec![FCmd::Keybind(KeybindCmd::Show { window })])
             }
             Cmd::EnterVisualMode => Some(vec![FCmd::Action(ActionCmd::PushViewMode {
                 view,

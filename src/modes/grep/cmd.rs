@@ -18,6 +18,7 @@ pub enum Cmd {
     FocusWindow(Motion),
     EnterDirMode,
     EnterManageMode,
+    ShowKeybinds,
     EnterVisualMode,
     EnterVisualLineMode,
     EnterSearchMode,

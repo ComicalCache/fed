@@ -11,6 +11,7 @@ use crate::protocols::dir::DirCmd;
 use crate::protocols::dir::DirEntry;
 use crate::protocols::dir::DirProtocol;
 use crate::protocols::grep::GrepCmd;
+use crate::protocols::keybind::KeybindCmd;
 use crate::protocols::manage::ManageCmd;
 use crate::protocols::mp::MpCmd;
 use crate::protocols::search::SearchCmd;
@@ -60,6 +61,10 @@ impl DirKeyInput {
             Cmd::EnterManageMode => {
                 let window = s.workspace.active_window?;
                 Some(vec![FCmd::Manage(ManageCmd::Show { window })])
+            }
+            Cmd::ShowKeybinds => {
+                let window = s.workspace.active_window?;
+                Some(vec![FCmd::Keybind(KeybindCmd::Show { window })])
             }
             Cmd::EnterVisualMode => Some(vec![FCmd::Action(ActionCmd::PushViewMode {
                 view,

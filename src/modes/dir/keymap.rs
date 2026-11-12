@@ -98,6 +98,11 @@ pub fn keymap() -> Keymap<Cmd> {
         "Open the document and view manager",
     );
     keymap.bind(
+        &[KeyChord::new(KeyCode::Char('h'), KeyModifiers::ALT)],
+        Cmd::ShowKeybinds,
+        "Open the keybind viewer",
+    );
+    keymap.bind(
         &[KeyChord::new(KeyCode::Char('v'), KeyModifiers::empty())],
         Cmd::EnterVisualMode,
         "Start a selection",
