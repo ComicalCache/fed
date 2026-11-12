@@ -355,7 +355,7 @@ impl SearchProtocol {
             };
 
             // Expand every match once.
-            for caps in regex.captures_iter(&data) {
+            for caps in regex.captures_iter(data.as_str()) {
                 let caps = match caps {
                     Ok(caps) => caps,
                     Err(err) => {
