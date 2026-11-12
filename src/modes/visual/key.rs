@@ -15,6 +15,7 @@ use crate::protocols::grep::GrepCmd;
 use crate::protocols::manage::ManageCmd;
 use crate::protocols::search::SearchCmd;
 use crate::state::DocId;
+use crate::state::DocStoreTypes;
 use crate::state::State;
 use crate::state::ViewId;
 use crate::state::ViewStoreTypes;
@@ -102,6 +103,10 @@ impl VisualKeyInput {
                 Some(vec![FCmd::Grep(GrepCmd::Search { window })])
             }
             Cmd::SaveFile => {
+                if dse.mode == DocStoreTypes::Mode::Grep {
+                    return Some(vec![FCmd::Grep(GrepCmd::SaveAll)]);
+                }
+
                 if dse.read_only {
                     return None;
                 }

@@ -60,6 +60,11 @@ pub fn keymap() -> Keymap<Cmd> {
     );
 
     keymap.bind(
+        &[KeyChord::new(KeyCode::Char('s'), KeyModifiers::CONTROL)],
+        Cmd::SaveAll,
+        "Save all modified files",
+    );
+    keymap.bind(
         &[KeyChord::new(KeyCode::Char('f'), KeyModifiers::CONTROL)],
         Cmd::FindFile,
         "Open the file selector",

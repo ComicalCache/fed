@@ -9,6 +9,7 @@ use crate::piece_table::Kind;
 use crate::piece_table::PieceTable;
 use crate::protocols::action::ActionCmd;
 use crate::protocols::dir::DirCmd;
+use crate::protocols::io::IoFuture;
 use crate::protocols::io::IoProtocol;
 use crate::state::DocId;
 use crate::state::DocStoreTypes;
@@ -56,10 +57,11 @@ impl ActionProtocol {
             ActionCmd::Undo { view } => Self::undo(s, view),
             ActionCmd::HotRedo { view } => Self::hot_redo(s, view),
 
-            ActionCmd::Saved { doc } => Self::saved(s, doc),
+            ActionCmd::Save { doc, path } => Self::save(s, doc, path),
             ActionCmd::SaveCompletion { doc, path, res, request, revision } => {
                 Self::save_completion(s, doc, path, res, request, revision);
             }
+            ActionCmd::Saved { doc } => Self::saved(s, doc),
             ActionCmd::DiscardChanges { doc } => Self::discard_changes(s, doc),
             ActionCmd::DiscardCompletion { doc, res, revision } => {
                 Self::discard_changes_completion(s, doc, res, revision);
@@ -234,31 +236,35 @@ impl ActionProtocol {
         Self::process_edits(s, doc, edits);
     }
 
-    pub fn saved(s: &mut State, doc: DocId) {
-        let dse = s.doc_store.get_mut(&doc).unwrap();
+    pub fn save(s: &mut State, doc: DocId, path: PathBuf) {
+        let Some(dse) = s.doc_store.get_mut(&doc) else { return };
 
-        // Singleton views don't need undo/redo.
-        if dse.mode.singleton() {
-            dse.doc.data.compact();
-        }
-
-        if !dse.doc.modified {
+        if dse.read_only || dse.mode.singleton() {
             return;
         }
 
-        dse.doc.modified = false;
-        let _ = s
-            .fevent_tx
-            .send(FEvent::Doc(DocStoreTypes::Event::ModifiedChanged { doc, modified: false }));
+        let path = util::path::normalize(path);
+        let data = dse.doc.data.slice(0..dse.doc.data.len());
+        let revision = dse.doc.revision;
 
-        let path = dse.doc.path.clone();
-        if let Some(path) = path {
-            let _ = s.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Written {
-                doc,
-                path,
-                bytes_written: dse.doc.data.len(),
-            }));
-        }
+        dse.doc.io_request += 1;
+
+        let cb_path = path.clone();
+        let request = dse.doc.io_request;
+        let async_fcmd_tx = s.async_fcmd_tx.clone();
+        let wcallback = Box::new(move |res, revision| -> IoFuture {
+            Box::pin(async move {
+                let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::SaveCompletion {
+                    doc,
+                    path: cb_path,
+                    res,
+                    request,
+                    revision,
+                }));
+            })
+        });
+
+        IoProtocol::write(s, path, data, wcallback, revision);
     }
 
     fn save_completion(
@@ -295,6 +301,33 @@ impl ActionProtocol {
         };
 
         util::mp::async_message(s.async_fcmd_tx.clone(), message, Duration::from_secs(3));
+    }
+
+    pub fn saved(s: &mut State, doc: DocId) {
+        let dse = s.doc_store.get_mut(&doc).unwrap();
+
+        // Singleton views don't need undo/redo.
+        if dse.mode.singleton() {
+            dse.doc.data.compact();
+        }
+
+        if !dse.doc.modified {
+            return;
+        }
+
+        dse.doc.modified = false;
+        let _ = s
+            .fevent_tx
+            .send(FEvent::Doc(DocStoreTypes::Event::ModifiedChanged { doc, modified: false }));
+
+        let path = dse.doc.path.clone();
+        if let Some(path) = path {
+            let _ = s.fevent_tx.send(FEvent::Doc(DocStoreTypes::Event::Written {
+                doc,
+                path,
+                bytes_written: dse.doc.data.len(),
+            }));
+        }
     }
 
     pub fn discard_changes(s: &mut State, doc: DocId) {

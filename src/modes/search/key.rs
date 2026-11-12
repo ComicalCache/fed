@@ -9,6 +9,7 @@ use crate::protocols::dir::DirCmd;
 use crate::protocols::grep::GrepCmd;
 use crate::protocols::manage::ManageCmd;
 use crate::protocols::search::SearchCmd;
+use crate::state::DocStoreTypes;
 use crate::state::State;
 use crate::state::ViewId;
 use crate::state::ViewStoreTypes;
@@ -62,6 +63,10 @@ impl SearchKeyInput {
                 })])
             }
             Cmd::SaveFile => {
+                if dse.mode == DocStoreTypes::Mode::Grep {
+                    return Some(vec![FCmd::Grep(GrepCmd::SaveAll)]);
+                }
+
                 if dse.read_only {
                     return None;
                 }

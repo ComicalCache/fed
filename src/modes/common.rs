@@ -17,8 +17,6 @@ use crate::protocols::doc_view::DocViewCmd;
 use crate::protocols::doc_view::DocViewProtocol;
 use crate::protocols::io::IoCmd;
 use crate::protocols::io::IoFileEntry;
-use crate::protocols::io::IoFuture;
-use crate::protocols::io::IoProtocol;
 use crate::protocols::keybind::KeybindProtocol;
 use crate::protocols::mp::MpCmd;
 use crate::protocols::picker::PickerCmd;
@@ -589,30 +587,7 @@ pub fn save_file(s: &State, doc: DocId) -> Vec<FCmd> {
             return;
         }
 
-        let Some(dse) = s.doc_store.get_mut(&doc) else { return };
-
-        let path = util::path::normalize(res);
-        let data = dse.doc.data.slice(0..dse.doc.data.len());
-        let revision = dse.doc.revision;
-
-        dse.doc.io_request += 1;
-
-        let cb_path = path.clone();
-        let request = dse.doc.io_request;
-        let async_fcmd_tx = s.async_fcmd_tx.clone();
-        let wcallback = Box::new(move |res, revision| -> IoFuture {
-            Box::pin(async move {
-                let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::SaveCompletion {
-                    doc,
-                    path: cb_path,
-                    res,
-                    request,
-                    revision,
-                }));
-            })
-        });
-
-        IoProtocol::write(s, path, data, wcallback, revision);
+        ActionProtocol::save(s, doc, res.into());
     });
 
     vec![FCmd::Mp(MpCmd::Prompt {

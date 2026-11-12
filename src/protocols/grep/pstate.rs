@@ -42,3 +42,14 @@ pub struct GrepPState {
     pub matches: Vec<GrepMatch>,
     pub revision: Arc<AtomicU64>,
 }
+
+impl GrepPState {
+    pub fn next_pending_match(&self, start: usize) -> Option<&GrepMatch> {
+        self.matches
+            .iter()
+            .cycle()
+            .skip(start)
+            .take(self.matches.len())
+            .find(|m| self.files[m.file].matches[m.r#match].replacement.is_none())
+    }
+}

@@ -82,10 +82,6 @@ impl SearchProtocol {
                 let offset = vse.cursors.list.first().map(|c| c.offset);
                 let Some(search) = vse.search.as_mut() else { return };
 
-                if search.replaced_at != offset {
-                    search.replaced_at = None;
-                }
-
                 if searching
                     && let Some(offset) = offset
                     && let Some(index) =
@@ -204,10 +200,7 @@ impl SearchProtocol {
         let offset = offsets.first().copied().unwrap_or(0);
 
         let target = if forward {
-            let after_replace = search.replaced_at.take() == Some(offset);
-            let next = matches.partition_point(|m| {
-                if after_replace { m.start < offset } else { m.start <= offset }
-            });
+            let next = matches.partition_point(|m| m.start <= offset);
             matches.get(next).unwrap_or(&matches[0]).start
         } else {
             let next = matches.partition_point(|m| m.start < offset);
@@ -416,15 +409,6 @@ impl SearchProtocol {
         let first = index.unwrap_or(0);
         let last = index.map_or(matches.len(), |idx| idx + 1);
         let replaced_at = matches[first].start;
-        search.last_match = search.last_match.and_then(|index| {
-            if index < first {
-                Some(index)
-            } else if index >= last {
-                Some(index - (last - first))
-            } else {
-                None
-            }
-        });
 
         let mut removed = 0;
         let mut inserted = 0;
@@ -459,13 +443,16 @@ impl SearchProtocol {
         let revision = s.doc_store.get(&doc).unwrap().doc.revision;
         let search = vse.search.as_mut().unwrap();
 
+        let next = (!matches.is_empty()).then(|| first % matches.len());
+        let offset = next.map_or(replaced_at, |index| matches[index].start);
+
         search.matches = matches;
         search.revision = revision;
-        search.replaced_at = Some(replaced_at);
+        search.last_match = next;
 
         let offsets: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();
         ActionProtocol::remove_cursors(s, view, &offsets);
-        ActionProtocol::create_cursors_at_offsets(s, view, vec![replaced_at]);
+        ActionProtocol::create_cursors_at_offsets(s, view, vec![offset]);
     }
 
     fn is_current(s: &State, request: SearchRequest) -> bool {

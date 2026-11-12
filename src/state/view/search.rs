@@ -12,11 +12,10 @@ pub struct SearchState {
     pub revision: u64,
 
     pub replacement: Option<String>,
-    pub replaced_at: Option<usize>,
 }
 
 impl SearchState {
     pub const fn new(query: String, matches: Vec<SearchMatch>, revision: u64) -> Self {
-        Self { query, matches, last_match: None, revision, replacement: None, replaced_at: None }
+        Self { query, matches, last_match: None, revision, replacement: None }
     }
 }

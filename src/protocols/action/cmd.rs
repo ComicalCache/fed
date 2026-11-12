@@ -51,8 +51,9 @@ pub enum ActionCmd {
         view: ViewId,
     },
 
-    Saved {
+    Save {
         doc: DocId,
+        path: PathBuf,
     },
     SaveCompletion {
         doc: DocId,
@@ -60,6 +61,9 @@ pub enum ActionCmd {
         res: Result<(), String>,
         request: u64,
         revision: u64,
+    },
+    Saved {
+        doc: DocId,
     },
     DiscardChanges {
         doc: DocId,
