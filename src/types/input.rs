@@ -48,13 +48,13 @@ pub trait ResizeInputHandler {
 // to intercept input events. The input handler order is enforced at startup.
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
-#[allow(clippy::empty_enums)]
 pub enum KeyInputPriority {
     // Needs the highest priority for intercepting with active mini buffer.
     MpMode = 0,
     PickerMode,
     SearchMode,
     VisualMode,
+    GrepMode,
     ReadMode,
     ManageMode,
     DirMode,
@@ -63,13 +63,13 @@ pub enum KeyInputPriority {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
-#[allow(clippy::empty_enums)]
 pub enum MouseInputPriority {
     // Needs the highest priority for intercepting with active mini buffer.
     MpMode = 0,
     PickerMode,
     SearchMode,
     VisualMode,
+    GrepMode,
     ReadMode,
     ManageMode,
     DirMode,
@@ -78,7 +78,6 @@ pub enum MouseInputPriority {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
-#[allow(clippy::empty_enums)]
 pub enum PasteInputPriority {
     // Needs the highest priority for intercepting with active mini buffer.
     MpMode = 0,
@@ -89,7 +88,6 @@ pub enum PasteInputPriority {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
-#[allow(clippy::empty_enums)]
 pub enum ResizeInputPriority {
     // Needs the highest priority for resizing the screen buffer.
     ScreenProtocol = 0,

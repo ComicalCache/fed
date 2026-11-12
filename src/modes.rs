@@ -1,5 +1,6 @@
 mod common;
 pub mod dir;
+pub mod grep;
 pub mod insert;
 pub mod manage;
 mod motions;

@@ -3,6 +3,8 @@ use crossterm::event::Event;
 use crate::fed::FCmd;
 use crate::modes::dir::DirKeyInput;
 use crate::modes::dir::DirMouseInput;
+use crate::modes::grep::GrepKeyInput;
+use crate::modes::grep::GrepMouseInput;
 use crate::modes::insert::InsertKeyInput;
 use crate::modes::insert::InsertMouseInput;
 use crate::modes::insert::InsertPasteInput;
@@ -95,6 +97,7 @@ impl Default for InputRouter {
             Box::new(PickerKeyInput::new()),
             Box::new(SearchKeyInput::new()),
             Box::new(VisualKeyInput::new()),
+            Box::new(GrepKeyInput::new()),
             Box::new(ReadKeyInput::new()),
             Box::new(ManageKeyInput::new()),
             Box::new(DirKeyInput::new()),
@@ -107,6 +110,7 @@ impl Default for InputRouter {
             Box::new(PickerMouseInput {}),
             Box::new(SearchMouseInput {}),
             Box::new(VisualMouseInput {}),
+            Box::new(GrepMouseInput {}),
             Box::new(ReadMouseInput {}),
             Box::new(ManageMouseInput {}),
             Box::new(DirMouseInput {}),

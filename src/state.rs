@@ -69,6 +69,7 @@ impl State {
         modes::dir::setup::setup(&mut s);
         modes::manage::setup::setup(&mut s);
         modes::picker::setup::setup(&mut s);
+        modes::grep::setup::setup(&mut s);
 
         s
     }
@@ -219,6 +220,7 @@ impl State {
             | DocStoreTypes::Mode::Dir
             | DocStoreTypes::Mode::Manage
             | DocStoreTypes::Mode::Picker
+            | DocStoreTypes::Mode::Grep
             | DocStoreTypes::Mode::Read => {}
         }
 
@@ -234,7 +236,8 @@ impl State {
             | DocStoreTypes::Mode::Mp
             | DocStoreTypes::Mode::Dir
             | DocStoreTypes::Mode::Manage
-            | DocStoreTypes::Mode::Picker => {}
+            | DocStoreTypes::Mode::Picker
+            | DocStoreTypes::Mode::Grep => {}
         }
 
         self.vmode(view);
@@ -247,7 +250,8 @@ impl State {
             | DocStoreTypes::Mode::Mp
             | DocStoreTypes::Mode::Dir
             | DocStoreTypes::Mode::Manage
-            | DocStoreTypes::Mode::Picker => {}
+            | DocStoreTypes::Mode::Picker
+            | DocStoreTypes::Mode::Grep => {}
         }
     }
 

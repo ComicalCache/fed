@@ -15,6 +15,8 @@ use crate::protocol_router::ProtocolRouter;
 use crate::protocols::action::ActionCmd;
 use crate::protocols::dir::DirCmd;
 use crate::protocols::doc_view::DocViewCmd;
+use crate::protocols::grep::GrepCmd;
+use crate::protocols::grep::GrepProtocol;
 use crate::protocols::io::IoCmd;
 use crate::protocols::io::IoProtocol;
 use crate::protocols::manage::ManageCmd;
@@ -51,6 +53,7 @@ pub enum FCmd {
     Manage(ManageCmd),
     Picker(PickerCmd),
     Search(SearchCmd),
+    Grep(GrepCmd),
 }
 
 /// FEvent's are deferred and may only update component owned state. They should
@@ -139,6 +142,7 @@ impl Fed {
                 }
                 FEvent::View(event) => {
                     ManageProtocol::exec_view_event(&mut self.s, &event);
+                    GrepProtocol::exec_view_event(&mut self.s, &event);
                     SearchProtocol::exec_view_event(&mut self.s, &event);
                     ViewProtocol::exec_view_event(&mut self.s, &event);
                 }
@@ -147,15 +151,11 @@ impl Fed {
     }
 
     pub async fn stage1(tx: UnboundedSender<FCmd>, doc: DocId, mut cli: Cli) {
-        if let Ok(path) = tokio::task::spawn_blocking(std::env::current_dir).await.unwrap() {
+        if let Ok(path) = std::env::current_dir() {
             let _ = tx.send(FCmd::Io(IoCmd::Scan { path }));
         }
 
-        let dir = if let Some(path) = &cli.path {
-            tokio::fs::metadata(path).await.is_ok_and(|metadata| metadata.is_dir())
-        } else {
-            false
-        };
+        let dir = cli.path.as_ref().is_some_and(|path| path.is_dir());
 
         let (vw_tx, vw_rx) = oneshot::channel();
         let _ = tx.send(FCmd::DocView(DocViewCmd::CreateTile {

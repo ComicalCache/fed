@@ -1,6 +1,8 @@
 use crate::state::DocStoreEntry;
+use crate::state::DocStoreTypes;
 use crate::state::State;
 use crate::state::ViewStoreEntry;
+use crate::state::ViewStoreTypes;
 use crate::types::Face;
 use crate::util;
 
@@ -10,6 +12,7 @@ pub enum ModeLineWidget {
     ReadWrite { face: Face },
     FilePath { face: Face },
     CursorPos { face: Face },
+    SearchMatches { face: Face },
     Text { text: String, face: Face },
     Custom(fn(&State, &ViewStoreEntry, &DocStoreEntry) -> (String, Face)),
 }
@@ -39,6 +42,22 @@ impl ModeLineWidget {
 
                 (format!("[{}:{} {}]", y + 1, x + 1, vse.cursors.list.len()), *face)
             }
+            Self::SearchMatches { face } => {
+                let Some(search) = &vse.search else {
+                    return (String::new(), *face);
+                };
+
+                let total = if dse.mode == DocStoreTypes::Mode::Grep
+                    && vse.mode() != ViewStoreTypes::Mode::Search
+                {
+                    s.p.grep.matches.len()
+                } else {
+                    search.matches.len()
+                };
+                let current = search.last_match.map_or(0, |idx| idx.saturating_add(1)).min(total);
+
+                (format!("[{current}/{total}]"), *face)
+            }
             Self::Text { text, face } => (text.clone(), *face),
             Self::Custom(f) => f(s, vse, dse),
         }
@@ -59,7 +78,10 @@ impl Default for ModeLineConfig {
                 ModeLineWidget::ReadWrite { face: Face::default() },
                 ModeLineWidget::FilePath { face: Face::default() },
             ],
-            right: vec![ModeLineWidget::CursorPos { face: Face::default() }],
+            right: vec![
+                ModeLineWidget::SearchMatches { face: Face::default() },
+                ModeLineWidget::CursorPos { face: Face::default() },
+            ],
         }
     }
 }

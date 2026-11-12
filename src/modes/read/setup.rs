@@ -28,6 +28,9 @@ pub fn vinit(s: &mut State, view: ViewId) {
             ModeLineWidget::ViewMode { face: Face::default() },
             ModeLineWidget::ReadWrite { face: Face::default() },
         ],
-        right: vec![ModeLineWidget::CursorPos { face: Face::default() }],
+        right: vec![
+            ModeLineWidget::SearchMatches { face: Face::default() },
+            ModeLineWidget::CursorPos { face: Face::default() },
+        ],
     };
 }

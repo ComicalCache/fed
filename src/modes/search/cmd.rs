@@ -19,6 +19,7 @@ pub enum Cmd {
     FocusWindow(Motion),
     EnterDirMode,
     EnterManageMode,
+    EnterGrepMode,
     Quit,
     Escape,
 }

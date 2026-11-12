@@ -1,17 +1,17 @@
 use std::any::Any;
 use std::fmt;
 
-use crate::protocols::io::FileEntry;
+use crate::protocols::io::IoFileEntry;
 use crate::protocols::picker::PickerEntry;
 use crate::types::Theme;
 
-impl fmt::Display for FileEntry {
+impl fmt::Display for IoFileEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{}", self.relative_path.display(), if self.dir { "/" } else { "" })
     }
 }
 
-impl PickerEntry for FileEntry {
+impl PickerEntry for IoFileEntry {
     fn as_any(&self) -> &dyn Any { self }
 
     fn into_any(self: Box<Self>) -> Box<dyn Any + Send> { self }

@@ -87,6 +87,7 @@ pub fn keymap() -> Keymap<Cmd> {
 
     keymap.bind(&[KeyChord::new(KeyCode::Char('d'), KeyModifiers::ALT)], Cmd::EnterDirMode);
     keymap.bind(&[KeyChord::new(KeyCode::Char('b'), KeyModifiers::ALT)], Cmd::EnterManageMode);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('F'), KeyModifiers::SHIFT)], Cmd::EnterGrepMode);
     keymap.bind(&[KeyChord::new(KeyCode::Char('q'), KeyModifiers::CONTROL)], Cmd::Quit);
 
     keymap.bind(&[KeyChord::new(KeyCode::Esc, KeyModifiers::empty())], Cmd::Escape);

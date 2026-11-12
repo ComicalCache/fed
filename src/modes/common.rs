@@ -17,7 +17,7 @@ use crate::protocols::dir::DirCmd;
 use crate::protocols::dir::DirProtocol;
 use crate::protocols::doc_view::DocViewCmd;
 use crate::protocols::doc_view::DocViewProtocol;
-use crate::protocols::io::FileEntry;
+use crate::protocols::io::IoFileEntry;
 use crate::protocols::io::IoFuture;
 use crate::protocols::io::IoProtocol;
 use crate::protocols::mp::MpCmd;
@@ -50,7 +50,7 @@ pub fn mouse(s: &State, window: WindowId, view: ViewId, event: MouseEvent) -> Ve
 
     let mut cmds = vec![FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) })];
 
-    let content = vse.layout(dse).content;
+    let content = vse.layout(dse.doc.data.line_count()).content;
     let mut pos = Pos::from((event.column, event.row)).saturating_sub(rect.pos);
     if !content.contains(pos) {
         return cmds;
@@ -199,8 +199,13 @@ pub fn yank(s: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>> {
 
     if !yanked.is_empty()
         && let Ok(mut clipboard) = arboard::Clipboard::new()
+        && clipboard.set_text(yanked).is_ok()
     {
-        let _ = clipboard.set_text(yanked);
+        util::mp::async_message(
+            s.async_fcmd_tx.clone(),
+            "Yanked to clipboard".to_string(),
+            Duration::from_secs(3),
+        );
     }
 
     Some(Vec::new())
@@ -239,8 +244,13 @@ pub fn yank_line(s: &State, view: ViewId) -> Option<Vec<FCmd>> {
 
     if !yanked.is_empty()
         && let Ok(mut clipboard) = arboard::Clipboard::new()
+        && clipboard.set_text(yanked).is_ok()
     {
-        let _ = clipboard.set_text(yanked);
+        util::mp::async_message(
+            s.async_fcmd_tx.clone(),
+            "Yanked to clipboard".to_string(),
+            Duration::from_secs(3),
+        );
     }
 
     Some(Vec::new())
@@ -642,7 +652,7 @@ pub fn find_file(s: &State) -> Vec<FCmd> {
 
         let Some(selected) = selected else { return };
 
-        let entry = *selected.into_any().downcast::<FileEntry>().unwrap();
+        let entry = *selected.into_any().downcast::<IoFileEntry>().unwrap();
         ActionProtocol::set_active_window(s, Some(window));
 
         if entry.dir {

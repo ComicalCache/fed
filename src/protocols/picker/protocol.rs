@@ -183,7 +183,7 @@ impl PickerProtocol {
 
         let x = vse.scroll.x;
         let y = Self::selection(s);
-        let height = vse.layout(dse).content.height;
+        let height = vse.layout(dse.doc.data.line_count()).content.height;
 
         let last = s.p.picker.filtered.len() - 1;
         let y = match motion {
@@ -300,7 +300,7 @@ impl PickerProtocol {
         let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
         let x = vse.scroll.x;
-        let height = vse.layout(dse).content.height;
+        let height = vse.layout(dse.doc.data.line_count()).content.height;
 
         let rows = height.max(1);
         let mut start = s.p.picker.offset.min(s.p.picker.filtered.len().saturating_sub(rows));

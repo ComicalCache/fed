@@ -1,0 +1,26 @@
+use crossterm::event::MouseEvent;
+
+use crate::fed::FCmd;
+use crate::modes::common;
+use crate::state::DocStoreTypes;
+use crate::state::State;
+use crate::types::MouseInputHandler;
+use crate::types::MouseInputPriority;
+use crate::types::render::WindowId;
+
+pub struct GrepMouseInput {}
+
+impl MouseInputHandler for GrepMouseInput {
+    fn priority(&self) -> MouseInputPriority { MouseInputPriority::GrepMode }
+
+    fn mouse(&mut self, s: &State, window: WindowId, event: MouseEvent) -> Option<Vec<FCmd>> {
+        let view = s.index.window_to_views(window).unwrap()[0];
+        let (_, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view)?;
+
+        if dse.mode != DocStoreTypes::Mode::Grep {
+            return None;
+        }
+
+        Some(common::mouse(s, window, view, event))
+    }
+}

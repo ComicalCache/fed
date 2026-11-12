@@ -29,11 +29,14 @@ pub fn setup(s: &mut State) {
             ModeLineWidget::Text { text: "[DIR]".to_string(), face: Face::default() },
             ModeLineWidget::Custom(|s, _, _| (s.p.dir.pwd.display().to_string(), Face::default())),
         ],
-        right: vec![ModeLineWidget::Custom(|s, vse, dse| {
-            let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
-            let y = dse.doc.data.line_idx_at_offset(offset);
+        right: vec![
+            ModeLineWidget::SearchMatches { face: Face::default() },
+            ModeLineWidget::Custom(|s, vse, dse| {
+                let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
+                let y = dse.doc.data.line_idx_at_offset(offset);
 
-            (s.p.dir.entries.get(y).map_or_default(|e| e.kind.to_string()), Face::default())
-        })],
+                (s.p.dir.entries.get(y).map_or_default(|e| e.kind.to_string()), Face::default())
+            }),
+        ],
     };
 }

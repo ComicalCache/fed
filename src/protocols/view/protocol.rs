@@ -68,7 +68,10 @@ impl ViewProtocol {
             State::vse_and_dse_mut(&mut s.view_store, &mut s.doc_store, &s.index, view).unwrap();
 
         let start = dse.doc.data.line_start_offset(vse.scroll.y);
-        let end = dse.doc.data.line_end_offset(vse.scroll.y + vse.layout(dse).content.height);
+        let end = dse
+            .doc
+            .data
+            .line_end_offset(vse.scroll.y + vse.layout(dse.doc.data.line_count()).content.height);
 
         vse.decs.update(start, end);
         dse.decs.update(start, end);
@@ -142,7 +145,7 @@ impl ViewProtocol {
         let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
         let cursor = vse.cursors.list.first().unwrap();
 
-        let content = vse.layout(dse).content;
+        let content = vse.layout(dse.doc.data.line_count()).content;
         if content.width == 0 || content.height == 0 {
             return;
         }

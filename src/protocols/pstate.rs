@@ -1,5 +1,6 @@
 use crate::protocols::dir::DirPState;
 use crate::protocols::doc_view::DocViewPState;
+use crate::protocols::grep::GrepPState;
 use crate::protocols::io::IoPState;
 use crate::protocols::manage::ManagePState;
 use crate::protocols::mp::MpPState;
@@ -16,6 +17,7 @@ pub struct PState {
     pub doc_view: DocViewPState,
     pub picker: PickerPState,
     pub search: SearchPState,
+    pub grep: GrepPState,
 }
 
 impl PState {
@@ -29,6 +31,7 @@ impl PState {
             doc_view: DocViewPState::default(),
             picker: PickerPState::default(),
             search: SearchPState::default(),
+            grep: GrepPState::default(),
         }
     }
 }

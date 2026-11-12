@@ -45,7 +45,7 @@ impl MouseInputHandler for PickerMouseInput {
         let pos = Pos::from((event.column, event.row)) - rect.pos;
 
         // Select the list item.
-        let list_content = list_vse.layout(list_dse).content;
+        let list_content = list_vse.layout(list_dse.doc.data.line_count()).content;
         if list_content.contains(pos) {
             let row = pos.y - list_content.pos.y + list_vse.scroll.y;
             if s.p.picker.offset + row >= s.p.picker.filtered.len() {
@@ -64,7 +64,7 @@ impl MouseInputHandler for PickerMouseInput {
                 .unwrap();
 
         // Move the input cursor.
-        let input_content = input_vse.layout(input_dse).content;
+        let input_content = input_vse.layout(input_dse.doc.data.line_count()).content;
         if input_content.width == 0 || input_content.height == 0 {
             return Some(Vec::new());
         }

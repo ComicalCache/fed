@@ -24,6 +24,6 @@ pub fn setup(s: &mut State) {
     };
     vse.mode_line_config = ModeLineConfig {
         left: vec![ModeLineWidget::Text { text: "[MANAGE]".to_string(), face: Face::default() }],
-        right: vec![],
+        right: vec![ModeLineWidget::SearchMatches { face: Face::default() }],
     };
 }

@@ -78,11 +78,23 @@ impl SearchProtocol {
                 // Delayed events could be from already removed views.
                 let Some(vse) = s.view_store.get_mut(view) else { return };
 
+                let searching = vse.mode() == ViewStoreTypes::Mode::Search;
                 let offset = vse.cursors.list.first().map(|c| c.offset);
-                if let Some(search) = vse.search.as_mut()
-                    && search.replaced_at != offset
-                {
+                let Some(search) = vse.search.as_mut() else { return };
+
+                if search.replaced_at != offset {
                     search.replaced_at = None;
+                }
+
+                if searching
+                    && let Some(offset) = offset
+                    && let Some(index) =
+                        search.matches.partition_point(|m| m.start <= offset).checked_sub(1)
+                {
+                    let m = &search.matches[index];
+                    if offset == m.start || offset < m.end {
+                        search.last_match = Some(index);
+                    }
                 }
             }
             _ => {}
@@ -159,14 +171,19 @@ impl SearchProtocol {
             return;
         }
 
-        if matches.is_empty() {
-            util::mp::message(s, "No matches found".to_string(), Duration::from_secs(3));
-            return;
-        }
-
+        let first = matches.first().map(|m| m.start);
         let vse = s.view_store.get_mut(&request.view).unwrap();
+        let offsets: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();
         vse.search = Some(SearchState::new(query, matches, request.revision));
+
         ActionProtocol::push_view_mode(s, request.view, ViewStoreTypes::Mode::Search);
+
+        if let Some(first) = first {
+            ActionProtocol::remove_cursors(s, request.view, &offsets);
+            ActionProtocol::create_cursors_at_offsets(s, request.view, vec![first]);
+        } else {
+            util::mp::message(s, "No matches found".to_string(), Duration::from_secs(3));
+        }
     }
 
     pub fn navigate(s: &mut State, view: ViewId, forward: bool) {
@@ -399,6 +416,15 @@ impl SearchProtocol {
         let first = index.unwrap_or(0);
         let last = index.map_or(matches.len(), |idx| idx + 1);
         let replaced_at = matches[first].start;
+        search.last_match = search.last_match.and_then(|index| {
+            if index < first {
+                Some(index)
+            } else if index >= last {
+                Some(index - (last - first))
+            } else {
+                None
+            }
+        });
 
         let mut removed = 0;
         let mut inserted = 0;

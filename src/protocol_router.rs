@@ -2,6 +2,7 @@ use crate::fed::FCmd;
 use crate::protocols::action::ActionProtocol;
 use crate::protocols::dir::DirProtocol;
 use crate::protocols::doc_view::DocViewProtocol;
+use crate::protocols::grep::GrepProtocol;
 use crate::protocols::io::IoProtocol;
 use crate::protocols::manage::ManageProtocol;
 use crate::protocols::mp::MpProtocol;
@@ -29,6 +30,7 @@ impl ProtocolRouter {
             FCmd::Manage(cmd) => ManageProtocol::exec(s, cmd),
             FCmd::Picker(cmd) => PickerProtocol::exec(s, cmd),
             FCmd::Search(cmd) => SearchProtocol::exec(s, cmd),
+            FCmd::Grep(cmd) => GrepProtocol::exec(s, cmd),
         }
     }
 }

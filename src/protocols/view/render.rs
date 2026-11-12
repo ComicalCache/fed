@@ -18,7 +18,7 @@ impl ViewRenderer {
     pub fn render(&self, s: &State, viewport: &mut Viewport, view: ViewId) {
         let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 
-        let content = vse.layout(dse).content;
+        let content = vse.layout(dse.doc.data.line_count()).content;
         let width = content.width.min(viewport.width());
         let height = content.height.min(viewport.height());
         if width == 0 || height == 0 {

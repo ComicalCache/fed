@@ -5,8 +5,8 @@ use std::sync::atomic::Ordering;
 use ignore::WalkBuilder;
 
 use crate::fed::FCmd;
-use crate::protocols::io::FileEntry;
 use crate::protocols::io::IoCmd;
+use crate::protocols::io::IoFileEntry;
 use crate::protocols::io::cmd::RCallback;
 use crate::protocols::io::cmd::WCallback;
 use crate::state::State;
@@ -54,7 +54,7 @@ impl IoProtocol {
         });
     }
 
-    fn scan_completion(s: &mut State, entries: Vec<FileEntry>, revision: u64) {
+    fn scan_completion(s: &mut State, entries: Vec<IoFileEntry>, revision: u64) {
         if revision != s.p.io.scan_revision {
             return;
         }
@@ -67,7 +67,7 @@ impl IoProtocol {
         if writers > 0 { Err(format!("{writers} ongoing writes in progress")) } else { Ok(()) }
     }
 
-    fn scan_entries(root: &Path) -> Vec<FileEntry> {
+    fn scan_entries(root: &Path) -> Vec<IoFileEntry> {
         let mut entries = Vec::new();
 
         let walker = WalkBuilder::new(root)
@@ -88,7 +88,7 @@ impl IoProtocol {
 
             let path = entry.into_path();
             let relative_path = path.strip_prefix(root).unwrap_or(&path).to_path_buf();
-            entries.push(FileEntry { path, relative_path, dir: file_type.is_dir() });
+            entries.push(IoFileEntry { path, relative_path, dir: file_type.is_dir() });
         }
 
         entries.sort_unstable_by(|a, b| a.path.cmp(&b.path));

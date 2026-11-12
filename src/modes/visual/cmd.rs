@@ -19,6 +19,7 @@ pub enum Cmd {
     EnterVisualMode,
     EnterVisualLineMode,
     EnterSearchMode,
+    EnterGrepMode,
     SaveFile,
     FindFile,
     SelectTheme,

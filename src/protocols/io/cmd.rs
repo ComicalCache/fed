@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::pin::Pin;
 
-use crate::protocols::io::FileEntry;
+use crate::protocols::io::IoFileEntry;
 
 pub type IoFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
 
@@ -13,5 +13,5 @@ pub enum IoCmd {
     Read { path: PathBuf, rcallback: RCallback },
     Write { path: PathBuf, data: String, wcallback: WCallback },
     Scan { path: PathBuf },
-    ScanCompletion { entries: Vec<FileEntry>, revision: u64 },
+    ScanCompletion { entries: Vec<IoFileEntry>, revision: u64 },
 }

@@ -1,6 +1,7 @@
 pub mod action;
 pub mod dir;
 pub mod doc_view;
+pub mod grep;
 pub mod io;
 pub mod manage;
 pub mod mp;

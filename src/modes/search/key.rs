@@ -6,6 +6,7 @@ use crate::modes::search::cmd::Cmd;
 use crate::modes::search::keymap;
 use crate::protocols::action::ActionCmd;
 use crate::protocols::dir::DirCmd;
+use crate::protocols::grep::GrepCmd;
 use crate::protocols::manage::ManageCmd;
 use crate::protocols::search::SearchCmd;
 use crate::state::State;
@@ -78,6 +79,10 @@ impl SearchKeyInput {
             Cmd::EnterManageMode => {
                 let window = s.workspace.active_window?;
                 Some(vec![FCmd::Manage(ManageCmd::Show { window })])
+            }
+            Cmd::EnterGrepMode => {
+                let window = s.workspace.active_window?;
+                Some(vec![FCmd::Grep(GrepCmd::Search { window })])
             }
             Cmd::Quit => common::quit(s, view),
             Cmd::Escape => Some(Self::escape(view)),

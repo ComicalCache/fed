@@ -31,13 +31,14 @@ impl Renderer for PickerRenderer {
         let (input_vse, input_dse) =
             State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.picker.input_view)
                 .unwrap();
-        let mut input = viewport.sub_view(input_vse.layout(input_dse).content);
+        let mut input =
+            viewport.sub_view(input_vse.layout(input_dse.doc.data.line_count()).content);
         self.input.render(s, &mut input, s.p.picker.input_view);
 
         let (list_vse, list_dse) =
             State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.picker.list_view)
                 .unwrap();
-        let mut list = viewport.sub_view(list_vse.layout(list_dse).content);
+        let mut list = viewport.sub_view(list_vse.layout(list_dse.doc.data.line_count()).content);
         if s.p.picker.filtered.is_empty() {
             for y in 0..list.height() {
                 for x in 0..list.width() {

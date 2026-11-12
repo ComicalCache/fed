@@ -9,6 +9,7 @@ use crate::modes::normal::keymap;
 use crate::protocols::action::ActionCmd;
 use crate::protocols::action::ActionProtocol;
 use crate::protocols::dir::DirCmd;
+use crate::protocols::grep::GrepCmd;
 use crate::protocols::manage::ManageCmd;
 use crate::protocols::mp::MpCmd;
 use crate::protocols::search::SearchCmd;
@@ -171,6 +172,10 @@ impl NormalKeyInput {
                 view,
                 mode: ViewStoreTypes::Mode::VisualLine,
             })]),
+            Cmd::EnterGrepMode => {
+                let window = s.workspace.active_window?;
+                Some(vec![FCmd::Grep(GrepCmd::Search { window })])
+            }
             Cmd::EnterSearchMode => {
                 Some(vec![FCmd::Search(SearchCmd::Search { view, doc, bounds: None })])
             }

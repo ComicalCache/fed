@@ -25,7 +25,6 @@ pub mod types {
 
 use std::collections::HashMap;
 
-use crate::state::DocStoreEntry;
 use crate::state::ViewStoreTypes;
 use crate::types::Pos;
 use crate::types::Rect;
@@ -56,8 +55,8 @@ pub struct ViewStoreEntry {
 impl ViewStoreEntry {
     pub fn mode(&self) -> types::Mode { *self.modes.last().unwrap() }
 
-    pub fn layout(&self, dse: &DocStoreEntry) -> types::ViewLayout {
-        let gutter_width = self.layout.gutter_width(dse.doc.data.line_count()).min(self.rect.width);
+    pub fn layout(&self, line_count: usize) -> types::ViewLayout {
+        let gutter_width = self.layout.gutter_width(line_count).min(self.rect.width);
         let mode_line_height = self.layout.mode_line.min(self.rect.height);
         let content_height = self.rect.height.saturating_sub(mode_line_height);
 

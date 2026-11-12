@@ -4,6 +4,7 @@ use std::time::Duration;
 use crate::protocols::action::ActionProtocol;
 use crate::protocols::dir::DirProtocol;
 use crate::protocols::doc_view::DocViewProtocol;
+use crate::protocols::grep::GrepProtocol;
 use crate::protocols::manage::ManageCmd;
 use crate::protocols::manage::ManageEntry;
 use crate::protocols::manage::ManageRenderer;
@@ -148,6 +149,7 @@ impl ManageProtocol {
                 DocViewProtocol::show(s, doc, view, window, false, None);
             }
             DocStoreTypes::Mode::Dir => DirProtocol::show(s, window),
+            DocStoreTypes::Mode::Grep => GrepProtocol::show(s, window),
             DocStoreTypes::Mode::Mp | DocStoreTypes::Mode::Manage | DocStoreTypes::Mode::Picker => {
                 unreachable!()
             }
@@ -194,6 +196,7 @@ impl ManageProtocol {
                     DocStoreTypes::Mode::Dir => "DIR",
                     DocStoreTypes::Mode::Manage => "MANAGE",
                     DocStoreTypes::Mode::Picker => "PICKER",
+                    DocStoreTypes::Mode::Grep => "GREP",
                     DocStoreTypes::Mode::Read => "READ",
                 }
                 .to_string()

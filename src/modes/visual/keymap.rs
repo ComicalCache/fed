@@ -56,6 +56,7 @@ pub fn keymap() -> Keymap<Cmd> {
     keymap
         .bind(&[KeyChord::new(KeyCode::Char('V'), KeyModifiers::SHIFT)], Cmd::EnterVisualLineMode);
     keymap.bind(&[KeyChord::new(KeyCode::Char('f'), KeyModifiers::empty())], Cmd::EnterSearchMode);
+    keymap.bind(&[KeyChord::new(KeyCode::Char('F'), KeyModifiers::SHIFT)], Cmd::EnterGrepMode);
 
     keymap.bind(&[KeyChord::new(KeyCode::Char('s'), KeyModifiers::CONTROL)], Cmd::SaveFile);
     keymap.bind(&[KeyChord::new(KeyCode::Char('f'), KeyModifiers::CONTROL)], Cmd::FindFile);

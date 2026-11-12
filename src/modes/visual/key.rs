@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crossterm::event::KeyEvent;
 
 use crate::fed::FCmd;
@@ -9,6 +11,7 @@ use crate::modes::visual::keymap;
 use crate::piece_table::Chunks;
 use crate::protocols::action::ActionCmd;
 use crate::protocols::dir::DirCmd;
+use crate::protocols::grep::GrepCmd;
 use crate::protocols::manage::ManageCmd;
 use crate::protocols::search::SearchCmd;
 use crate::state::DocId;
@@ -94,6 +97,10 @@ impl VisualKeyInput {
                 ])
             }
             Cmd::EnterSearchMode => Some(Self::enter_search_mode(s, view, doc)),
+            Cmd::EnterGrepMode => {
+                let window = s.workspace.active_window?;
+                Some(vec![FCmd::Grep(GrepCmd::Search { window })])
+            }
             Cmd::SaveFile => {
                 if dse.read_only {
                     return None;
@@ -210,8 +217,13 @@ impl VisualKeyInput {
 
             if !yanked.is_empty()
                 && let Ok(mut clipboard) = arboard::Clipboard::new()
+                && clipboard.set_text(yanked).is_ok()
             {
-                let _ = clipboard.set_text(yanked);
+                util::mp::async_message(
+                    s.async_fcmd_tx.clone(),
+                    "Yanked to clipboard".to_string(),
+                    Duration::from_secs(3),
+                );
             }
 
             return Self::escape(view);

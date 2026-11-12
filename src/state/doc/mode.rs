@@ -10,13 +10,14 @@ pub enum Mode {
     Dir,
     Manage,
     Picker,
+    Grep,
 
     Read,
 }
 
 impl Mode {
     pub const fn singleton(self) -> bool {
-        matches!(self, Self::Mp | Self::Dir | Self::Manage | Self::Picker)
+        matches!(self, Self::Mp | Self::Dir | Self::Manage | Self::Picker | Self::Grep)
     }
 }
 

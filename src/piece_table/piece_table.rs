@@ -1,10 +1,10 @@
 use std::fmt::Display;
 use std::ops::RangeBounds;
 
-use super::history::Commit;
-use super::history::History;
-use super::history::Kind;
 use crate::piece_table::Chunks;
+use crate::piece_table::Kind;
+use crate::piece_table::history::Commit;
+use crate::piece_table::history::History;
 
 #[derive(Clone, Copy)]
 pub(super) enum Source {
@@ -57,6 +57,9 @@ impl PieceTable {
             self.history.save(commit);
         }
     }
+
+    #[must_use]
+    pub const fn active_commit(&self) -> bool { self.active_commit.is_some() }
 
     /// Compacts the current text into a single original buffer, reclaiming
     /// storage.
