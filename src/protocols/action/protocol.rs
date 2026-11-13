@@ -11,6 +11,7 @@ use crate::protocols::action::ActionCmd;
 use crate::protocols::dir::DirCmd;
 use crate::protocols::io::IoFuture;
 use crate::protocols::io::IoProtocol;
+use crate::protocols::view::ViewProtocol;
 use crate::state::DocId;
 use crate::state::DocStoreTypes;
 use crate::state::State;
@@ -95,6 +96,7 @@ impl ActionProtocol {
             }
 
             ActionCmd::SetActiveWindow { window } => Self::set_active_window(s, window),
+            ActionCmd::ResizeWindow { window, delta } => Self::resize_window(s, window, delta),
         }
     }
 
@@ -505,6 +507,17 @@ impl ActionProtocol {
         assert!(window.is_none_or(|window| s.workspace.get_rect(window).is_some()));
 
         s.workspace.active_window = window;
+    }
+
+    pub fn resize_window(s: &mut State, window: WindowId, delta: f32) {
+        s.workspace.resize_tile(window, delta);
+        ViewProtocol::resize(s);
+
+        if let Some(views) = s.active_views().cloned() {
+            for view in views {
+                ViewProtocol::scroll_if_needed(s, view);
+            }
+        }
     }
 
     pub fn can_quit(s: &State) -> Result<(), String> {

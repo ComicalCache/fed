@@ -186,8 +186,13 @@ impl Workspace {
 
     pub fn resize_tile(&mut self, window: WindowId, delta: f32) {
         if let Some(root) = &mut self.root
-            && let Some(Tile::Split { ratio, .. }) = root.find_parent(window)
+            && let Some(Tile::Split { ratio, second, .. }) = root.find_parent(window)
         {
+            let delta = if matches!(**second, Tile::Window { window: id, .. } if id == window) {
+                -delta
+            } else {
+                delta
+            };
             let resized = (*ratio + delta).clamp(0.05, 0.95);
             if *ratio != resized {
                 *ratio = resized;

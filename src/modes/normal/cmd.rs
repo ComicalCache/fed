@@ -32,6 +32,8 @@ pub enum Cmd {
     Jump,
     SplitWindow(RectSplit),
     FocusWindow(Motion),
+    IncreaseWindow,
+    DecreaseWindow,
     EnterInsertMode,
     EnterDirMode,
     EnterManageMode,
@@ -39,6 +41,7 @@ pub enum Cmd {
     EnterVisualMode,
     EnterVisualLineMode,
     EnterSearchMode,
+    ShowGrep,
     EnterGrepMode,
     Quit,
 }

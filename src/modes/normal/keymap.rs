@@ -182,6 +182,22 @@ pub fn keymap() -> Keymap<Cmd> {
             "Focus the window",
         );
     }
+    keymap.bind(
+        &[
+            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+            KeyChord::new(KeyCode::Char('+'), KeyModifiers::empty()),
+        ],
+        Cmd::IncreaseWindow,
+        "Increase the window size",
+    );
+    keymap.bind(
+        &[
+            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+            KeyChord::new(KeyCode::Char('-'), KeyModifiers::empty()),
+        ],
+        Cmd::DecreaseWindow,
+        "Decrease the window size",
+    );
 
     keymap.bind(
         &[KeyChord::new(KeyCode::Char('i'), KeyModifiers::empty())],
@@ -217,6 +233,11 @@ pub fn keymap() -> Keymap<Cmd> {
         &[KeyChord::new(KeyCode::Char('f'), KeyModifiers::empty())],
         Cmd::EnterSearchMode,
         "Search the current document",
+    );
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Char('g'), KeyModifiers::ALT)],
+        Cmd::ShowGrep,
+        "Open the grep results",
     );
     keymap.bind(
         &[KeyChord::new(KeyCode::Char('F'), KeyModifiers::SHIFT)],

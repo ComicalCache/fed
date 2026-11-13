@@ -98,6 +98,10 @@ impl VisualKeyInput {
                 ])
             }
             Cmd::EnterSearchMode => Some(Self::enter_search_mode(s, view, doc)),
+            Cmd::ShowGrep => {
+                let window = s.workspace.active_window?;
+                Some(vec![FCmd::Grep(GrepCmd::Show { window })])
+            }
             Cmd::EnterGrepMode => {
                 let window = s.workspace.active_window?;
                 Some(vec![FCmd::Grep(GrepCmd::Search { window })])
@@ -117,6 +121,8 @@ impl VisualKeyInput {
             Cmd::SelectTheme => Some(common::select_theme()),
             Cmd::Jump => common::jump(s, view, false),
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),
+            Cmd::IncreaseWindow => common::resize_window(s, true),
+            Cmd::DecreaseWindow => common::resize_window(s, false),
             Cmd::EnterDirMode => {
                 let window = s.workspace.active_window?;
                 Some(vec![FCmd::Dir(DirCmd::Show { window, path: None })])

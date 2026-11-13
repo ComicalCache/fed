@@ -48,6 +48,8 @@ impl ReadKeyInput {
             Cmd::Jump => common::jump(s, view, true),
             Cmd::SplitWindow(direction) => common::split_window(s, doc, direction),
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),
+            Cmd::IncreaseWindow => common::resize_window(s, true),
+            Cmd::DecreaseWindow => common::resize_window(s, false),
             Cmd::EnterManageMode => {
                 let window = s.workspace.active_window?;
                 Some(vec![FCmd::Manage(ManageCmd::Show { window })])
@@ -68,6 +70,9 @@ impl ReadKeyInput {
                 view,
                 mode: ViewStoreTypes::Mode::VisualLine,
             })]),
+            Cmd::ShowGrep => {
+                Some(vec![FCmd::Grep(GrepCmd::Show { window: s.workspace.active_window? })])
+            }
             Cmd::EnterGrepMode => {
                 let window = s.workspace.active_window?;
                 Some(vec![FCmd::Grep(GrepCmd::Search { window })])

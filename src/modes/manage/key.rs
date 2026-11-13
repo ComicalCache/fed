@@ -49,6 +49,8 @@ impl ManageKeyInput {
             Cmd::Select => Some(vec![FCmd::Manage(ManageCmd::Select)]),
             Cmd::Close => Some(vec![FCmd::Manage(ManageCmd::Close)]),
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),
+            Cmd::IncreaseWindow => common::resize_window(s, true),
+            Cmd::DecreaseWindow => common::resize_window(s, false),
             Cmd::EnterDirMode => {
                 let window = s.workspace.active_window?;
                 Some(vec![FCmd::Dir(DirCmd::Show { window, path: None })])
@@ -65,6 +67,9 @@ impl ManageKeyInput {
                 view,
                 mode: ViewStoreTypes::Mode::VisualLine,
             })]),
+            Cmd::ShowGrep => {
+                Some(vec![FCmd::Grep(GrepCmd::Show { window: s.workspace.active_window? })])
+            }
             Cmd::EnterGrepMode => {
                 let window = s.workspace.active_window?;
                 Some(vec![FCmd::Grep(GrepCmd::Search { window })])

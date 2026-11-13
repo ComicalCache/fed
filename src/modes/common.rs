@@ -178,6 +178,13 @@ pub fn focus_window(s: &State, motion: Motion) -> Option<Vec<FCmd>> {
         .map(|window| vec![FCmd::Action(ActionCmd::SetActiveWindow { window: Some(window) })])
 }
 
+pub fn resize_window(s: &State, increase: bool) -> Option<Vec<FCmd>> {
+    let window = s.workspace.active_window?;
+    let delta = if increase { 0.05 } else { -0.05 };
+
+    Some(vec![FCmd::Action(ActionCmd::ResizeWindow { window, delta })])
+}
+
 pub fn yank(s: &State, view: ViewId, motion: Motion) -> Option<Vec<FCmd>> {
     let (vse, dse) = State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
 

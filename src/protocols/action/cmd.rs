@@ -134,4 +134,8 @@ pub enum ActionCmd {
     SetActiveWindow {
         window: Option<WindowId>,
     },
+    ResizeWindow {
+        window: WindowId,
+        delta: f32,
+    },
 }
