@@ -2,6 +2,7 @@ use crate::layers::CurrLineLayer;
 use crate::layers::CursorLayer;
 use crate::layers::SearchLayer;
 use crate::layers::SelectionLayer;
+use crate::layers::TrailingWhitespaceLayer;
 use crate::protocols::view::ViewRenderer;
 use crate::state::State;
 use crate::types::render::Renderer;
@@ -18,6 +19,7 @@ impl GrepRenderer {
         Self {
             inner: ViewRenderer::new(vec![
                 Box::new(CurrLineLayer {}),
+                Box::new(TrailingWhitespaceLayer {}),
                 Box::new(SearchLayer {}),
                 Box::new(SelectionLayer {}),
                 Box::new(CursorLayer {}),

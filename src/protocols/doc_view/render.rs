@@ -2,6 +2,7 @@ use crate::layers::CursorLayer;
 use crate::layers::RulerLayer;
 use crate::layers::SearchLayer;
 use crate::layers::SelectionLayer;
+use crate::layers::TrailingWhitespaceLayer;
 use crate::protocols::view::ViewRenderer;
 use crate::state::State;
 use crate::state::ViewId;
@@ -29,6 +30,7 @@ impl DocViewRenderer {
             Self {
                 inner: ViewRenderer::new(vec![
                     Box::new(RulerLayer {}),
+                    Box::new(TrailingWhitespaceLayer {}),
                     Box::new(SearchLayer {}),
                     Box::new(SelectionLayer {}),
                     Box::new(CursorLayer {}),
