@@ -8,6 +8,14 @@
 > throughout the project a UNIX-like environment is assumed (e.g. no CRLF line endings in files) and 
 > will cause undefined runtime behaviour otherwise.
 
+## Features
+
+`fed` is a feature rich modal editor. It features a regular viewing and editing experience with
+native multi cursor support and edit history. It supports selections, search & replace, cross file
+search & replace in the current `pwd`, a file browser, and fuzzy file finder. Additionally it
+supports window splits and theming. All of its features and corresponding keybinds can be explored
+in the keybind browser using `alt+h`.
+
 ## Building and development
 
 The project can simply be built using `cargo build` or `cargo build -r`.

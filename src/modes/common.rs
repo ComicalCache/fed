@@ -70,7 +70,8 @@ pub fn mouse(s: &State, window: WindowId, view: ViewId, event: MouseEvent) -> Ve
         cmds.push(FCmd::Action(ActionCmd::MoveCursorToPos {
             view,
             pos,
-            move_anchor: vse.mode() != ViewStoreTypes::Mode::VisualLine,
+            move_anchor: vse.mode() != ViewStoreTypes::Mode::Visual
+                && vse.mode() != ViewStoreTypes::Mode::VisualLine,
         }));
     }
 

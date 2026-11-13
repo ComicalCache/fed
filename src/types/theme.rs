@@ -57,7 +57,7 @@ impl Theme {
                 ..Face::default()
             },
             ruler: Face { bg: Some(Rgb::new(59, 61, 66)), ..Face::default() },
-            whitespace: Face { fg: Some(Rgb::new(68, 71, 79)), ..Face::default() },
+            whitespace: Face { fg: Some(Rgb::new(60, 63, 71)), ..Face::default() },
             error_whitespace: Face {
                 fg: Some(Rgb::new(41, 44, 51)),
                 bg: Some(Rgb::new(224, 108, 117)),
