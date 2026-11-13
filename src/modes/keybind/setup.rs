@@ -3,7 +3,6 @@ use unicode_width::UnicodeWidthStr;
 pub use crate::modes::read::setup::dmode;
 pub use crate::modes::read::setup::vmode;
 use crate::piece_table::PieceTable;
-use crate::protocols::action::ActionProtocol;
 use crate::protocols::keybind::KeybindProtocol;
 use crate::state::DocStoreTypes;
 use crate::state::State;
@@ -39,8 +38,14 @@ pub fn setup(s: &mut State) {
     }
 
     let doc = s.create_doc(None).unwrap();
-    s.p.keybind.doc = Some(doc);
-    s.doc_store.get_mut(&doc).unwrap().doc.data = PieceTable::from(text);
-    ActionProtocol::set_doc_mode(s, doc, DocStoreTypes::Mode::Keybind);
+    s.p.keybind.doc = doc;
+
+    let dse = s.doc_store.get_mut(&doc).unwrap();
+    dse.doc.data = PieceTable::from(text);
+    dse.mode = DocStoreTypes::Mode::Keybind;
+    dse.read_only = true;
+
+    s.p.keybind.view = s.create_view(doc);
+
     KeybindProtocol::decorate(s);
 }

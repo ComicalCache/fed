@@ -171,10 +171,10 @@ impl GrepProtocol {
         Self::render(s, document, true);
         Self::show(s, window);
 
-        if let Some(first) = scan.errors.first() {
+        if let Some(err) = scan.errors.first() {
             util::mp::message(
                 s,
-                format!("{} search error(s): {first}", scan.errors.len()),
+                format!("{} search error(s): {err}", scan.errors.len()),
                 Duration::from_secs(3),
             );
         }

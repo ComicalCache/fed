@@ -1,7 +1,6 @@
 use unicode_width::UnicodeWidthStr;
 
 use crate::decorators::SpanDecorator;
-use crate::modes::keybind::setup;
 use crate::protocols::action::ActionProtocol;
 use crate::protocols::doc_view::DocViewProtocol;
 use crate::protocols::keybind::KeybindCmd;
@@ -22,27 +21,16 @@ impl KeybindProtocol {
     }
 
     pub fn show(s: &mut State, window: WindowId) {
-        let doc = match s.p.keybind.doc {
-            Some(doc) => doc,
-            _ => {
-                setup::setup(s);
-                s.p.keybind.doc.unwrap()
-            }
-        };
-
-        let views = s.index.doc_to_views(doc);
-        if let Some(window) = views.and_then(|v| v.iter().find_map(|v| s.index.view_to_window(*v)))
-        {
+        if let Some(window) = s.index.view_to_window(s.p.keybind.view) {
             ActionProtocol::set_active_window(s, Some(window));
             return;
         }
 
-        let view = views.and_then(|v| v.first().copied());
-        DocViewProtocol::show(s, doc, view, window, false, None);
+        DocViewProtocol::show(s, s.p.keybind.doc, Some(s.p.keybind.view), window, false, None);
     }
 
     pub fn decorate(s: &mut State) {
-        let Some(doc) = s.p.keybind.doc else { return };
+        let doc = s.p.keybind.doc;
         let dse = s.doc_store.get(&doc).unwrap();
 
         if dse.mode != DocStoreTypes::Mode::Keybind {

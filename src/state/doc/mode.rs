@@ -17,7 +17,10 @@ pub enum Mode {
 
 impl Mode {
     pub const fn singleton(self) -> bool {
-        matches!(self, Self::Mp | Self::Dir | Self::Manage | Self::Picker | Self::Grep)
+        matches!(
+            self,
+            Self::Mp | Self::Dir | Self::Manage | Self::Picker | Self::Grep | Self::Keybind
+        )
     }
 }
 

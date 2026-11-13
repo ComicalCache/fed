@@ -555,6 +555,10 @@ pub fn remove_offsets(view: ViewId, offsets: Vec<(usize, usize)>) -> Vec<FCmd> {
 }
 
 pub fn split_window(s: &State, doc: DocId, direction: RectSplit) -> Option<Vec<FCmd>> {
+    if s.doc_store.get(&doc)?.mode.singleton() {
+        return None;
+    }
+
     let window = s.workspace.active_window?;
 
     let (tx, rx) = oneshot::channel();
