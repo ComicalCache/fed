@@ -1,3 +1,5 @@
+use std::cell::OnceCell;
+
 use crate::state::State;
 use crate::types::Motion;
 use crate::types::Pos;
@@ -7,7 +9,6 @@ use crate::types::render::Renderer;
 use crate::types::render::Screen;
 use crate::types::render::Viewport;
 use crate::types::render::ZLayer;
-use crate::types::render::workspace::Tile::Dummy;
 use crate::util::newtype;
 
 newtype!(WindowId, u64);
@@ -61,25 +62,6 @@ impl Tile {
         }
     }
 
-    /// Traverses the tiling tree and collects all window IDs.
-    fn windows(&self) -> Vec<WindowId> {
-        fn recursive(tile: &Tile, ids: &mut Vec<WindowId>) {
-            match tile {
-                Tile::Split { first, second, .. } => {
-                    recursive(first, ids);
-                    recursive(second, ids);
-                }
-                Tile::Window { window, .. } => ids.push(*window),
-                Dummy => unreachable!(),
-            }
-        }
-
-        let mut ids = Vec::new();
-        recursive(self, &mut ids);
-
-        ids
-    }
-
     /// Calculates the layout with physical sizes.
     fn layout(&self, rect: Rect, res: &mut Vec<(WindowId, Rect)>) {
         match self {
@@ -94,15 +76,18 @@ impl Tile {
         }
     }
 
-    pub fn render(&self, s: &State, screen: &mut Screen, rect: Rect) {
+    fn render(
+        &self, s: &State, screen: &mut Screen, layout: &mut std::slice::Iter<'_, (WindowId, Rect)>,
+    ) {
         match self {
-            Self::Split { direction, ratio, first, second } => {
-                let (first_rect, second_rect) = rect.split(*direction, *ratio);
-
-                first.render(s, screen, first_rect);
-                second.render(s, screen, second_rect);
+            Self::Split { first, second, .. } => {
+                first.render(s, screen, layout);
+                second.render(s, screen, layout);
             }
             Self::Window { content, window } => {
+                let &(id, rect) = layout.next().unwrap();
+                debug_assert!(id == *window);
+
                 content.render(s, &mut Viewport::new(screen, rect), *window);
             }
             Self::Dummy => unreachable!(),
@@ -126,22 +111,47 @@ pub struct Workspace {
     root: Option<Tile>,
     floating: Vec<Floating>,
 
+    layout: OnceCell<Vec<(WindowId, Rect)>>,
+
     next_window_id: u64,
 }
 
 impl Workspace {
     pub const fn new(rect: Rect) -> Self {
-        Self { rect, active_window: None, root: None, floating: Vec::new(), next_window_id: 0 }
+        Self {
+            rect,
+            active_window: None,
+            root: None,
+            floating: Vec::new(),
+            layout: OnceCell::new(),
+            next_window_id: 0,
+        }
+    }
+
+    fn layout(&self) -> &[(WindowId, Rect)] {
+        self.layout.get_or_init(|| {
+            let mut layout = Vec::new();
+
+            if let Some(root) = &self.root {
+                root.layout(self.rect, &mut layout);
+            }
+
+            layout
+        })
     }
 
     pub const fn rect(&self) -> Rect { self.rect }
 
     pub fn resize(&mut self, width: usize, height: usize) {
-        self.rect = Rect::new(Pos::default(), width, height);
+        if self.rect.pos != Pos::default() || self.rect.width != width || self.rect.height != height
+        {
+            self.rect = Rect::new(Pos::default(), width, height);
+            self.layout.take();
+        }
     }
 
     /// Collects all tiled window IDs.
-    pub fn tiles(&self) -> Vec<WindowId> { self.root.as_ref().map_or_default(Tile::windows) }
+    pub fn tiles(&self) -> Vec<WindowId> { self.layout().iter().map(|(id, _)| *id).collect() }
 
     /// Collects all floating window IDs.
     pub fn floatings(&self) -> Vec<WindowId> { self.floating.iter().map(|f| f.window).collect() }
@@ -154,6 +164,7 @@ impl Workspace {
 
         let Some(root) = &mut self.root else {
             self.root = Some(Tile::Window { window, content });
+            self.layout.take();
 
             return window;
         };
@@ -168,6 +179,7 @@ impl Workspace {
             first: Box::new(tile),
             second: Box::new(Tile::Window { window, content }),
         };
+        self.layout.take();
 
         window
     }
@@ -176,7 +188,11 @@ impl Workspace {
         if let Some(root) = &mut self.root
             && let Some(Tile::Split { ratio, .. }) = root.find_parent(window)
         {
-            *ratio = (*ratio + delta).clamp(0.05, 0.95);
+            let resized = (*ratio + delta).clamp(0.05, 0.95);
+            if *ratio != resized {
+                *ratio = resized;
+                self.layout.take();
+            }
         }
     }
 
@@ -242,6 +258,7 @@ impl Workspace {
                 }
             }
         }
+        self.layout.take();
     }
 
     pub fn replace_renderer(&mut self, window: WindowId, content: Box<dyn Renderer>) {
@@ -261,14 +278,7 @@ impl Workspace {
             return Some(f.rect);
         }
 
-        if let Some(root) = &self.root {
-            let mut layout = Vec::new();
-            root.layout(self.rect, &mut layout);
-
-            return layout.into_iter().find(|(w, _)| *w == window).map(|(_, r)| r);
-        }
-
-        None
+        self.layout().iter().find(|(w, _)| *w == window).map(|(_, r)| *r)
     }
 
     pub fn get_window(&self, pos: Pos) -> Option<WindowId> {
@@ -278,31 +288,17 @@ impl Workspace {
             }
         }
 
-        if let Some(root) = &self.root {
-            let mut layout = Vec::new();
-            root.layout(self.rect, &mut layout);
-
-            for (id, rect) in layout {
-                if rect.contains(pos) {
-                    return Some(id);
-                }
-            }
-        }
-
-        None
+        self.layout().iter().find(|(_, rect)| rect.contains(pos)).map(|(id, _)| *id)
     }
 
     pub fn navigate(&self, motion: Motion) -> Option<WindowId> {
         let active = self.active_window?;
-        let root = self.root.as_ref()?;
-
-        let mut layout = Vec::new();
-        root.layout(self.rect, &mut layout);
+        let layout = self.layout();
         let &(_, active_rect) = layout.iter().find(|(id, _)| *id == active)?;
 
         let mut res = None;
         let mut min = usize::MAX;
-        for (id, rect) in layout {
+        for &(id, rect) in layout {
             if id == active {
                 continue;
             }
@@ -330,7 +326,7 @@ impl Workspace {
 
     pub fn render(&self, s: &State, screen: &mut Screen) {
         if let Some(root) = &self.root {
-            root.render(s, screen, self.rect);
+            root.render(s, screen, &mut self.layout().iter());
         }
 
         for floating in &self.floating {
