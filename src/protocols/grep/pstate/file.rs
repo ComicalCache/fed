@@ -9,8 +9,13 @@ use crate::state::ViewStoreTypes::SearchMatch;
 #[derive(Clone)]
 pub struct GrepFile {
     pub path: PathBuf,
-    pub doc: Option<DocId>,
     pub text: String,
+    pub doc: Option<DocId>,
+
+    /// The commit id at search.
+    pub undo: usize,
+    /// The commit id after replacing and it's replacements.
+    pub redo: Option<(usize, Vec<Option<String>>)>,
 
     pub matches: Vec<SearchMatch>,
 }
@@ -24,7 +29,7 @@ impl GrepFile {
             })
             .collect::<Result<_, _>>()
             .map_err(|err| format!("{}: {err}", path.display()))?;
-        Ok(GrepFile { path, doc: None, text, matches })
+        Ok(GrepFile { path, doc: None, undo: 0, redo: None, text, matches })
     }
 
     pub fn doc(&self, docs: &DocStore) -> Option<DocId> {
@@ -89,26 +94,7 @@ impl GrepFile {
         Ok((matches, skipped))
     }
 
-    pub fn replacement_offset(&self, offset: usize) -> usize {
-        let mut removed = 0;
-        let mut inserted = 0;
-        for m in &self.matches {
-            if m.start > offset {
-                break;
-            }
-
-            if let Some(replacement) = &m.replacement {
-                if offset < m.end {
-                    return m.start - removed
-                        + inserted
-                        + (offset - m.start).min(replacement.len());
-                }
-
-                removed += m.end - m.start;
-                inserted += replacement.len();
-            }
-        }
-
-        offset - removed + inserted
+    pub fn record_replacement(&mut self, commit: usize) {
+        self.redo = Some((commit, self.matches.iter().map(|m| m.replacement.clone()).collect()));
     }
 }

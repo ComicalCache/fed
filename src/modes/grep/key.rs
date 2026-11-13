@@ -41,6 +41,8 @@ impl GrepKeyInput {
             Cmd::PrevMatch => Some(vec![FCmd::Grep(GrepCmd::Navigate { forward: false })]),
             Cmd::Replace => Some(vec![FCmd::Grep(GrepCmd::Replace { all: false })]),
             Cmd::ReplaceAll => Some(vec![FCmd::Grep(GrepCmd::Replace { all: true })]),
+            Cmd::UndoAll => Some(vec![FCmd::Grep(GrepCmd::UndoAll)]),
+            Cmd::HotRedoAll => Some(vec![FCmd::Grep(GrepCmd::HotRedoAll)]),
             Cmd::SaveAll => Some(vec![FCmd::Grep(GrepCmd::SaveAll)]),
             Cmd::FindFile => Some(common::find_file(s)),
             Cmd::SelectTheme => Some(common::select_theme()),

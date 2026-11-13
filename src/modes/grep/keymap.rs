@@ -60,6 +60,17 @@ pub fn keymap() -> Keymap<Cmd> {
     );
 
     keymap.bind(
+        &[KeyChord::new(KeyCode::Char('u'), KeyModifiers::empty())],
+        Cmd::UndoAll,
+        "Undo replacements",
+    );
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Char('U'), KeyModifiers::SHIFT)],
+        Cmd::HotRedoAll,
+        "Redo replacements",
+    );
+
+    keymap.bind(
         &[KeyChord::new(KeyCode::Char('s'), KeyModifiers::CONTROL)],
         Cmd::SaveAll,
         "Save all modified files",

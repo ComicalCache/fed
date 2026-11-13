@@ -48,6 +48,8 @@ impl GrepProtocol {
             GrepCmd::ReplaceCompletion { target, replacement, result, revision } => {
                 Self::replace_completion(s, target.as_ref(), replacement, result, revision);
             }
+            GrepCmd::UndoAll => Self::undo_all(s),
+            GrepCmd::HotRedoAll => Self::hot_redo_all(s),
             GrepCmd::SaveAll => Self::save_all(s),
         }
     }
@@ -96,6 +98,15 @@ impl GrepProtocol {
 
             let Some(views) = s.index.window_to_views(window).cloned() else { return };
             let opened_docs = Self::opened_docs(s);
+            let undos: HashMap<_, _> = s
+                .doc_store
+                .iter()
+                .filter(|(_, dse)| !dse.mode.singleton())
+                .filter_map(|(&doc, dse)| {
+                    let path = dse.doc.path.as_ref()?;
+                    Some((path.clone(), (doc, dse.doc.data.commit_id())))
+                })
+                .collect();
             let curr_revision = s.p.grep.revision.clone();
 
             let tx = s.async_fcmd_tx.clone();
@@ -105,7 +116,13 @@ impl GrepProtocol {
                     .and_then(|root| {
                         GrepScan::new(root, &query, opened_docs, revision, &curr_revision)
                     })
-                    .map(|scan| {
+                    .map(|mut scan| {
+                        for file in &mut scan.files {
+                            if let Some(&(doc, undo)) = undos.get(&file.path) {
+                                file.doc = Some(doc);
+                                file.undo = undo;
+                            }
+                        }
                         let document = GrepDocument::new(&scan.files, &scan.root);
                         (scan, document)
                     });
@@ -151,7 +168,7 @@ impl GrepProtocol {
         s.p.grep.replacement = None;
         s.p.grep.files = scan.files;
 
-        Self::render(s, document);
+        Self::render(s, document, true);
         Self::show(s, window);
 
         if let Some(first) = scan.errors.first() {
@@ -170,7 +187,7 @@ impl GrepProtocol {
 
         if s.p.grep.rows.is_empty() {
             let document = GrepDocument::new(&s.p.grep.files, &s.p.grep.root);
-            Self::render(s, document);
+            Self::render(s, document, true);
         }
 
         s.replace_view(window, s.p.grep.view, Box::new(GrepRenderer::new()));
@@ -188,13 +205,19 @@ impl GrepProtocol {
         let offset = s.view_store.get(&s.p.grep.view).unwrap().cursors.list[0].offset;
         let target = if forward {
             let next = matches.partition_point(|m| m.start <= offset);
-            matches.get(next).unwrap_or(&matches[0]).start
+            s.p.grep.next_pending_match(next)
         } else {
             let next = matches.partition_point(|m| m.start < offset);
-            matches[next.checked_sub(1).unwrap_or(matches.len() - 1)].start
+            matches[..next]
+                .iter()
+                .rev()
+                .chain(matches[next..].iter().rev())
+                .find(|m| s.p.grep.files[m.file].matches[m.r#match].replacement.is_none())
         };
 
-        Self::set_cursor(s, s.p.grep.view, target);
+        if let Some(target) = target {
+            Self::set_cursor(s, s.p.grep.view, target.start);
+        }
     }
 
     pub fn select_result(s: &mut State) {
@@ -329,6 +352,9 @@ impl GrepProtocol {
         };
         s.p.grep.replacement = Some(replacement);
 
+        let document = GrepDocument::new(&s.p.grep.files, &s.p.grep.root);
+        Self::render(s, document, false);
+
         // Move the cursor to the next result after the replaced one, if one
         // exists.
         if let Some((path, offset)) = target {
@@ -355,6 +381,99 @@ impl GrepProtocol {
                 Duration::from_secs(3),
             );
         }
+    }
+
+    pub fn undo_all(s: &mut State) {
+        s.p.grep.revision.fetch_add(1, Ordering::Relaxed);
+
+        for file_idx in 0..s.p.grep.files.len() {
+            let file = &s.p.grep.files[file_idx];
+            if let Some(doc) = file.doc(&s.doc_store) {
+                let dse = &s.doc_store[&doc];
+                let undo = file.undo;
+
+                if dse.read_only || dse.mode.singleton() || !dse.doc.data.can_undo_to(undo) {
+                    continue;
+                }
+
+                let active_commit = dse.doc.data.active_commit();
+                if active_commit {
+                    ActionProtocol::end_commit(s, doc);
+
+                    let commit = s.doc_store[&doc].doc.data.commit_id();
+                    if commit != undo {
+                        s.p.grep.files[file_idx].record_replacement(commit);
+                    }
+                }
+
+                let view = s
+                    .index
+                    .doc_to_views(doc)
+                    .and_then(|v| v.first().copied())
+                    .unwrap_or_else(|| s.create_view(doc));
+                while s.doc_store[&doc].doc.data.commit_id() != undo {
+                    ActionProtocol::undo(s, view);
+                }
+
+                if active_commit {
+                    ActionProtocol::start_commit(s, doc);
+                }
+            } else if file.doc.is_some() {
+                // Document has been closed since searching.
+                continue;
+            }
+
+            // Reset replacements for proper display and to be able to replace
+            // again.
+            for m in &mut s.p.grep.files[file_idx].matches {
+                m.replacement = None;
+            }
+            s.p.grep.replacement = None;
+        }
+
+        let document = GrepDocument::new(&s.p.grep.files, &s.p.grep.root);
+        Self::render(s, document, false);
+    }
+
+    pub fn hot_redo_all(s: &mut State) {
+        s.p.grep.revision.fetch_add(1, Ordering::Relaxed);
+
+        for file_idx in 0..s.p.grep.files.len() {
+            let file = &s.p.grep.files[file_idx];
+            let Some((redo, _)) = &file.redo else { continue };
+            let redo = *redo;
+
+            if let Some(doc) = file.doc(&s.doc_store) {
+                let dse = &s.doc_store[&doc];
+
+                if dse.read_only || dse.mode.singleton() || !dse.doc.data.can_hot_redo_to(redo) {
+                    continue;
+                }
+
+                let view = s
+                    .index
+                    .doc_to_views(doc)
+                    .and_then(|v| v.first().copied())
+                    .unwrap_or_else(|| s.create_view(doc));
+                while s.doc_store[&doc].doc.data.commit_id() != redo {
+                    ActionProtocol::hot_redo(s, view);
+                }
+            } else if file.doc.is_some() {
+                // Document has been closed.
+                continue;
+            }
+
+            // Restore replacements for proper display and to avoid "replacing"
+            // already replaced matches.
+            let file = &mut s.p.grep.files[file_idx];
+            let (_, replacements) = file.redo.as_ref().unwrap();
+            for (m, replacement) in file.matches.iter_mut().zip(replacements) {
+                m.replacement.clone_from(replacement);
+            }
+        }
+
+        let document = GrepDocument::new(&s.p.grep.files, &s.p.grep.root);
+        Self::render(s, document, false);
     }
 
     pub fn save_all(s: &mut State) {
@@ -470,6 +589,10 @@ impl GrepProtocol {
 
         // Batch apply the edits.
         for (file_idx, doc, text, edits, matches) in plans {
+            if matches.is_empty() {
+                continue;
+            }
+
             let file = &mut s.p.grep.files[file_idx];
             file.doc = doc;
 
@@ -478,6 +601,9 @@ impl GrepProtocol {
             }
 
             if edits.is_empty() {
+                file.record_replacement(
+                    doc.map_or(0, |doc| s.doc_store[&doc].doc.data.commit_id()),
+                );
                 continue;
             }
 
@@ -514,6 +640,7 @@ impl GrepProtocol {
                 }
             }
             ActionProtocol::end_commit(s, doc);
+            s.p.grep.files[file_idx].record_replacement(s.doc_store[&doc].doc.data.commit_id());
 
             if active_commit {
                 ActionProtocol::start_commit(s, doc);
@@ -523,7 +650,13 @@ impl GrepProtocol {
         Ok(skipped)
     }
 
-    fn render(s: &mut State, document: GrepDocument) {
+    fn render(s: &mut State, document: GrepDocument, reset_cursor: bool) {
+        let offset = s.view_store.get(&s.p.grep.view).unwrap().cursors.list[0].offset;
+        let anchor = if reset_cursor {
+            None
+        } else {
+            s.p.grep.matches.iter().rev().find(|m| m.start <= offset).copied()
+        };
         s.view_store.get_mut(&s.p.grep.view).unwrap().search = None;
 
         let dse = s.doc_store.get_mut(&s.p.grep.doc).unwrap();
@@ -556,7 +689,15 @@ impl GrepProtocol {
         s.p.grep.rows = document.rows;
         s.p.grep.matches = document.matches;
 
-        let offset = s.p.grep.matches.first().map_or(0, |m| m.start);
+        let offset = anchor
+            .and_then(|anchor| {
+                s.p.grep
+                    .matches
+                    .iter()
+                    .find(|m| m.file == anchor.file && m.r#match == anchor.r#match)
+            })
+            .or_else(|| s.p.grep.matches.first())
+            .map_or(0, |m| m.start);
 
         Self::set_cursor(s, s.p.grep.view, offset);
         ViewProtocol::resize(s);
@@ -567,9 +708,6 @@ impl GrepProtocol {
     ) {
         s.p.grep.files[file].doc = Some(doc);
 
-        let file = &s.p.grep.files[file];
-        let start: usize = file.text.split_inclusive('\n').take(line).map(str::len).sum();
-        let offset = file.replacement_offset(start + column);
         let views = s.index.doc_to_views(doc);
         let visible =
             views.and_then(|v| v.iter().find_map(|&v| s.index.view_to_window(v).map(|w| (v, w))));
@@ -579,11 +717,9 @@ impl GrepProtocol {
             .unwrap_or_else(|| (DocViewProtocol::show(s, doc, view, window, false, None), window));
 
         let data = &s.doc_store.get(&doc).unwrap().doc.data;
-        let offset = offset.min(data.len());
-        let line = data.line_idx_at_offset(offset);
         let start = data.line_start_offset(line);
         let source = data.slice(start..data.line_end_offset(line));
-        let mut column = (offset - start).min(source.trim_end_matches('\n').len());
+        let mut column = column.min(source.trim_end_matches('\n').len());
 
         // Move the cursor to a save position in case the file changed since the
         // initial search was issued.

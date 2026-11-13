@@ -61,11 +61,26 @@ impl PieceTable {
     #[must_use]
     pub const fn active_commit(&self) -> bool { self.active_commit.is_some() }
 
+    #[must_use]
+    pub const fn commit_id(&self) -> usize { self.history.commit_id() }
+
+    #[must_use]
+    pub fn can_undo_to(&self, commit: usize) -> bool { self.history.can_undo_to(commit) }
+
+    #[must_use]
+    pub fn can_hot_redo_to(&self, commit: usize) -> bool {
+        if self.active_commit.as_ref().is_some_and(|c| !c.changes.is_empty()) {
+            return false;
+        }
+
+        self.history.can_hot_redo_to(commit)
+    }
+
     /// Compacts the current text into a single original buffer, reclaiming
     /// storage.
     ///
     /// THIS OPERATION RESETS THE UNDO/REDO HISTORY! ANY ACTIVE COMMIT IS
-    /// DISCARDED.
+    /// DISCARDED. THIS IS IRREVERSIBLE.
     pub fn compact(&mut self) { *self = Self::from(self.slice(..)); }
 
     pub fn insert<S: AsRef<str>>(&mut self, offset: usize, text: S) {

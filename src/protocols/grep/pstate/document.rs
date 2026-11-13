@@ -49,29 +49,43 @@ impl GrepDocument {
                 data: Decoration::Style { face: Face { bold: Some(true), ..Face::default() } },
             });
 
+            let mut text = String::with_capacity(file.text.len());
+            let mut ranges = Vec::with_capacity(file.matches.len());
+
+            // Compute the ranges and insert the replacements in the text.
+            let mut cursor = 0;
+            for m in &file.matches {
+                text.push_str(&file.text[cursor..m.start]);
+
+                let start = text.len();
+                text.push_str(m.replacement.as_deref().unwrap_or(&file.text[m.start..m.end]));
+                ranges.push((start, text.len()));
+                cursor = m.end;
+            }
+            text.push_str(&file.text[cursor..]);
+
             let mut line_start_bytes = vec![0];
-            line_start_bytes.extend(file.text.match_indices('\n').map(|(offset, _)| offset + 1));
+            line_start_bytes.extend(text.match_indices('\n').map(|(offset, _)| offset + 1));
 
-            let line_range = |m: &SearchMatch| {
+            let line_range = |&(start, end): &(usize, usize)| {
                 let first =
-                    line_start_bytes.partition_point(|&start| start <= m.start).saturating_sub(1);
+                    line_start_bytes.partition_point(|&offset| offset <= start).saturating_sub(1);
 
-                let last = if m.start == m.end {
+                let last = if start == end {
                     first
                 } else {
-                    line_start_bytes.partition_point(|&start| start < m.end).saturating_sub(1)
+                    line_start_bytes.partition_point(|&offset| offset < end).saturating_sub(1)
                 };
 
                 (first, last)
             };
-            let line_end_byte = |line: usize| {
-                line_start_bytes.get(line + 1).map_or(file.text.len(), |&next| next - 1)
-            };
+            let line_end_byte =
+                |line: usize| line_start_bytes.get(line + 1).map_or(text.len(), |&next| next - 1);
 
             // Init mapping between file lines and generated document offsets.
             let mut grep_doc_offsets = vec![None; line_start_bytes.len()];
-            for m in &file.matches {
-                let (first, last) = line_range(m);
+            for range in &ranges {
+                let (first, last) = line_range(range);
                 grep_doc_offsets[first..=last].fill(Some(0));
             }
 
@@ -84,25 +98,27 @@ impl GrepDocument {
 
                 *offset = Some(doc.push(
                     Some(GrepRow { file: file_idx, line }),
-                    &file.text[line_start_bytes[line]..line_end_byte(line)],
+                    &text[line_start_bytes[line]..line_end_byte(line)],
                 ));
             }
 
-            for (idx, m) in file.matches.iter().enumerate() {
-                let (first, last) = line_range(m);
+            for (idx, (m, range)) in file.matches.iter().zip(&ranges).enumerate() {
+                let (first, last) = line_range(range);
                 let mut span = GrepMatch { file: file_idx, r#match: idx, start: 0, end: 0 };
 
-                // Add search highlights to all matches.
+                // Only highlight non-replaced matches.
                 for line in first..=last {
                     let offset = grep_doc_offsets[line].unwrap();
                     let end = line_end_byte(line);
 
-                    let start = offset + m.start.clamp(line_start_bytes[line], end)
+                    let start = offset + range.0.clamp(line_start_bytes[line], end)
                         - line_start_bytes[line];
-                    let end =
-                        offset + m.end.clamp(line_start_bytes[line], end) - line_start_bytes[line];
+                    let end = offset + range.1.clamp(line_start_bytes[line], end)
+                        - line_start_bytes[line];
 
-                    doc.highlights.push(SearchMatch { start, end, replacement: None });
+                    if m.replacement.is_none() {
+                        doc.highlights.push(SearchMatch { start, end, replacement: None });
+                    }
 
                     if line == first {
                         span.start = start;

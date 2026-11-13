@@ -96,6 +96,36 @@ impl History {
 
     pub(super) fn commit(&self, index: usize) -> &Commit { &self.entries[index].commit }
 
+    pub(super) const fn commit_id(&self) -> usize { self.head }
+
+    pub(super) fn can_undo_to(&self, commit: usize) -> bool {
+        let mut current = Some(self.head);
+
+        while let Some(index) = current {
+            if index == commit {
+                return true;
+            }
+
+            current = self.entries[index].previous;
+        }
+
+        false
+    }
+
+    pub(super) fn can_hot_redo_to(&self, commit: usize) -> bool {
+        let mut current = Some(self.head);
+
+        while let Some(index) = current {
+            if index == commit {
+                return true;
+            }
+
+            current = self.entries[index].hot_path;
+        }
+
+        false
+    }
+
     /// Undos a commit by updating the history to the new head and returning the
     /// commit index.
     pub(super) fn undo(&mut self) -> Option<usize> {

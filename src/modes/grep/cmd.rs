@@ -10,6 +10,8 @@ pub enum Cmd {
     PrevMatch,
     Replace,
     ReplaceAll,
+    UndoAll,
+    HotRedoAll,
     SaveAll,
     FindFile,
     SelectTheme,
