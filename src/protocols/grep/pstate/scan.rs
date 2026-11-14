@@ -19,10 +19,10 @@ pub struct GrepScan {
 
 impl GrepScan {
     pub fn new(
-        root: PathBuf, query: &str, opened_docs: HashMap<PathBuf, String>, revision: u64,
-        curr_revision: &AtomicU64,
+        root: PathBuf, query: &str, opened_docs: HashMap<PathBuf, String>, rev: u64,
+        curr_rev: &AtomicU64,
     ) -> Result<Self, String> {
-        let is_stale = || curr_revision.load(Ordering::Relaxed) != revision;
+        let is_stale = || curr_rev.load(Ordering::Relaxed) != rev;
 
         if is_stale() {
             return Err("Search cancelled".to_string());

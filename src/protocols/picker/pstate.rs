@@ -35,7 +35,7 @@ pub struct PickerPState {
     pub display_text: Vec<String>,
     pub search_text: Arc<[Utf32String]>,
 
-    pub filter_revision: Arc<AtomicU64>,
+    pub filter_rev: Arc<AtomicU64>,
 
     pub filtered: Vec<usize>,
     pub offset: usize,

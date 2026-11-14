@@ -12,7 +12,7 @@ pub enum Cmd {
     CursorsEnd,
     Replace,
     ReplaceAll,
-    SaveFile,
+    SaveDoc,
     FindFile,
     SelectTheme,
     Jump,

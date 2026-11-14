@@ -13,8 +13,8 @@ pub type SCallback = Box<dyn FnOnce(&mut State, Vec<IoFileEntry>) + Send>;
 #[allow(unused)]
 pub enum IoCmd {
     Read { path: PathBuf, rcallback: RCallback },
-    Write { path: PathBuf, data: String, wcallback: WCallback, revision: u64 },
+    Write { path: PathBuf, data: String, wcallback: WCallback, rev: u64 },
     Completion { path: PathBuf },
     Scan { path: PathBuf, scallback: SCallback },
-    ScanCompletion { entries: Vec<IoFileEntry>, scallback: SCallback, revision: u64 },
+    ScanCompletion { entries: Vec<IoFileEntry>, scallback: SCallback, rev: u64 },
 }

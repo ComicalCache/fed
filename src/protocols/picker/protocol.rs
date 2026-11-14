@@ -39,8 +39,8 @@ impl PickerProtocol {
             PickerCmd::Close => Self::close(s, None),
 
             PickerCmd::FilterList => Self::filter_list(s),
-            PickerCmd::FilterCompletion { filtered, revision } => {
-                Self::filter_completion(s, filtered, revision);
+            PickerCmd::FilterCompletion { filtered, rev } => {
+                Self::filter_completion(s, filtered, rev);
             }
             PickerCmd::ChangeSelection(motion) => Self::change_selection(s, motion),
             PickerCmd::ScrollList(motion) => Self::scroll_list(s, motion),
@@ -94,7 +94,7 @@ impl PickerProtocol {
 
     pub fn close(s: &mut State, selected: Option<Box<dyn PickerEntry>>) {
         let Some(window) = s.p.picker.window.take() else { return };
-        s.p.picker.filter_revision.fetch_add(1, Ordering::Relaxed);
+        s.p.picker.filter_rev.fetch_add(1, Ordering::Relaxed);
 
         let callback = s.p.picker.pcallback.take().unwrap();
         let previous = s.p.picker.prev_window.take();
@@ -136,16 +136,15 @@ impl PickerProtocol {
         let query = dse.doc.data.slice(0..dse.doc.data.len());
 
         let picker = &mut s.p.picker;
-        let revision = picker.filter_revision.fetch_add(1, Ordering::Relaxed) + 1;
+        let rev = picker.filter_rev.fetch_add(1, Ordering::Relaxed) + 1;
 
         if !query.trim().is_empty() {
             let candidates = picker.search_text.clone();
-            let curr_revision = picker.filter_revision.clone();
+            let curr_rev = picker.filter_rev.clone();
             let tx = s.async_fcmd_tx.clone();
             tokio::task::spawn_blocking(move || {
-                if let Some(filtered) = Self::rank(&candidates, &query, revision, &curr_revision) {
-                    let _ =
-                        tx.send(FCmd::Picker(PickerCmd::FilterCompletion { filtered, revision }));
+                if let Some(filtered) = Self::rank(&candidates, &query, rev, &curr_rev) {
+                    let _ = tx.send(FCmd::Picker(PickerCmd::FilterCompletion { filtered, rev }));
                 }
             });
 
@@ -158,11 +157,11 @@ impl PickerProtocol {
         Self::update_list(s, 0);
     }
 
-    fn filter_completion(s: &mut State, filtered: Vec<usize>, revision: u64) {
+    fn filter_completion(s: &mut State, filtered: Vec<usize>, rev: u64) {
         let picker = &mut s.p.picker;
 
         if picker.window.is_none()
-            || revision != picker.filter_revision.load(Ordering::Relaxed)
+            || rev != picker.filter_rev.load(Ordering::Relaxed)
             || picker.filtered == filtered
         {
             return;
@@ -221,9 +220,9 @@ impl PickerProtocol {
         }
 
         let y = Self::selection(s);
-        let Some(&index) = s.p.picker.filtered.get(y) else { return };
+        let Some(&idx) = s.p.picker.filtered.get(y) else { return };
 
-        let selected = s.p.picker.entries.remove(index);
+        let selected = s.p.picker.entries.remove(idx);
         Self::close(s, Some(selected));
     }
 
@@ -265,9 +264,9 @@ impl PickerProtocol {
     }
 
     fn rank(
-        candidates: &[Utf32String], query: &str, revision: u64, curr_revision: &AtomicU64,
+        candidates: &[Utf32String], query: &str, rev: u64, curr_rev: &AtomicU64,
     ) -> Option<Vec<usize>> {
-        if curr_revision.load(Ordering::Relaxed) != revision {
+        if curr_rev.load(Ordering::Relaxed) != rev {
             return None;
         }
 
@@ -277,7 +276,7 @@ impl PickerProtocol {
 
         let mut scored = Vec::new();
         for (idx, candidate) in candidates.iter().enumerate() {
-            if curr_revision.load(Ordering::Relaxed) != revision {
+            if curr_rev.load(Ordering::Relaxed) != rev {
                 return None;
             }
 
@@ -288,11 +287,11 @@ impl PickerProtocol {
 
         scored.sort_unstable();
 
-        if curr_revision.load(Ordering::Relaxed) != revision {
+        if curr_rev.load(Ordering::Relaxed) != rev {
             return None;
         }
 
-        Some(scored.into_iter().map(|(_, index)| index).collect())
+        Some(scored.into_iter().map(|(_, idx)| idx).collect())
     }
 
     fn update_list(s: &mut State, selection: usize) {
@@ -313,7 +312,7 @@ impl PickerProtocol {
 
         let text = s.p.picker.filtered[start..end]
             .iter()
-            .map(|&index| s.p.picker.display_text[index].as_str())
+            .map(|&idx| s.p.picker.display_text[idx].as_str())
             .collect::<Vec<_>>()
             .join("\n");
 

@@ -37,7 +37,7 @@ pub struct DirPState {
 
     pub pwd: PathBuf,
     pub entries: Vec<DirEntry>,
-    pub revision: u64,
+    pub rev: u64,
     pub path_history: PromptHistory,
 
     pub fetch_task: Option<JoinHandle<()>>,

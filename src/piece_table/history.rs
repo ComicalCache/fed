@@ -94,33 +94,33 @@ impl History {
         self.entries.push(entry);
     }
 
-    pub(super) fn commit(&self, index: usize) -> &Commit { &self.entries[index].commit }
+    pub(super) fn commit(&self, idx: usize) -> &Commit { &self.entries[idx].commit }
 
     pub(super) const fn commit_id(&self) -> usize { self.head }
 
     pub(super) fn can_undo_to(&self, commit: usize) -> bool {
-        let mut current = Some(self.head);
+        let mut curr = Some(self.head);
 
-        while let Some(index) = current {
-            if index == commit {
+        while let Some(idx) = curr {
+            if idx == commit {
                 return true;
             }
 
-            current = self.entries[index].previous;
+            curr = self.entries[idx].previous;
         }
 
         false
     }
 
     pub(super) fn can_hot_redo_to(&self, commit: usize) -> bool {
-        let mut current = Some(self.head);
+        let mut curr = Some(self.head);
 
-        while let Some(index) = current {
-            if index == commit {
+        while let Some(idx) = curr {
+            if idx == commit {
                 return true;
             }
 
-            current = self.entries[index].hot_path;
+            curr = self.entries[idx].hot_path;
         }
 
         false

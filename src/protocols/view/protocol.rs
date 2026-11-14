@@ -77,8 +77,8 @@ impl ViewProtocol {
         dse.decs.update(start, end);
 
         // Avoid re-populating the cache when the contents didn't change.
-        let revision = Some((dse.doc.revision, start, end));
-        if vse.view_cache.revision == revision {
+        let rev = Some((dse.doc.rev, start, end));
+        if vse.view_cache.rev == rev {
             return;
         }
 
@@ -95,7 +95,7 @@ impl ViewProtocol {
         }
         lines.push(line);
 
-        vse.view_cache = ViewStoreTypes::ViewCache { offset: start, lines, revision };
+        vse.view_cache = ViewStoreTypes::ViewCache { offset: start, lines, rev };
     }
 
     pub fn scroll_to(s: &mut State, view: ViewId, pos: Pos) {

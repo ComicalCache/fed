@@ -10,7 +10,7 @@ pub struct SearchRequest {
 
     pub view: ViewId,
     pub doc: DocId,
-    pub revision: u64,
+    pub rev: u64,
 }
 
 #[derive(Default)]

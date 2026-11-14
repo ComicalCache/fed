@@ -28,8 +28,8 @@ impl SearchProtocol {
             }
             SearchCmd::Navigate { view, forward } => Self::navigate(s, view, forward),
             SearchCmd::Replace { view, doc, all } => Self::replace(s, view, doc, all),
-            SearchCmd::ReplaceCompletion { request, matches, replacement, index } => {
-                Self::replace_completion(s, request, matches, replacement, index);
+            SearchCmd::ReplaceCompletion { request, matches, replacement, idx } => {
+                Self::replace_completion(s, request, matches, replacement, idx);
             }
             SearchCmd::Close { view } => Self::close(s, view),
 
@@ -51,17 +51,17 @@ impl SearchProtocol {
         // Event may be received after the doc has already been removed again.
         let Some(dse) = s.doc_store.get(&doc) else { return };
 
-        let revision = dse.doc.revision;
+        let rev = dse.doc.rev;
         for view in s.index.doc_to_views(doc).cloned().unwrap_or_default() {
             let stale = s
                 .view_store
                 .get(&view)
                 .and_then(|vse| vse.search.as_ref())
-                .is_some_and(|search| search.revision != revision);
+                .is_some_and(|search| search.rev != rev);
 
             if stale {
                 Self::close(s, view);
-            } else if s.p.search.searches.get(&view).is_some_and(|r| r.revision != revision) {
+            } else if s.p.search.searches.get(&view).is_some_and(|r| r.rev != rev) {
                 s.p.search.searches.remove(&view);
             }
         }
@@ -84,12 +84,12 @@ impl SearchProtocol {
 
                 if searching
                     && let Some(offset) = offset
-                    && let Some(index) =
+                    && let Some(idx) =
                         search.matches.partition_point(|m| m.start <= offset).checked_sub(1)
                 {
-                    let m = &search.matches[index];
+                    let m = &search.matches[idx];
                     if offset == m.start || offset < m.end {
-                        search.last_match = Some(index);
+                        search.last_match = Some(idx);
                     }
                 }
             }
@@ -107,7 +107,7 @@ impl SearchProtocol {
                 return;
             };
 
-            if query.is_empty() || !Self::is_current(s, request) {
+            if query.is_empty() || !Self::is_curr(s, request) {
                 Self::finalize(s, request);
                 return;
             }
@@ -171,7 +171,7 @@ impl SearchProtocol {
         let first = matches.first().map(|m| m.start);
         let vse = s.view_store.get_mut(&request.view).unwrap();
         let offsets: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();
-        vse.search = Some(SearchState::new(query, matches, request.revision));
+        vse.search = Some(SearchState::new(query, matches, request.rev));
 
         ActionProtocol::push_view_mode(s, request.view, ViewStoreTypes::Mode::Search);
 
@@ -225,7 +225,7 @@ impl SearchProtocol {
 
         let search = vse.search.as_ref().unwrap();
 
-        if search.revision != dse.doc.revision {
+        if search.rev != dse.doc.rev {
             Self::close(s, view);
             util::mp::message(s, "Document changed".to_string(), Duration::from_secs(3));
             return;
@@ -241,7 +241,7 @@ impl SearchProtocol {
             return;
         }
 
-        let index = if all {
+        let idx = if all {
             None
         } else {
             let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
@@ -253,7 +253,7 @@ impl SearchProtocol {
         };
 
         if search.replacement.is_some() {
-            Self::apply(s, view, doc, index);
+            Self::apply(s, view, doc, idx);
             return;
         }
 
@@ -267,7 +267,7 @@ impl SearchProtocol {
                 return;
             };
 
-            Self::compute_replacement(s, request, query, matches, replacement, index);
+            Self::compute_replacement(s, request, query, matches, replacement, idx);
         });
 
         let prompt = if all { "Replace all with: " } else { "Replace with: " };
@@ -277,7 +277,7 @@ impl SearchProtocol {
 
     pub fn replace_completion(
         s: &mut State, request: SearchRequest, matches: Vec<SearchMatch>, replacement: String,
-        index: Option<usize>,
+        idx: Option<usize>,
     ) {
         if !Self::finalize(s, request) || s.doc_store.get(&request.doc).unwrap().read_only {
             return;
@@ -293,7 +293,7 @@ impl SearchProtocol {
         search.matches = matches;
         search.replacement = Some(replacement);
 
-        Self::apply(s, request.view, request.doc, index);
+        Self::apply(s, request.view, request.doc, idx);
     }
 
     pub fn close(s: &mut State, view: ViewId) {
@@ -317,9 +317,9 @@ impl SearchProtocol {
         let request_id = s.p.search.next_id;
         s.p.search.next_id += 1;
 
-        let revision = s.doc_store.get(&doc).unwrap().doc.revision;
+        let rev = s.doc_store.get(&doc).unwrap().doc.rev;
 
-        let request = SearchRequest { request_id, view, doc, revision };
+        let request = SearchRequest { request_id, view, doc, rev };
         s.p.search.searches.insert(view, request);
 
         Some(request)
@@ -327,9 +327,9 @@ impl SearchProtocol {
 
     fn compute_replacement(
         s: &mut State, request: SearchRequest, query: String, mut matches: Vec<SearchMatch>,
-        replacement: String, index: Option<usize>,
+        replacement: String, idx: Option<usize>,
     ) {
-        if !Self::is_current(s, request) || s.doc_store.get(&request.doc).unwrap().read_only {
+        if !Self::is_curr(s, request) || s.doc_store.get(&request.doc).unwrap().read_only {
             Self::finalize(s, request);
             return;
         }
@@ -385,12 +385,12 @@ impl SearchProtocol {
                 request,
                 matches,
                 replacement,
-                index,
+                idx,
             }));
         });
     }
 
-    fn apply(s: &mut State, view: ViewId, doc: DocId, index: Option<usize>) {
+    fn apply(s: &mut State, view: ViewId, doc: DocId, idx: Option<usize>) {
         let vse = s.view_store.get_mut(&view).unwrap();
         let search = vse.search.as_mut().unwrap();
 
@@ -408,8 +408,8 @@ impl SearchProtocol {
         }
 
         let mut matches = std::mem::take(&mut search.matches);
-        let first = index.unwrap_or(0);
-        let last = index.map_or(matches.len(), |idx| idx + 1);
+        let first = idx.unwrap_or(0);
+        let last = idx.map_or(matches.len(), |idx| idx + 1);
         let replaced_at = matches[first].start;
 
         let mut removed = 0;
@@ -429,7 +429,7 @@ impl SearchProtocol {
         ActionProtocol::end_commit(s, doc);
 
         // Replace all, nothing to do anymore.
-        if index.is_none() {
+        if idx.is_none() {
             Self::close(s, view);
             return;
         }
@@ -442,14 +442,14 @@ impl SearchProtocol {
 
         // Has to be fetched again for the borrow checker to be happy.
         let vse = s.view_store.get_mut(&view).unwrap();
-        let revision = s.doc_store.get(&doc).unwrap().doc.revision;
+        let rev = s.doc_store.get(&doc).unwrap().doc.rev;
         let search = vse.search.as_mut().unwrap();
 
         let next = (!matches.is_empty()).then(|| first % matches.len());
-        let offset = next.map_or(replaced_at, |index| matches[index].start);
+        let offset = next.map_or(replaced_at, |idx| matches[idx].start);
 
         search.matches = matches;
-        search.revision = revision;
+        search.rev = rev;
         search.last_match = next;
 
         let offsets: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();
@@ -457,19 +457,19 @@ impl SearchProtocol {
         ActionProtocol::create_cursors_at_offsets(s, view, vec![offset]);
     }
 
-    fn is_current(s: &State, request: SearchRequest) -> bool {
+    fn is_curr(s: &State, request: SearchRequest) -> bool {
         s.p.search.searches.get(&request.view) == Some(&request)
             && s.index.view_to_doc(request.view) == Some(request.doc)
-            && s.doc_store.get(&request.doc).unwrap().doc.revision == request.revision
+            && s.doc_store.get(&request.doc).unwrap().doc.rev == request.rev
     }
 
     fn finalize(s: &mut State, request: SearchRequest) -> bool {
-        let current = Self::is_current(s, request);
+        let curr = Self::is_curr(s, request);
 
         if s.p.search.searches.get(&request.view) == Some(&request) {
             s.p.search.searches.remove(&request.view);
         }
 
-        current
+        curr
     }
 }

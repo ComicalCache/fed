@@ -59,13 +59,13 @@ impl ActionProtocol {
             ActionCmd::HotRedo { view } => Self::hot_redo(s, view),
 
             ActionCmd::Save { doc, path } => Self::save(s, doc, path),
-            ActionCmd::SaveCompletion { doc, path, res, request, revision } => {
-                Self::save_completion(s, doc, path, res, request, revision);
+            ActionCmd::SaveCompletion { doc, path, res, request, rev } => {
+                Self::save_completion(s, doc, path, res, request, rev);
             }
             ActionCmd::Saved { doc } => Self::saved(s, doc),
             ActionCmd::DiscardChanges { doc } => Self::discard_changes(s, doc),
-            ActionCmd::DiscardCompletion { doc, res, revision } => {
-                Self::discard_changes_completion(s, doc, res, revision);
+            ActionCmd::DiscardCompletion { doc, res, rev } => {
+                Self::discard_changes_completion(s, doc, res, rev);
             }
 
             ActionCmd::Insert { view, text } => Self::insert(s, view, text),
@@ -247,44 +247,43 @@ impl ActionProtocol {
 
         let path = util::path::normalize(path);
         let data = dse.doc.data.slice(0..dse.doc.data.len());
-        let revision = dse.doc.revision;
+        let rev = dse.doc.rev;
 
         dse.doc.io_request += 1;
 
         let cb_path = path.clone();
         let request = dse.doc.io_request;
         let async_fcmd_tx = s.async_fcmd_tx.clone();
-        let wcallback = Box::new(move |res, revision| -> IoFuture {
+        let wcallback = Box::new(move |res, rev| -> IoFuture {
             Box::pin(async move {
                 let _ = async_fcmd_tx.send(FCmd::Action(ActionCmd::SaveCompletion {
                     doc,
                     path: cb_path,
                     res,
                     request,
-                    revision,
+                    rev,
                 }));
             })
         });
 
-        IoProtocol::write(s, path, data, wcallback, revision);
+        IoProtocol::write(s, path, data, wcallback, rev);
     }
 
     fn save_completion(
-        s: &mut State, doc: DocId, path: PathBuf, res: Result<(), String>, request: u64,
-        revision: u64,
+        s: &mut State, doc: DocId, path: PathBuf, res: Result<(), String>, request: u64, rev: u64,
     ) {
-        let curr_revision = s
+        let curr_rev = s
             .doc_store
             .get(&doc)
             .filter(|dse| dse.doc.io_request == request)
-            .map(|dse| dse.doc.revision);
+            .map(|dse| dse.doc.rev);
 
         let message = match res {
             Ok(()) => {
-                if let Some(curr_revision) = curr_revision {
+                if let Some(curr_rev) = curr_rev {
                     Self::set_doc_path(s, doc, Some(path.clone()));
 
-                    if curr_revision == revision {
+                    if curr_rev == rev {
                         Self::saved(s, doc);
                     }
                 }
@@ -294,7 +293,7 @@ impl ActionProtocol {
                 "File saved".to_string()
             }
             Err(err) => {
-                if curr_revision.is_some() {
+                if curr_rev.is_some() {
                     s.doc_store.get_mut(&doc).unwrap().doc.io_request += 1;
                 }
 
@@ -340,9 +339,9 @@ impl ActionProtocol {
             return;
         }
 
-        let revision = dse.doc.revision;
+        let rev = dse.doc.rev;
         let Some(path) = dse.doc.path.clone() else {
-            Self::discard_changes_completion(s, doc, Ok(String::new()), revision);
+            Self::discard_changes_completion(s, doc, Ok(String::new()), rev);
             return;
         };
 
@@ -352,19 +351,18 @@ impl ActionProtocol {
             path,
             Box::new(move |res| {
                 Box::pin(async move {
-                    let _ =
-                        tx.send(FCmd::Action(ActionCmd::DiscardCompletion { doc, res, revision }));
+                    let _ = tx.send(FCmd::Action(ActionCmd::DiscardCompletion { doc, res, rev }));
                 })
             }),
         );
     }
 
     fn discard_changes_completion(
-        s: &mut State, doc: DocId, result: Result<String, String>, revision: u64,
+        s: &mut State, doc: DocId, result: Result<String, String>, rev: u64,
     ) {
         let Some(dse) = s.doc_store.get_mut(&doc) else { return };
 
-        if dse.read_only || !dse.doc.modified || dse.doc.revision != revision {
+        if dse.read_only || !dse.doc.modified || dse.doc.rev != rev {
             return;
         }
 
@@ -621,7 +619,7 @@ impl ActionProtocol {
         }
 
         let dse = s.doc_store.get_mut(&doc).unwrap();
-        dse.doc.revision += 1;
+        dse.doc.rev += 1;
         if !dse.doc.modified {
             dse.doc.modified = true;
 

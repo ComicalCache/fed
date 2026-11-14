@@ -33,20 +33,20 @@ impl GrepProtocol {
     pub fn exec(s: &mut State, cmd: GrepCmd) {
         match cmd {
             GrepCmd::Search { window } => Self::search(s, window),
-            GrepCmd::SearchCompletion { window, views, query, result, revision } => {
-                Self::search_completion(s, window, &views, query, result, revision);
+            GrepCmd::SearchCompletion { window, views, query, result, rev } => {
+                Self::search_completion(s, window, &views, query, result, rev);
             }
             GrepCmd::Show { window } => Self::show(s, window),
             GrepCmd::Navigate { forward } => Self::navigate(s, forward),
 
             GrepCmd::SelectResult => Self::select_result(s),
-            GrepCmd::SelectResultCompletion { window, file, position, result, revision } => {
-                Self::select_result_completion(s, window, file, position, result, revision);
+            GrepCmd::SelectResultCompletion { window, file, position, result, rev } => {
+                Self::select_result_completion(s, window, file, position, result, rev);
             }
 
             GrepCmd::Replace { all } => Self::replace(s, all),
-            GrepCmd::ReplaceCompletion { target, replacement, result, revision } => {
-                Self::replace_completion(s, target.as_ref(), replacement, result, revision);
+            GrepCmd::ReplaceCompletion { target, replacement, result, rev } => {
+                Self::replace_completion(s, target.as_ref(), replacement, result, rev);
             }
             GrepCmd::UndoAll => Self::undo_all(s),
             GrepCmd::HotRedoAll => Self::hot_redo_all(s),
@@ -71,15 +71,15 @@ impl GrepProtocol {
 
         let cursor = vse.cursors.list.first().unwrap();
         let Some(search) = vse.search.as_mut() else { return };
-        let Some(index) =
+        let Some(idx) =
             s.p.grep.matches.partition_point(|m| m.start <= cursor.offset).checked_sub(1)
         else {
             return;
         };
 
-        let m = &s.p.grep.matches[index];
+        let m = &s.p.grep.matches[idx];
         if cursor.offset == m.start || cursor.offset < m.end {
-            search.last_match = Some(index);
+            search.last_match = Some(idx);
         }
     }
 
@@ -88,11 +88,11 @@ impl GrepProtocol {
             return;
         }
 
-        let revision = s.p.grep.revision.fetch_add(1, Ordering::Relaxed) + 1;
+        let rev = s.p.grep.rev.fetch_add(1, Ordering::Relaxed) + 1;
         let callback = Box::new(move |s: &mut State, query: Option<String>| {
             let Some(query) = query else { return };
 
-            if query.is_empty() || revision != s.p.grep.revision.load(Ordering::Relaxed) {
+            if query.is_empty() || rev != s.p.grep.rev.load(Ordering::Relaxed) {
                 return;
             }
 
@@ -107,15 +107,13 @@ impl GrepProtocol {
                     Some((path.clone(), (doc, dse.doc.data.commit_id())))
                 })
                 .collect();
-            let curr_revision = s.p.grep.revision.clone();
+            let curr_rev = s.p.grep.rev.clone();
 
             let tx = s.async_fcmd_tx.clone();
             tokio::task::spawn_blocking(move || {
                 let result = std::env::current_dir()
                     .map_err(|e| e.to_string())
-                    .and_then(|root| {
-                        GrepScan::new(root, &query, opened_docs, revision, &curr_revision)
-                    })
+                    .and_then(|root| GrepScan::new(root, &query, opened_docs, rev, &curr_rev))
                     .map(|mut scan| {
                         for file in &mut scan.files {
                             if let Some(&(doc, undo)) = undos.get(&file.path) {
@@ -132,7 +130,7 @@ impl GrepProtocol {
                     views,
                     query,
                     result,
-                    revision,
+                    rev,
                 }));
             });
         });
@@ -143,9 +141,9 @@ impl GrepProtocol {
 
     pub fn search_completion(
         s: &mut State, window: WindowId, views: &[ViewId], query: String,
-        result: Result<(GrepScan, GrepDocument), String>, revision: u64,
+        result: Result<(GrepScan, GrepDocument), String>, rev: u64,
     ) {
-        if revision != s.p.grep.revision.load(Ordering::Relaxed)
+        if rev != s.p.grep.rev.load(Ordering::Relaxed)
             || s.index.window_to_views(window).map(Vec::as_slice) != Some(views)
         {
             return;
@@ -239,7 +237,7 @@ impl GrepProtocol {
             return;
         }
 
-        let revision = s.p.grep.revision.fetch_add(1, Ordering::Relaxed) + 1;
+        let rev = s.p.grep.rev.fetch_add(1, Ordering::Relaxed) + 1;
         let tx = s.async_fcmd_tx.clone();
         IoProtocol::read(
             s,
@@ -251,7 +249,7 @@ impl GrepProtocol {
                         file: row.file,
                         position,
                         result,
-                        revision,
+                        rev,
                     }));
                 })
             }),
@@ -260,9 +258,9 @@ impl GrepProtocol {
 
     pub fn select_result_completion(
         s: &mut State, window: WindowId, file: usize, position: (usize, usize),
-        result: Result<String, String>, revision: u64,
+        result: Result<String, String>, rev: u64,
     ) {
-        if revision != s.p.grep.revision.load(Ordering::Relaxed)
+        if rev != s.p.grep.rev.load(Ordering::Relaxed)
             || s.index.view_to_window(s.p.grep.view) != Some(window)
         {
             return;
@@ -313,11 +311,11 @@ impl GrepProtocol {
             return;
         }
 
-        let revision = s.p.grep.revision.load(Ordering::Relaxed);
+        let rev = s.p.grep.rev.load(Ordering::Relaxed);
         let callback = Box::new(move |s: &mut State, replacement: Option<String>| {
             let Some(replacement) = replacement else { return };
 
-            if revision != s.p.grep.revision.load(Ordering::Relaxed) {
+            if rev != s.p.grep.rev.load(Ordering::Relaxed) {
                 return;
             }
 
@@ -331,9 +329,9 @@ impl GrepProtocol {
 
     pub fn replace_completion(
         s: &mut State, target: Option<&(PathBuf, usize)>, replacement: String,
-        result: Result<HashMap<PathBuf, String>, String>, revision: u64,
+        result: Result<HashMap<PathBuf, String>, String>, rev: u64,
     ) {
-        if revision != s.p.grep.revision.load(Ordering::Relaxed) {
+        if rev != s.p.grep.rev.load(Ordering::Relaxed) {
             return;
         }
 
@@ -386,7 +384,7 @@ impl GrepProtocol {
     }
 
     pub fn undo_all(s: &mut State) {
-        s.p.grep.revision.fetch_add(1, Ordering::Relaxed);
+        s.p.grep.rev.fetch_add(1, Ordering::Relaxed);
 
         for file_idx in 0..s.p.grep.files.len() {
             let file = &s.p.grep.files[file_idx];
@@ -438,7 +436,7 @@ impl GrepProtocol {
     }
 
     pub fn hot_redo_all(s: &mut State) {
-        s.p.grep.revision.fetch_add(1, Ordering::Relaxed);
+        s.p.grep.rev.fetch_add(1, Ordering::Relaxed);
 
         for file_idx in 0..s.p.grep.files.len() {
             let file = &s.p.grep.files[file_idx];
@@ -522,7 +520,7 @@ impl GrepProtocol {
                 .filter(|f| f.doc(&s.doc_store).is_none())
                 .map(|f| f.path.clone())
                 .collect();
-        let revision = s.p.grep.revision.fetch_add(1, Ordering::Relaxed) + 1;
+        let rev = s.p.grep.rev.fetch_add(1, Ordering::Relaxed) + 1;
 
         let tx = s.async_fcmd_tx.clone();
         tokio::task::spawn_blocking(move || {
@@ -539,7 +537,7 @@ impl GrepProtocol {
                 target,
                 replacement,
                 result,
-                revision,
+                rev,
             }));
         });
     }
@@ -598,8 +596,8 @@ impl GrepProtocol {
             let file = &mut s.p.grep.files[file_idx];
             file.doc = doc;
 
-            for (index, m) in matches {
-                file.matches[index].replacement = m.replacement;
+            for (idx, m) in matches {
+                file.matches[idx].replacement = m.replacement;
             }
 
             if edits.is_empty() {
@@ -683,10 +681,10 @@ impl GrepProtocol {
             Box::new(SpanDecorator::new(document.headings)),
         );
 
-        let revision = s.doc_store.get(&s.p.grep.doc).unwrap().doc.revision;
+        let rev = s.doc_store.get(&s.p.grep.doc).unwrap().doc.rev;
         let vse = s.view_store.get_mut(&s.p.grep.view).unwrap();
 
-        vse.search = Some(SearchState::new(s.p.grep.query.clone(), document.highlights, revision));
+        vse.search = Some(SearchState::new(s.p.grep.query.clone(), document.highlights, rev));
 
         s.p.grep.rows = document.rows;
         s.p.grep.matches = document.matches;

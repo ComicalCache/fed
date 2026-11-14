@@ -14,12 +14,12 @@ pub struct IoFileEntry {
 
 pub enum IoRequest {
     Read { rcallback: RCallback },
-    Write { data: String, wcallback: WCallback, revision: u64 },
+    Write { data: String, wcallback: WCallback, rev: u64 },
 }
 
 #[derive(Default)]
 pub struct IoPState {
     pub queues: HashMap<PathBuf, VecDeque<IoRequest>>,
 
-    pub scan_revision: u64,
+    pub scan_rev: u64,
 }

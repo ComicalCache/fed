@@ -9,6 +9,7 @@ use crate::modes::normal::keymap;
 use crate::protocols::action::ActionCmd;
 use crate::protocols::action::ActionProtocol;
 use crate::protocols::dir::DirCmd;
+use crate::protocols::doc_view::DocViewCmd;
 use crate::protocols::grep::GrepCmd;
 use crate::protocols::keybind::KeybindCmd;
 use crate::protocols::manage::ManageCmd;
@@ -131,7 +132,10 @@ impl NormalKeyInput {
 
                 Self::replace_char(s, view, doc, ch)
             }
-            Cmd::SaveFile => Some(common::save_file(s, doc)),
+            Cmd::NewDoc => {
+                Some(vec![FCmd::DocView(DocViewCmd::NewDoc { window: s.workspace.active_window? })])
+            }
+            Cmd::SaveDoc => Some(common::save_doc(s, doc)),
             Cmd::DiscardChanges => {
                 if dse.read_only || !dse.doc.modified {
                     return None;
@@ -395,7 +399,7 @@ impl NormalKeyInput {
 
     fn discard_changes(s: &State, doc: DocId) -> Vec<FCmd> {
         let dse = s.doc_store.get(&doc).unwrap();
-        let revision = dse.doc.revision;
+        let rev = dse.doc.rev;
 
         let pcallback = Box::new(move |s: &mut State, res: Option<String>| {
             let Some(res) = res else { return };
@@ -405,7 +409,7 @@ impl NormalKeyInput {
 
             let Some(dse) = s.doc_store.get(&doc) else { return };
 
-            if dse.read_only || !dse.doc.modified || dse.doc.revision != revision {
+            if dse.read_only || !dse.doc.modified || dse.doc.rev != rev {
                 return;
             }
 

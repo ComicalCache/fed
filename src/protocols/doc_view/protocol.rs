@@ -24,6 +24,7 @@ pub struct DocViewProtocol {}
 impl DocViewProtocol {
     pub fn exec(s: &mut State, cmd: DocViewCmd) {
         match cmd {
+            DocViewCmd::NewDoc { window } => Self::new_doc(s, window),
             DocViewCmd::OpenFile { window, path, force } => Self::open_file(s, window, path, force),
             DocViewCmd::OpenFileCompletion { window, path, force, res, request } => {
                 Self::open_file_completion(s, window, path, force, res, request);
@@ -41,6 +42,11 @@ impl DocViewProtocol {
         }
     }
 
+    pub fn new_doc(s: &mut State, window: WindowId) {
+        let doc = s.create_doc(None).unwrap();
+        Self::show(s, doc, None, window, false, None);
+    }
+
     pub fn open_file(s: &mut State, window: WindowId, path: PathBuf, force: bool) {
         s.p.doc_view.pending.remove(&window);
 
@@ -56,8 +62,8 @@ impl DocViewProtocol {
             return;
         }
 
-        let request = s.p.doc_view.revision;
-        s.p.doc_view.revision += 1;
+        let request = s.p.doc_view.rev;
+        s.p.doc_view.rev += 1;
 
         let views = s.index.window_to_views(window).unwrap().clone();
         s.p.doc_view.pending.insert(window, (request, views));

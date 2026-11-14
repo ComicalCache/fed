@@ -16,7 +16,7 @@ pub enum GrepCmd {
         views: Vec<ViewId>,
         query: String,
         result: Result<(GrepScan, GrepDocument), String>,
-        revision: u64,
+        rev: u64,
     },
     Show {
         window: WindowId,
@@ -30,7 +30,7 @@ pub enum GrepCmd {
         file: usize,
         position: (usize, usize),
         result: Result<String, String>,
-        revision: u64,
+        rev: u64,
     },
     Replace {
         all: bool,
@@ -39,7 +39,7 @@ pub enum GrepCmd {
         target: Option<(PathBuf, usize)>,
         replacement: String,
         result: Result<HashMap<PathBuf, String>, String>,
-        revision: u64,
+        rev: u64,
     },
     UndoAll,
     HotRedoAll,

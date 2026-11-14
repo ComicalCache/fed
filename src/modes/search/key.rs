@@ -62,7 +62,7 @@ impl SearchKeyInput {
                     all: matches!(cmd, Cmd::ReplaceAll),
                 })])
             }
-            Cmd::SaveFile => {
+            Cmd::SaveDoc => {
                 if dse.mode == DocStoreTypes::Mode::Grep {
                     return Some(vec![FCmd::Grep(GrepCmd::SaveAll)]);
                 }
@@ -71,7 +71,7 @@ impl SearchKeyInput {
                     return None;
                 }
 
-                Some(common::save_file(s, doc))
+                Some(common::save_doc(s, doc))
             }
             Cmd::FindFile => Some(common::find_file(s)),
             Cmd::SelectTheme => Some(common::select_theme()),

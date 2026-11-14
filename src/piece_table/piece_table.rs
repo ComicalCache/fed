@@ -162,8 +162,8 @@ impl PieceTable {
         }
 
         if let Some(commit) = &mut self.active_commit {
-            for (piece_index, piece, kind) in changes {
-                commit.add_change(piece_index, piece, kind);
+            for (piece_idx, piece, kind) in changes {
+                commit.add_change(piece_idx, piece, kind);
             }
             commit.add_logical_change(Kind::Insertion, offset, text.len());
         }
@@ -204,8 +204,8 @@ impl PieceTable {
                     removals.push(Removal::End { piece_idx, byte_len: piece_end - offset })
                 }
                 (true, true) => {
-                    if let Some(Removal::Full { end_idx: end_index, .. }) = removals.last_mut() {
-                        *end_index = piece_idx + 1;
+                    if let Some(Removal::Full { end_idx, .. }) = removals.last_mut() {
+                        *end_idx = piece_idx + 1;
                     } else {
                         removals
                             .push(Removal::Full { start_idx: piece_idx, end_idx: piece_idx + 1 });
@@ -234,11 +234,10 @@ impl PieceTable {
                     changes.push((*piece_idx, original_piece, Kind::Deletion));
                     changes.push((*piece_idx, self.pieces[*piece_idx], Kind::Insertion));
                 }
-                Removal::Full { start_idx: start_index, end_idx: end_index } => {
-                    for (offset, piece) in
-                        self.pieces.drain(*start_index..*end_index).enumerate().rev()
+                Removal::Full { start_idx, end_idx } => {
+                    for (offset, piece) in self.pieces.drain(*start_idx..*end_idx).enumerate().rev()
                     {
-                        changes.push((*start_index + offset, piece, Kind::Deletion));
+                        changes.push((*start_idx + offset, piece, Kind::Deletion));
                     }
                 }
                 Removal::Start { piece_idx, byte_len } => {
@@ -289,7 +288,7 @@ impl PieceTable {
     }
 
     /// Includes the newline when present, so this equals
-    /// `line_start_offset(line_index + 1)`.
+    /// `line_start_offset(line_idx + 1)`.
     #[must_use]
     pub fn line_end_offset(&self, line_idx: usize) -> usize {
         if line_idx + 1 < self.line_starts.len() {

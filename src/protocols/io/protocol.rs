@@ -21,13 +21,13 @@ impl IoProtocol {
     pub fn exec(s: &mut State, cmd: IoCmd) {
         match cmd {
             IoCmd::Read { path, rcallback } => Self::read(s, path, rcallback),
-            IoCmd::Write { path, data, wcallback, revision } => {
-                Self::write(s, path, data, wcallback, revision);
+            IoCmd::Write { path, data, wcallback, rev } => {
+                Self::write(s, path, data, wcallback, rev);
             }
             IoCmd::Completion { path } => Self::completion(s, path),
             IoCmd::Scan { path, scallback } => Self::scan(s, path, scallback),
-            IoCmd::ScanCompletion { entries, scallback, revision } => {
-                Self::scan_completion(s, entries, scallback, revision);
+            IoCmd::ScanCompletion { entries, scallback, rev } => {
+                Self::scan_completion(s, entries, scallback, rev);
             }
         }
     }
@@ -36,8 +36,8 @@ impl IoProtocol {
         Self::enqueue(s, path, IoRequest::Read { rcallback });
     }
 
-    pub fn write(s: &mut State, path: PathBuf, data: String, wcallback: WCallback, revision: u64) {
-        Self::enqueue(s, path, IoRequest::Write { data, wcallback, revision });
+    pub fn write(s: &mut State, path: PathBuf, data: String, wcallback: WCallback, rev: u64) {
+        Self::enqueue(s, path, IoRequest::Write { data, wcallback, rev });
     }
 
     fn completion(s: &mut State, path: PathBuf) {
@@ -51,20 +51,18 @@ impl IoProtocol {
     }
 
     pub fn scan(s: &mut State, path: PathBuf, scallback: SCallback) {
-        s.p.io.scan_revision += 1;
+        s.p.io.scan_rev += 1;
 
-        let revision = s.p.io.scan_revision;
+        let rev = s.p.io.scan_rev;
         let tx = s.async_fcmd_tx.clone();
         tokio::task::spawn_blocking(move || {
             let entries = Self::scan_entries(&path);
-            let _ = tx.send(FCmd::Io(IoCmd::ScanCompletion { entries, scallback, revision }));
+            let _ = tx.send(FCmd::Io(IoCmd::ScanCompletion { entries, scallback, rev }));
         });
     }
 
-    fn scan_completion(
-        s: &mut State, entries: Vec<IoFileEntry>, scallback: SCallback, revision: u64,
-    ) {
-        if revision != s.p.io.scan_revision {
+    fn scan_completion(s: &mut State, entries: Vec<IoFileEntry>, scallback: SCallback, rev: u64) {
+        if rev != s.p.io.scan_rev {
             return;
         }
 
@@ -103,9 +101,9 @@ impl IoProtocol {
                         tokio::fs::read_to_string(&path).await.map_err(|err| err.to_string());
                     rcallback(result).await;
                 }
-                IoRequest::Write { data, wcallback, revision } => {
+                IoRequest::Write { data, wcallback, rev } => {
                     let result = tokio::fs::write(&path, data).await.map_err(|err| err.to_string());
-                    wcallback(result, revision).await;
+                    wcallback(result, rev).await;
                 }
             }
 

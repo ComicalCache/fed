@@ -32,8 +32,8 @@ impl DirProtocol {
     pub fn exec(s: &mut State, cmd: DirCmd) {
         match cmd {
             DirCmd::Init => Self::init(s),
-            DirCmd::InitCompletion { entries, printables, revision } => {
-                Self::init_completion(s, entries, printables, revision);
+            DirCmd::InitCompletion { entries, printables, rev } => {
+                Self::init_completion(s, entries, printables, rev);
             }
             DirCmd::Refresh { path } => Self::refresh(s, path),
             DirCmd::Show { window, path } => {
@@ -54,7 +54,7 @@ impl DirProtocol {
     }
 
     pub fn init(s: &mut State) {
-        s.p.dir.revision += 1;
+        s.p.dir.rev += 1;
 
         if let Some(task) = s.p.dir.fetch_task.take() {
             task.abort();
@@ -62,16 +62,15 @@ impl DirProtocol {
 
         s.p.dir.fetch_task = Some(tokio::spawn(Self::fetch_entries(
             s.p.dir.pwd.clone(),
-            s.p.dir.revision,
+            s.p.dir.rev,
             s.async_fcmd_tx.clone(),
         )));
     }
 
     pub fn init_completion(
-        s: &mut State, mut entries: Vec<DirEntry>, printables: Vec<PrintableDirEntry>,
-        revision: u64,
+        s: &mut State, mut entries: Vec<DirEntry>, printables: Vec<PrintableDirEntry>, rev: u64,
     ) {
-        if revision != s.p.dir.revision {
+        if rev != s.p.dir.rev {
             return;
         }
 
@@ -269,7 +268,7 @@ impl DirProtocol {
         }
     }
 
-    async fn fetch_entries(pwd: PathBuf, revision: u64, async_fcmd_tx: UnboundedSender<FCmd>) {
+    async fn fetch_entries(pwd: PathBuf, rev: u64, async_fcmd_tx: UnboundedSender<FCmd>) {
         let mut entries = Vec::new();
         let mut printables: Vec<PrintableDirEntry> = Vec::new();
         let mut ownership = Vec::new();
@@ -409,8 +408,7 @@ impl DirProtocol {
         .await
         .unwrap();
 
-        let _ =
-            async_fcmd_tx.send(FCmd::Dir(DirCmd::InitCompletion { entries, printables, revision }));
+        let _ = async_fcmd_tx.send(FCmd::Dir(DirCmd::InitCompletion { entries, printables, rev }));
     }
 
     pub fn decorate(s: &mut State) {

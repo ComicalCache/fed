@@ -8,7 +8,7 @@ pub enum PickerCmd {
     Close,
 
     FilterList,
-    FilterCompletion { filtered: Vec<usize>, revision: u64 },
+    FilterCompletion { filtered: Vec<usize>, rev: u64 },
     ChangeSelection(Motion),
     ScrollList(Motion),
     Select,

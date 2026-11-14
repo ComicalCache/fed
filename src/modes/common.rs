@@ -580,7 +580,7 @@ pub fn split_window(s: &State, doc: DocId, direction: RectSplit) -> Option<Vec<F
         tx: Some(tx),
     })])
 }
-pub fn save_file(s: &State, doc: DocId) -> Vec<FCmd> {
+pub fn save_doc(s: &State, doc: DocId) -> Vec<FCmd> {
     let dse = s.doc_store.get(&doc).unwrap();
 
     let path = dse.doc.path.as_ref().map_or_else(

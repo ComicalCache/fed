@@ -5,6 +5,6 @@ use crate::types::render::WindowId;
 
 #[derive(Default)]
 pub struct DocViewPState {
-    pub revision: u64,
+    pub rev: u64,
     pub pending: HashMap<WindowId, (u64, Vec<ViewId>)>,
 }

@@ -27,7 +27,7 @@ pub enum SearchCmd {
         request: SearchRequest,
         matches: Vec<SearchMatch>,
         replacement: String,
-        index: Option<usize>,
+        idx: Option<usize>,
     },
     Close {
         view: ViewId,

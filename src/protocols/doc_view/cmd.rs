@@ -11,6 +11,9 @@ use crate::types::render::ZLayer;
 
 #[allow(unused)]
 pub enum DocViewCmd {
+    NewDoc {
+        window: WindowId,
+    },
     OpenFile {
         window: WindowId,
         path: PathBuf,

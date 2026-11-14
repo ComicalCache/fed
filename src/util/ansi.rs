@@ -128,8 +128,8 @@ impl Perform for DecorationParser {
     }
 }
 
-const fn ansi_to_rgb(index: u16) -> Rgb {
-    match index {
+const fn ansi_to_rgb(idx: u16) -> Rgb {
+    match idx {
         // Standard.
         0 => Rgb { r: 41, g: 44, b: 51 },    // Black.
         1 => Rgb { r: 224, g: 108, b: 117 }, // Red.

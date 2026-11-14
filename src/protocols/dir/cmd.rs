@@ -7,7 +7,7 @@ use crate::types::render::WindowId;
 #[allow(unused)]
 pub enum DirCmd {
     Init,
-    InitCompletion { entries: Vec<DirEntry>, printables: Vec<PrintableDirEntry>, revision: u64 },
+    InitCompletion { entries: Vec<DirEntry>, printables: Vec<PrintableDirEntry>, rev: u64 },
     Refresh { path: PathBuf },
     Show { window: WindowId, path: Option<PathBuf> },
 

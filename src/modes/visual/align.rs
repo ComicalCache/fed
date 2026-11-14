@@ -14,7 +14,7 @@ use crate::util;
 
 pub fn prompt(s: &State, view: ViewId, mut lines: Vec<usize>, repeated: bool) -> Vec<FCmd> {
     let doc = s.index.view_to_doc(view).unwrap();
-    let revision = s.doc_store.get(&doc).unwrap().doc.revision;
+    let rev = s.doc_store.get(&doc).unwrap().doc.rev;
 
     lines.sort_unstable();
     lines.dedup();
@@ -36,7 +36,7 @@ pub fn prompt(s: &State, view: ViewId, mut lines: Vec<usize>, repeated: bool) ->
             return;
         }
 
-        if dse.doc.revision != revision {
+        if dse.doc.rev != rev {
             util::mp::message(s, "Document changed".to_string(), Duration::from_secs(3));
             return;
         }

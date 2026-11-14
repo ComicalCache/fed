@@ -44,7 +44,7 @@ pub struct GrepPState {
     pub files: Vec<GrepFile>,
     pub rows: Vec<Option<GrepRow>>,
     pub matches: Vec<GrepMatch>,
-    pub revision: Arc<AtomicU64>,
+    pub rev: Arc<AtomicU64>,
 }
 
 impl GrepPState {

@@ -54,9 +54,9 @@ impl ModeLineWidget {
                 } else {
                     search.matches.len()
                 };
-                let current = search.last_match.map_or(0, |idx| idx.saturating_add(1)).min(total);
+                let curr = search.last_match.map_or(0, |idx| idx.saturating_add(1)).min(total);
 
-                (format!("[{current}/{total}]"), *face)
+                (format!("[{curr}/{total}]"), *face)
             }
             Self::Text { text, face } => (text.clone(), *face),
             Self::Custom(f) => f(s, vse, dse),

@@ -117,14 +117,14 @@ impl MpProtocol {
 
         let dse = s.doc_store.get(&s.p.mp.doc).unwrap();
         let len = dse.doc.data.len();
-        let current = dse.doc.data.slice(0..len);
+        let curr = dse.doc.data.slice(0..len);
         let (target, entry) = {
             let mut history = history.lock().unwrap();
             let prev_idx = s.p.mp.history_idx.unwrap_or(history.len());
 
-            let different = s.p.mp.history_idx.and_then(|idx| history.get(idx)) != Some(&current);
-            if different && history.last() != Some(&current) && !current.is_empty() {
-                history.push(current);
+            let different = s.p.mp.history_idx.and_then(|idx| history.get(idx)) != Some(&curr);
+            if different && history.last() != Some(&curr) && !curr.is_empty() {
+                history.push(curr);
             }
 
             if history.is_empty() {

@@ -65,14 +65,14 @@ impl InsertKeyInput {
 
                 Some(vec![FCmd::Action(ActionCmd::Delete { view })])
             }
-            Cmd::SaveFile => {
+            Cmd::SaveDoc => {
                 self.whitespace = false;
 
                 let mut cmds = vec![
                     FCmd::Action(ActionCmd::EndCommit { doc }),
                     FCmd::Action(ActionCmd::StartCommit { doc }),
                 ];
-                cmds.extend(common::save_file(s, doc));
+                cmds.extend(common::save_doc(s, doc));
 
                 Some(cmds)
             }

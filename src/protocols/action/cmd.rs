@@ -60,7 +60,7 @@ pub enum ActionCmd {
         path: PathBuf,
         res: Result<(), String>,
         request: u64,
-        revision: u64,
+        rev: u64,
     },
     Saved {
         doc: DocId,
@@ -71,7 +71,7 @@ pub enum ActionCmd {
     DiscardCompletion {
         doc: DocId,
         res: Result<String, String>,
-        revision: u64,
+        rev: u64,
     },
 
     Insert {

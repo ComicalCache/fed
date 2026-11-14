@@ -74,8 +74,8 @@ pub fn keymap() -> Keymap<Cmd> {
     );
     keymap.bind(
         &[KeyChord::new(KeyCode::Char('s'), KeyModifiers::CONTROL)],
-        Cmd::SaveFile,
-        "Save the file",
+        Cmd::SaveDoc,
+        "Save the document",
     );
     keymap.bind(
         &[KeyChord::new(KeyCode::Char('f'), KeyModifiers::CONTROL)],
