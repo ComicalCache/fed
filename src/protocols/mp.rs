@@ -10,3 +10,4 @@ pub use pstate::MpId;
 pub use pstate::MpKind;
 pub use pstate::MpPState;
 pub use pstate::PCallback;
+pub use pstate::PromptHistory;

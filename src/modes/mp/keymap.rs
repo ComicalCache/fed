@@ -42,6 +42,17 @@ pub fn keymap() -> Keymap<Cmd> {
     );
 
     keymap.bind(
+        &[KeyChord::new(KeyCode::Up, KeyModifiers::empty())],
+        Cmd::PrevHistory,
+        "Recall the previous history entry",
+    );
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Down, KeyModifiers::empty())],
+        Cmd::NextHistory,
+        "Recall the next history entry",
+    );
+
+    keymap.bind(
         &[KeyChord::new(KeyCode::Backspace, KeyModifiers::empty())],
         Cmd::Backspace,
         "Delete the character before the cursor",

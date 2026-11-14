@@ -1,9 +1,13 @@
+use std::sync::Arc;
+use std::sync::Mutex;
+
 use crate::state::DocId;
 use crate::state::State;
 use crate::state::ViewId;
 use crate::types::render::WindowId;
 use crate::util::newtype;
 
+pub type PromptHistory = Arc<Mutex<Vec<String>>>;
 pub type PCallback = Box<dyn FnOnce(&mut State, Option<String>) + Send>;
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
@@ -31,6 +35,9 @@ pub struct MpPState {
     pub width: usize,
     pub height: usize,
 
+    pub history: Option<PromptHistory>,
+    pub history_idx: Option<usize>,
+
     pub pcallback: Option<PCallback>,
 }
 
@@ -46,6 +53,8 @@ impl MpPState {
             prev_window: None,
             width,
             height,
+            history: None,
+            history_idx: None,
             pcallback: None,
         }
     }

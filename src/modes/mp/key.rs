@@ -40,6 +40,8 @@ impl MpKeyInput {
             }
             Cmd::Backspace => vec![FCmd::Action(ActionCmd::Backspace { view })],
             Cmd::Delete => vec![FCmd::Action(ActionCmd::Delete { view })],
+            Cmd::PrevHistory => vec![FCmd::Mp(MpCmd::History { forward: false })],
+            Cmd::NextHistory => vec![FCmd::Mp(MpCmd::History { forward: true })],
             Cmd::Submit => vec![FCmd::Mp(MpCmd::Submit)],
             Cmd::Close => vec![FCmd::Mp(MpCmd::Close { mp })],
         }

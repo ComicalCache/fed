@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 
+use crate::protocols::mp::PromptHistory;
 use crate::state::DocId;
 use crate::state::ViewId;
 
@@ -36,6 +37,9 @@ pub struct GrepPState {
     pub root: PathBuf,
     pub query: String,
     pub replacement: Option<String>,
+
+    pub search_history: PromptHistory,
+    pub replace_history: PromptHistory,
 
     pub files: Vec<GrepFile>,
     pub rows: Vec<Option<GrepRow>>,

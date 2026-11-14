@@ -6,6 +6,8 @@ pub enum Cmd {
     Move(Motion),
     Backspace,
     Delete,
+    PrevHistory,
+    NextHistory,
     Submit,
     Close,
 }

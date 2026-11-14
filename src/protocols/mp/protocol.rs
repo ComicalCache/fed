@@ -5,11 +5,13 @@ use crate::protocols::action::ActionProtocol;
 use crate::protocols::doc_view::DocViewRenderer;
 use crate::protocols::mp::MpCmd;
 use crate::protocols::mp::MpKind;
+use crate::protocols::mp::PromptHistory;
 use crate::protocols::mp::pstate::MpId;
 use crate::protocols::mp::pstate::PCallback;
 use crate::protocols::view::ViewProtocol;
 use crate::state::State;
 use crate::state::ViewStoreTypes;
+use crate::types::Motion;
 use crate::types::Pos;
 use crate::types::Rect;
 use crate::types::render::WindowId;
@@ -23,9 +25,10 @@ impl MpProtocol {
             MpCmd::Message { message, tx } => {
                 Self::message(s, message, tx);
             }
-            MpCmd::Prompt { prompt, initial_text, pcallback, tx } => {
-                Self::prompt(s, prompt, initial_text, pcallback, tx);
+            MpCmd::Prompt { prompt, initial_text, history, pcallback, tx } => {
+                Self::prompt(s, prompt, initial_text, history, pcallback, tx);
             }
+            MpCmd::History { forward } => Self::history(s, forward),
             MpCmd::Submit => Self::submit(s),
             MpCmd::Close { mp } => Self::close(s, mp),
 
@@ -63,8 +66,8 @@ impl MpProtocol {
     }
 
     pub fn prompt(
-        s: &mut State, prompt: String, initial_text: Option<String>, pcallback: PCallback,
-        tx: Option<oneshot::Sender<MpId>>,
+        s: &mut State, prompt: String, initial_text: Option<String>,
+        history: Option<PromptHistory>, pcallback: PCallback, tx: Option<oneshot::Sender<MpId>>,
     ) -> Option<MpId> {
         if s.p.mp.kind == MpKind::Prompt {
             pcallback(s, None);
@@ -72,6 +75,9 @@ impl MpProtocol {
         }
 
         Self::close(s, s.p.mp.mp);
+
+        s.p.mp.history = history;
+        s.p.mp.history_idx = None;
 
         ActionProtocol::create_cursor_at_pos(s, s.p.mp.view, Pos::new(0, 0));
         if let Some(text) = initial_text {
@@ -103,6 +109,45 @@ impl MpProtocol {
         Some(mp)
     }
 
+    pub fn history(s: &mut State, forward: bool) {
+        if s.p.mp.kind != MpKind::Prompt {
+            return;
+        }
+        let Some(history) = s.p.mp.history.as_ref() else { return };
+
+        let dse = s.doc_store.get(&s.p.mp.doc).unwrap();
+        let len = dse.doc.data.len();
+        let current = dse.doc.data.slice(0..len);
+        let (target, entry) = {
+            let mut history = history.lock().unwrap();
+            let prev_idx = s.p.mp.history_idx.unwrap_or(history.len());
+
+            let different = s.p.mp.history_idx.and_then(|idx| history.get(idx)) != Some(&current);
+            if different && history.last() != Some(&current) && !current.is_empty() {
+                history.push(current);
+            }
+
+            if history.is_empty() {
+                return;
+            }
+
+            let target = if forward { prev_idx + 1 } else { prev_idx.saturating_sub(1) };
+            let entry = history.get(target).cloned().unwrap_or_else(|| String::new());
+
+            (target.min(history.len()), entry)
+        };
+
+        ActionProtocol::remove(s, s.p.mp.view, 0, len);
+        if !entry.is_empty() {
+            ActionProtocol::insert_at(s, s.p.mp.view, entry, 0);
+        }
+        ActionProtocol::move_cursors(s, s.p.mp.view, Motion::EndOfDoc, true);
+
+        ViewProtocol::update(s, s.p.mp.view);
+
+        s.p.mp.history_idx = Some(target);
+    }
+
     pub fn submit(s: &mut State) {
         if s.p.mp.kind != MpKind::Prompt {
             return;
@@ -111,6 +156,14 @@ impl MpProtocol {
         let dse = s.doc_store.get(&s.p.mp.doc).unwrap();
 
         let res = dse.doc.data.slice(0..dse.doc.data.len());
+
+        if let Some(history) = &s.p.mp.history {
+            let mut history = history.lock().unwrap();
+            if history.last() != Some(&res) {
+                history.push(res.clone());
+            }
+        }
+
         let callback = s.p.mp.pcallback.take();
 
         Self::close(s, s.p.mp.mp);
@@ -144,6 +197,8 @@ impl MpProtocol {
 
         s.p.mp.kind = MpKind::None;
         s.p.mp.prev_window = None;
+        s.p.mp.history = None;
+        s.p.mp.history_idx = None;
         let callback = s.p.mp.pcallback.take();
 
         let vse = s.view_store.get_mut(&s.p.mp.view).unwrap();

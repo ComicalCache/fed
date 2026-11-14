@@ -167,6 +167,7 @@ pub fn jump(s: &State, view: ViewId, move_anchor: bool) -> Option<Vec<FCmd>> {
     Some(vec![FCmd::Mp(MpCmd::Prompt {
         prompt: "Jump to: ".to_string(),
         initial_text: None,
+        history: Some(s.p.view.jump_history.clone()),
         pcallback,
         tx: None,
     })])
@@ -605,6 +606,7 @@ pub fn save_file(s: &State, doc: DocId) -> Vec<FCmd> {
     vec![FCmd::Mp(MpCmd::Prompt {
         prompt: "Save file: ".to_string(),
         initial_text: if path.is_empty() { None } else { Some(path) },
+        history: None,
         pcallback,
         tx: None,
     })]

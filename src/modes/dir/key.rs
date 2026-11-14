@@ -110,6 +110,7 @@ impl DirKeyInput {
         vec![FCmd::Mp(MpCmd::Prompt {
             prompt: "New entry (trailing '/' for directory): ".to_string(),
             initial_text: Some(initial_text),
+            history: Some(s.p.dir.path_history.clone()),
             pcallback,
             tx: None,
         })]
@@ -132,6 +133,7 @@ impl DirKeyInput {
         Some(vec![FCmd::Mp(MpCmd::Prompt {
             prompt: "New path: ".to_string(),
             initial_text: Some(entry.path.display().to_string()),
+            history: Some(s.p.dir.path_history.clone()),
             pcallback,
             tx: None,
         })])
@@ -157,7 +159,13 @@ impl DirKeyInput {
             }
         });
 
-        Some(vec![FCmd::Mp(MpCmd::Prompt { prompt, initial_text: None, pcallback, tx: None })])
+        Some(vec![FCmd::Mp(MpCmd::Prompt {
+            prompt,
+            initial_text: None,
+            history: None,
+            pcallback,
+            tx: None,
+        })])
     }
 
     fn curr_entry(s: &State, view: ViewId) -> Option<DirEntry> {

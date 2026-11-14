@@ -157,7 +157,8 @@ impl SearchProtocol {
             });
         });
 
-        MpProtocol::prompt(s, prompt.to_string(), None, callback, None);
+        let history = Some(s.p.search.search_history.clone());
+        MpProtocol::prompt(s, prompt.to_string(), None, history, callback, None);
     }
 
     pub fn search_completion(
@@ -270,7 +271,8 @@ impl SearchProtocol {
         });
 
         let prompt = if all { "Replace all with: " } else { "Replace with: " };
-        MpProtocol::prompt(s, prompt.to_string(), None, callback, None);
+        let history = Some(s.p.search.replace_history.clone());
+        MpProtocol::prompt(s, prompt.to_string(), None, history, callback, None);
     }
 
     pub fn replace_completion(

@@ -72,6 +72,7 @@ pub fn prompt(s: &State, view: ViewId, mut lines: Vec<usize>, repeated: bool) ->
     vec![FCmd::Mp(MpCmd::Prompt {
         prompt: if repeated { "Align (repeat): " } else { "Align: " }.to_string(),
         initial_text: None,
+        history: Some(s.p.action.align_history.clone()),
         pcallback,
         tx: None,
     })]

@@ -415,6 +415,7 @@ impl NormalKeyInput {
         vec![FCmd::Mp(MpCmd::Prompt {
             prompt: format!("Discard unsaved changes? (y/N): "),
             initial_text: None,
+            history: None,
             pcallback,
             tx: None,
         })]

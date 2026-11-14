@@ -137,7 +137,8 @@ impl GrepProtocol {
             });
         });
 
-        MpProtocol::prompt(s, "Search pwd: ".to_string(), None, callback, None);
+        let history = Some(s.p.grep.search_history.clone());
+        MpProtocol::prompt(s, "Search pwd: ".to_string(), None, history, callback, None);
     }
 
     pub fn search_completion(
@@ -324,7 +325,8 @@ impl GrepProtocol {
         });
 
         let prompt = if all { "Replace all with: " } else { "Replace with: " };
-        MpProtocol::prompt(s, prompt.to_string(), None, callback, None);
+        let history = Some(s.p.grep.replace_history.clone());
+        MpProtocol::prompt(s, prompt.to_string(), None, history, callback, None);
     }
 
     pub fn replace_completion(

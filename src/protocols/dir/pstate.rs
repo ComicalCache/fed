@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use tokio::task::JoinHandle;
 
+use crate::protocols::mp::PromptHistory;
 use crate::state::DocId;
 use crate::state::ViewId;
 
@@ -37,6 +38,7 @@ pub struct DirPState {
     pub pwd: PathBuf,
     pub entries: Vec<DirEntry>,
     pub revision: u64,
+    pub path_history: PromptHistory,
 
     pub fetch_task: Option<JoinHandle<()>>,
 }

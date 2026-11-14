@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::protocols::mp::PromptHistory;
 use crate::state::DocId;
 use crate::state::ViewId;
 
@@ -16,4 +17,7 @@ pub struct SearchRequest {
 pub struct SearchPState {
     pub next_id: u64,
     pub searches: HashMap<ViewId, SearchRequest>,
+
+    pub search_history: PromptHistory,
+    pub replace_history: PromptHistory,
 }

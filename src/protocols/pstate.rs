@@ -1,3 +1,4 @@
+use crate::protocols::action::ActionPState;
 use crate::protocols::dir::DirPState;
 use crate::protocols::doc_view::DocViewPState;
 use crate::protocols::grep::GrepPState;
@@ -8,8 +9,11 @@ use crate::protocols::mp::MpPState;
 use crate::protocols::picker::PickerPState;
 use crate::protocols::quit::QuitPState;
 use crate::protocols::search::SearchPState;
+use crate::protocols::view::ViewPState;
 
 pub struct PState {
+    pub action: ActionPState,
+    pub view: ViewPState,
     pub io: IoPState,
     pub mp: MpPState,
     pub quit: QuitPState,
@@ -25,6 +29,8 @@ pub struct PState {
 impl PState {
     pub fn new(width: usize, height: usize) -> Self {
         Self {
+            action: ActionPState::default(),
+            view: ViewPState::default(),
             io: IoPState::default(),
             mp: MpPState::new(width, height),
             quit: QuitPState::default(),
