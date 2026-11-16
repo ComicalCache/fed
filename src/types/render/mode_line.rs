@@ -34,13 +34,14 @@ impl ModeLineWidget {
                 )
             }
             Self::CursorPos { face } => {
+				let lines = dse.doc.data.line_count();
                 let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
                 let y = dse.doc.data.line_idx_at_offset(offset);
 
                 let (vom, _) = util::layout::vom(y, vse, dse);
                 let x = vom.iter().find(|vo| vo.byte_start >= offset).map_or(0, |vo| vo.visual_x);
 
-                (format!("[{}:{} {}]", y + 1, x + 1, vse.cursors.list.len()), *face)
+                (format!("[{}/{lines}:{} {}]", y + 1, x + 1, vse.cursors.list.len()), *face)
             }
             Self::SearchMatches { face } => {
                 let Some(search) = &vse.search else {

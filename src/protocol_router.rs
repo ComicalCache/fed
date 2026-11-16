@@ -11,6 +11,7 @@ use crate::protocols::picker::PickerProtocol;
 use crate::protocols::quit::QuitProtocol;
 use crate::protocols::screen::ScreenProtocol;
 use crate::protocols::search::SearchProtocol;
+use crate::protocols::tree_sitter::TreeSitterProtocol;
 use crate::protocols::view::ViewProtocol;
 use crate::state::State;
 use crate::types::render::Screen;
@@ -33,6 +34,7 @@ impl ProtocolRouter {
             FCmd::Picker(cmd) => PickerProtocol::exec(s, cmd),
             FCmd::Search(cmd) => SearchProtocol::exec(s, cmd),
             FCmd::Grep(cmd) => GrepProtocol::exec(s, cmd),
+            FCmd::TreeSitter(cmd) => TreeSitterProtocol::exec(s, cmd),
         }
     }
 }

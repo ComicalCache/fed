@@ -1,8 +1,10 @@
 use crate::types::Face;
 use crate::types::Rgb;
+use crate::types::SyntaxTheme;
 
 #[derive(Clone)]
 pub struct Theme {
+    pub syntax: SyntaxTheme,
     pub default: Face,
     pub cursor: Face,
     pub active_cursor: Face,
@@ -26,6 +28,7 @@ impl Default for Theme {
 impl Theme {
     pub fn dark() -> Self {
         Self {
+            syntax: SyntaxTheme::dark(),
             default: Face {
                 fg: Some(Rgb::new(172, 178, 190)),
                 bg: Some(Rgb::new(41, 44, 51)),
@@ -79,6 +82,7 @@ impl Theme {
 
     pub fn light() -> Self {
         Self {
+            syntax: SyntaxTheme::light(),
             default: Face {
                 fg: Some(Rgb::new(56, 58, 66)),
                 bg: Some(Rgb::new(250, 250, 250)),

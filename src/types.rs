@@ -9,6 +9,7 @@ mod rect;
 pub mod render;
 mod rgb;
 mod span;
+mod syntax;
 mod theme;
 
 pub use cursor::Cursor;
@@ -35,4 +36,6 @@ pub use rect::Rect;
 pub use rect::RectSplit;
 pub use rgb::Rgb;
 pub use span::Span;
+pub use syntax::SyntaxHighlight;
+pub use syntax::SyntaxTheme;
 pub use theme::Theme;

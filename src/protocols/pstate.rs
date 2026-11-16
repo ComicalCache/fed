@@ -9,6 +9,7 @@ use crate::protocols::mp::MpPState;
 use crate::protocols::picker::PickerPState;
 use crate::protocols::quit::QuitPState;
 use crate::protocols::search::SearchPState;
+use crate::protocols::tree_sitter::TreeSitterPState;
 use crate::protocols::view::ViewPState;
 
 pub struct PState {
@@ -24,6 +25,7 @@ pub struct PState {
     pub picker: PickerPState,
     pub search: SearchPState,
     pub grep: GrepPState,
+    pub tree_sitter: TreeSitterPState,
 }
 
 impl PState {
@@ -41,6 +43,7 @@ impl PState {
             picker: PickerPState::default(),
             search: SearchPState::default(),
             grep: GrepPState::default(),
+            tree_sitter: TreeSitterPState::default(),
         }
     }
 }

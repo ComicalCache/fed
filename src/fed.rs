@@ -27,6 +27,8 @@ use crate::protocols::screen::ScreenCmd;
 use crate::protocols::screen::ScreenProtocol;
 use crate::protocols::search::SearchCmd;
 use crate::protocols::search::SearchProtocol;
+use crate::protocols::tree_sitter::TreeSitterCmd;
+use crate::protocols::tree_sitter::TreeSitterProtocol;
 use crate::protocols::view::ViewCmd;
 use crate::protocols::view::ViewProtocol;
 use crate::state::DocId;
@@ -55,6 +57,7 @@ pub enum FCmd {
     Picker(PickerCmd),
     Search(SearchCmd),
     Grep(GrepCmd),
+    TreeSitter(TreeSitterCmd),
 }
 
 /// FEvent's are deferred and may only update component owned state. They should
@@ -150,6 +153,7 @@ impl Fed {
                     ManageProtocol::exec_doc_event(&mut self.s, &event);
                     ViewProtocol::exec_doc_event(&mut self.s, &event);
                     SearchProtocol::exec_doc_event(&mut self.s, &event);
+                    TreeSitterProtocol::exec_doc_event(&mut self.s, &event);
                 }
                 FEvent::View(event) => {
                     ManageProtocol::exec_view_event(&mut self.s, &event);
@@ -168,8 +172,8 @@ impl Fed {
         let _ = tx.send(FCmd::DocView(DocViewCmd::CreateTile {
             doc,
             view: None,
-            // This is kind of a hack: since no other windows exist, we can pass anything
-            // because a new root window will be created in any case.
+            // This is kind of a hack: since no other windows exist, we can pass
+            // anything because a new root window will be created in any case.
             split_window: WindowId(0),
             direction: RectSplit::Vertical,
             raw: false,

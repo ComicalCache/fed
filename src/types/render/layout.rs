@@ -36,9 +36,9 @@ impl Layout {
     pub fn new(
         line: &str, mut offset: usize, end: usize, decs: &[Span<Decoration>],
         layout: &ViewStoreTypes::Layout, theme: Option<&Theme>,
-    ) -> Layout {
+    ) -> Self {
         let capacity = line.len().min(end);
-        let mut result = Layout {
+        let mut result = Self {
             // Don't create cells if no theme was supplied.
             cells: if theme.is_some() { Vec::with_capacity(capacity) } else { Vec::new() },
             voms: Vec::with_capacity(capacity),
@@ -67,6 +67,11 @@ impl Layout {
 
                 match &span.data {
                     Decoration::Style { face: layer_face } => face.merge(*layer_face),
+                    Decoration::Syntax { highlight } => {
+                        if let Some(theme) = theme {
+                            face.merge(theme.syntax.face(*highlight));
+                        }
+                    }
                     Decoration::Replace { text, face } => {
                         replace = true;
 

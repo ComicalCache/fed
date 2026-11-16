@@ -1,6 +1,6 @@
 [package]
 name = "fed"
-version = "3.22.0"
+version = "3.23.0"
 edition = "2024"
 
 [lints.clippy]
@@ -31,3 +31,7 @@ libc = "0.2.191"
 chrono = { version = "0.4.45", default-features = false, features = ["alloc", "std", "clock"] }
 tokio = { version = "1.54.1", features = ["full"] }
 anstyle-parse = "1.0.0"
+tree-sitter-highlight = "0.27.2"
+tree-sitter-zig = "1.1.2"
+tree-sitter-rust = "0.24.2"
+tree-sitter-c = "0.24.2"

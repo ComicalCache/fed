@@ -11,4 +11,5 @@ pub mod pstate;
 pub mod quit;
 pub mod screen;
 pub mod search;
+pub mod tree_sitter;
 pub mod view;

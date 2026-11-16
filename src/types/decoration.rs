@@ -2,12 +2,15 @@ use std::collections::BTreeMap;
 
 use crate::types::Face;
 use crate::types::Span;
+use crate::types::SyntaxHighlight;
 
 #[derive(Clone, PartialEq, Eq)]
 #[allow(unused)]
 pub enum Decoration {
     /// Modifies the face of the rendered text.
     Style { face: Face },
+    /// Modifies the face of the rendered text using the syntax theme.
+    Syntax { highlight: SyntaxHighlight },
     /// Replaces the underlying text with new one.
     Replace { text: String, face: Face },
     /// Inserts "virtual text" without replacing/consuming the underlying text.
