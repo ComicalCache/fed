@@ -58,7 +58,9 @@ impl ActionProtocol {
             ActionCmd::Undo { view } => Self::undo(s, view),
             ActionCmd::HotRedo { view } => Self::hot_redo(s, view),
 
-            ActionCmd::Save { doc, path } => Self::save(s, doc, path),
+            ActionCmd::Save { doc, path, completion } => {
+                Self::save(s, doc, path, completion.map(|cmd| *cmd));
+            }
             ActionCmd::SaveCompletion { doc, path, res, request, rev } => {
                 Self::save_completion(s, doc, path, res, request, rev);
             }
@@ -238,7 +240,7 @@ impl ActionProtocol {
         Self::process_edits(s, doc, edits);
     }
 
-    pub fn save(s: &mut State, doc: DocId, path: PathBuf) {
+    pub fn save(s: &mut State, doc: DocId, path: PathBuf, completion: Option<FCmd>) {
         let Some(dse) = s.doc_store.get_mut(&doc) else { return };
 
         if dse.read_only || dse.mode.singleton() {
@@ -263,6 +265,10 @@ impl ActionProtocol {
                     request,
                     rev,
                 }));
+
+                if let Some(cmd) = completion {
+                    let _ = async_fcmd_tx.send(cmd);
+                }
             })
         });
 

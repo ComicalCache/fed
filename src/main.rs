@@ -61,11 +61,9 @@ async fn input(tx: UnboundedSender<Event>) -> std::io::Result<()> {
 }
 
 fn setup(
-    mut cli: Cli, input_rx: UnboundedReceiver<Event>, shutdown_tx: UnboundedSender<()>,
-    width: usize, height: usize,
+    cli: Cli, input_rx: UnboundedReceiver<Event>, shutdown_tx: UnboundedSender<()>, width: usize,
+    height: usize,
 ) -> Fed {
-    cli.path = cli.path.map(util::path::normalize);
-
     let (fed, async_fcmd_tx, doc) =
         Fed::new(width, height, cli.path.clone(), input_rx, shutdown_tx);
 
@@ -100,6 +98,11 @@ async fn main() -> std::io::Result<()> {
     }));
 
     let mut cli = Cli::parse();
+    cli.path = cli.path.map(util::path::normalize);
+
+    if let Some(path) = cli.path.as_ref().filter(|path| path.is_dir()) {
+        std::env::set_current_dir(path)?;
+    }
 
     let mut piped = None;
     if !std::io::stdin().is_terminal() {

@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use crate::fed::FCmd;
 use crate::state::DocId;
 use crate::state::DocStoreTypes;
 use crate::state::ViewId;
@@ -54,6 +55,7 @@ pub enum ActionCmd {
     Save {
         doc: DocId,
         path: PathBuf,
+        completion: Option<Box<FCmd>>,
     },
     SaveCompletion {
         doc: DocId,

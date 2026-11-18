@@ -600,7 +600,7 @@ pub fn save_doc(s: &State, doc: DocId) -> Vec<FCmd> {
             return;
         }
 
-        ActionProtocol::save(s, doc, res.into());
+        ActionProtocol::save(s, doc, res.into(), None);
     });
 
     vec![FCmd::Mp(MpCmd::Prompt {

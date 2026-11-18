@@ -51,6 +51,7 @@ impl GrepProtocol {
             GrepCmd::UndoAll => Self::undo_all(s),
             GrepCmd::HotRedoAll => Self::hot_redo_all(s),
             GrepCmd::SaveAll => Self::save_all(s),
+            GrepCmd::SaveAllCompletion { doc } => Self::save_all_completion(s, doc),
         }
     }
 
@@ -104,7 +105,7 @@ impl GrepProtocol {
                 .filter(|(_, dse)| !dse.mode.singleton())
                 .filter_map(|(&doc, dse)| {
                     let path = dse.doc.path.as_ref()?;
-                    Some((path.clone(), (doc, dse.doc.data.commit_id())))
+                    Some((path.clone(), (doc, dse.doc.data.commit_id(), dse.doc.modified)))
                 })
                 .collect();
             let curr_rev = s.p.grep.rev.clone();
@@ -116,9 +117,10 @@ impl GrepProtocol {
                     .and_then(|root| GrepScan::new(root, &query, opened_docs, rev, &curr_rev))
                     .map(|mut scan| {
                         for file in &mut scan.files {
-                            if let Some(&(doc, undo)) = undos.get(&file.path) {
+                            if let Some(&(doc, undo, modified)) = undos.get(&file.path) {
                                 file.doc = Some(doc);
                                 file.undo = undo;
+                                file.modified = modified;
                             }
                         }
                         let document = GrepDocument::new(&scan.files, &scan.root);
@@ -167,7 +169,7 @@ impl GrepProtocol {
         s.p.grep.replacement = None;
         s.p.grep.files = scan.files;
 
-        Self::render(s, document, true);
+        Self::render(s, Some(document), true);
         Self::show(s, window);
 
         if let Some(err) = scan.errors.first() {
@@ -185,8 +187,7 @@ impl GrepProtocol {
         }
 
         if s.p.grep.rows.is_empty() {
-            let document = GrepDocument::new(&s.p.grep.files, &s.p.grep.root);
-            Self::render(s, document, true);
+            Self::render(s, None, true);
         }
 
         s.replace_view(window, s.p.grep.view, Box::new(GrepRenderer::new()));
@@ -352,8 +353,7 @@ impl GrepProtocol {
         };
         s.p.grep.replacement = Some(replacement);
 
-        let document = GrepDocument::new(&s.p.grep.files, &s.p.grep.root);
-        Self::render(s, document, false);
+        Self::render(s, None, false);
 
         // Move the cursor to the next result after the replaced one, if one
         // exists.
@@ -431,8 +431,7 @@ impl GrepProtocol {
             s.p.grep.replacement = None;
         }
 
-        let document = GrepDocument::new(&s.p.grep.files, &s.p.grep.root);
-        Self::render(s, document, false);
+        Self::render(s, None, false);
     }
 
     pub fn hot_redo_all(s: &mut State) {
@@ -472,8 +471,7 @@ impl GrepProtocol {
             }
         }
 
-        let document = GrepDocument::new(&s.p.grep.files, &s.p.grep.root);
-        Self::render(s, document, false);
+        Self::render(s, None, false);
     }
 
     pub fn save_all(s: &mut State) {
@@ -498,7 +496,22 @@ impl GrepProtocol {
         }
 
         for (doc, path) in docs {
-            ActionProtocol::save(s, doc, path);
+            ActionProtocol::save(
+                s,
+                doc,
+                path,
+                Some(FCmd::Grep(GrepCmd::SaveAllCompletion { doc })),
+            );
+        }
+    }
+
+    pub fn save_all_completion(s: &mut State, doc: DocId) {
+        let changed = s.p.grep.files.iter().any(|file| {
+            file.doc(&s.doc_store) == Some(doc) && file.modified != file.is_modified(&s.doc_store)
+        });
+
+        if changed {
+            Self::render(s, None, false);
         }
     }
 
@@ -650,8 +663,20 @@ impl GrepProtocol {
         Ok(skipped)
     }
 
-    fn render(s: &mut State, document: GrepDocument, reset_cursor: bool) {
-        let offset = s.view_store.get(&s.p.grep.view).unwrap().cursors.list[0].offset;
+    fn render(s: &mut State, document: Option<GrepDocument>, reset_cursor: bool) {
+        let mut changed = false;
+        for file in &mut s.p.grep.files {
+            let modified = file.is_modified(&s.doc_store);
+            changed |= file.modified != modified;
+            file.modified = modified;
+        }
+
+        let document = document
+            .filter(|_| !changed)
+            .unwrap_or_else(|| GrepDocument::new(&s.p.grep.files, &s.p.grep.root));
+
+        let view = s.p.grep.view;
+        let offset = s.view_store.get(&view).unwrap().cursors.list[0].offset;
         let anchor = if reset_cursor {
             None
         } else {
@@ -699,7 +724,8 @@ impl GrepProtocol {
             .or_else(|| s.p.grep.matches.first())
             .map_or(0, |m| m.start);
 
-        Self::set_cursor(s, s.p.grep.view, offset);
+        Self::set_cursor(s, view, offset);
+
         ViewProtocol::resize(s);
     }
 

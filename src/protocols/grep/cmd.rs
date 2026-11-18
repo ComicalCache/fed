@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use crate::protocols::grep::pstate::GrepDocument;
 use crate::protocols::grep::pstate::GrepScan;
+use crate::state::DocId;
 use crate::state::ViewId;
 use crate::types::render::WindowId;
 
@@ -44,4 +45,7 @@ pub enum GrepCmd {
     UndoAll,
     HotRedoAll,
     SaveAll,
+    SaveAllCompletion {
+        doc: DocId,
+    },
 }

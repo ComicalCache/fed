@@ -38,8 +38,10 @@ impl GrepDocument {
             }
 
             let relative_path = file.path.strip_prefix(root).unwrap_or(&file.path);
-            let heading =
-                format!("{}:", relative_path.display()).replace('\n', "\\n").replace('\r', "\\r");
+            let marker = if file.modified { " [*]" } else { "" };
+            let heading = format!("{}:{marker}", relative_path.display())
+                .replace('\n', "\\n")
+                .replace('\r', "\\r");
 
             // Add heading.
             let start = doc.push(None, &heading);

@@ -11,6 +11,7 @@ pub struct GrepFile {
     pub path: PathBuf,
     pub text: String,
     pub doc: Option<DocId>,
+    pub modified: bool,
 
     /// The commit id at search.
     pub undo: usize,
@@ -29,14 +30,18 @@ impl GrepFile {
             })
             .collect::<Result<_, _>>()
             .map_err(|err| format!("{}: {err}", path.display()))?;
-        Ok(GrepFile { path, doc: None, undo: 0, redo: None, text, matches })
+        Ok(GrepFile { path, doc: None, modified: false, undo: 0, redo: None, text, matches })
     }
 
-    pub fn doc(&self, docs: &DocStore) -> Option<DocId> {
-        self.doc.filter(|doc| docs.contains_key(doc)).or_else(|| {
-            docs.iter()
+    pub fn doc(&self, dses: &DocStore) -> Option<DocId> {
+        self.doc.filter(|doc| dses.contains_key(doc)).or_else(|| {
+            dses.iter()
                 .find_map(|(&doc, dse)| (dse.doc.path.as_ref() == Some(&self.path)).then_some(doc))
         })
+    }
+
+    pub fn is_modified(&self, dses: &DocStore) -> bool {
+        self.doc(dses).is_some_and(|doc| dses[&doc].doc.modified)
     }
 
     pub fn has_pending_matches(&self, target: Option<usize>) -> bool {
