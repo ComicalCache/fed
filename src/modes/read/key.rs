@@ -77,6 +77,10 @@ impl ReadKeyInput {
                 let window = s.workspace.active_window?;
                 Some(vec![FCmd::Grep(GrepCmd::Search { window })])
             }
+            Cmd::EnterGrepModeInDir => {
+                let window = s.workspace.active_window?;
+                Some(vec![FCmd::Grep(GrepCmd::SearchDir { window })])
+            }
             Cmd::EnterSearchMode => {
                 Some(vec![FCmd::Search(SearchCmd::Search { view, doc, bounds: None })])
             }

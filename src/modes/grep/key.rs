@@ -84,6 +84,10 @@ impl GrepKeyInput {
                 let window = s.workspace.active_window?;
                 Some(vec![FCmd::Grep(GrepCmd::Search { window })])
             }
+            Cmd::EnterGrepModeInDir => {
+                let window = s.workspace.active_window?;
+                Some(vec![FCmd::Grep(GrepCmd::SearchDir { window })])
+            }
             Cmd::Quit => common::quit(s, view),
         }
     }

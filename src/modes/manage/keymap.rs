@@ -128,6 +128,11 @@ pub fn keymap() -> Keymap<Cmd> {
         Cmd::EnterGrepMode,
         "Search the current working directory",
     );
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Char('f'), KeyModifiers::CONTROL | KeyModifiers::SHIFT)],
+        Cmd::EnterGrepModeInDir,
+        "Search a directory",
+    );
 
     keymap.bind(&[KeyChord::new(KeyCode::Char('q'), KeyModifiers::CONTROL)], Cmd::Quit, "Quit fed");
 

@@ -23,6 +23,7 @@ pub enum Cmd {
     EnterManageMode,
     ShowGrep,
     EnterGrepMode,
+    EnterGrepModeInDir,
     Quit,
     Escape,
 }

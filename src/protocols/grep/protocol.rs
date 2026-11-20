@@ -32,7 +32,8 @@ pub struct GrepProtocol {}
 impl GrepProtocol {
     pub fn exec(s: &mut State, cmd: GrepCmd) {
         match cmd {
-            GrepCmd::Search { window } => Self::search(s, window),
+            GrepCmd::Search { window } => Self::search(s, window, None),
+            GrepCmd::SearchDir { window } => Self::search_dir(s, window),
             GrepCmd::SearchCompletion { window, views, query, result, rev } => {
                 Self::search_completion(s, window, &views, query, result, rev);
             }
@@ -84,11 +85,12 @@ impl GrepProtocol {
         }
     }
 
-    pub fn search(s: &mut State, window: WindowId) {
+    pub fn search(s: &mut State, window: WindowId, path: Option<PathBuf>) {
         if s.p.mp.kind == MpKind::Prompt || s.workspace.get_rect(window).is_none() {
             return;
         }
 
+        let prompt = if path.is_some() { "Search: " } else { "Search pwd: " };
         let rev = s.p.grep.rev.fetch_add(1, Ordering::Relaxed) + 1;
         let callback = Box::new(move |s: &mut State, query: Option<String>| {
             let Some(query) = query else { return };
@@ -112,7 +114,8 @@ impl GrepProtocol {
 
             let tx = s.async_fcmd_tx.clone();
             tokio::task::spawn_blocking(move || {
-                let result = std::env::current_dir()
+                let result = path
+                    .map_or_else(std::env::current_dir, Ok)
                     .map_err(|e| e.to_string())
                     .and_then(|root| GrepScan::new(root, &query, opened_docs, rev, &curr_rev))
                     .map(|mut scan| {
@@ -138,7 +141,37 @@ impl GrepProtocol {
         });
 
         let history = Some(s.p.grep.search_history.clone());
-        MpProtocol::prompt(s, "Search pwd: ".to_string(), None, history, callback, None);
+        MpProtocol::prompt(s, prompt.to_string(), None, history, callback, None);
+    }
+
+    pub fn search_dir(s: &mut State, window: WindowId) {
+        if s.p.mp.kind == MpKind::Prompt || s.workspace.get_rect(window).is_none() {
+            return;
+        }
+
+        let rev = s.p.grep.rev.fetch_add(1, Ordering::Relaxed) + 1;
+        let callback = Box::new(move |s: &mut State, path: Option<String>| {
+            let Some(path) = path.filter(|p| !p.is_empty()) else { return };
+            if rev != s.p.grep.rev.load(Ordering::Relaxed) {
+                return;
+            }
+
+            let path = util::path::normalize(path);
+            if !path.is_dir() {
+                util::mp::message(
+                    s,
+                    format!("Not a directory: {}", path.display()),
+                    Duration::from_secs(3),
+                );
+                return;
+            }
+
+            Self::search(s, window, Some(path));
+        });
+
+        let path = std::env::current_dir().ok().map(|p| p.display().to_string());
+        let history = Some(s.p.grep.dir_history.clone());
+        MpProtocol::prompt(s, "Directory: ".to_string(), path, history, callback, None);
     }
 
     pub fn search_completion(

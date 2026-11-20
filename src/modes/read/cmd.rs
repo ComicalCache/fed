@@ -22,5 +22,6 @@ pub enum Cmd {
     EnterSearchMode,
     ShowGrep,
     EnterGrepMode,
+    EnterGrepModeInDir,
     Quit,
 }

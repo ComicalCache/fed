@@ -21,6 +21,7 @@ pub enum Cmd {
     EnterSearchMode,
     ShowGrep,
     EnterGrepMode,
+    EnterGrepModeInDir,
     SaveDoc,
     FindFile,
     SelectTheme,

@@ -106,6 +106,10 @@ impl VisualKeyInput {
                 let window = s.workspace.active_window?;
                 Some(vec![FCmd::Grep(GrepCmd::Search { window })])
             }
+            Cmd::EnterGrepModeInDir => {
+                let window = s.workspace.active_window?;
+                Some(vec![FCmd::Grep(GrepCmd::SearchDir { window })])
+            }
             Cmd::SaveDoc => {
                 if dse.mode == DocStoreTypes::Mode::Grep {
                     return Some(vec![FCmd::Grep(GrepCmd::SaveAll)]);

@@ -39,6 +39,7 @@ pub struct GrepPState {
     pub replacement: Option<String>,
 
     pub search_history: PromptHistory,
+    pub dir_history: PromptHistory,
     pub replace_history: PromptHistory,
 
     pub files: Vec<GrepFile>,

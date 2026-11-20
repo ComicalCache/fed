@@ -12,6 +12,9 @@ pub enum GrepCmd {
     Search {
         window: WindowId,
     },
+    SearchDir {
+        window: WindowId,
+    },
     SearchCompletion {
         window: WindowId,
         views: Vec<ViewId>,
