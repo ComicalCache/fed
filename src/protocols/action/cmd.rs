@@ -80,6 +80,9 @@ pub enum ActionCmd {
         view: ViewId,
         text: String,
     },
+    InsertTab {
+        view: ViewId,
+    },
     InsertAt {
         view: ViewId,
         text: String,
@@ -95,6 +98,10 @@ pub enum ActionCmd {
         view: ViewId,
         offset: usize,
         len: usize,
+    },
+
+    ToggleIndentation {
+        doc: DocId,
     },
 
     SetDocPath {

@@ -241,7 +241,7 @@ impl VisualKeyInput {
                 );
             }
 
-            return Self::escape(view);
+            return Vec::new();
         }
 
         if linewise {

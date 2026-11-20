@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 use crate::fed::FCmd;
 use crate::fed::FEvent;
@@ -71,12 +72,15 @@ impl ActionProtocol {
             }
 
             ActionCmd::Insert { view, text } => Self::insert(s, view, text),
+            ActionCmd::InsertTab { view } => Self::insert_tab(s, view),
             ActionCmd::InsertAt { view, text, offset } => {
                 Self::insert_at(s, view, text, offset);
             }
             ActionCmd::Backspace { view } => Self::backspace(s, view),
             ActionCmd::Delete { view } => Self::delete(s, view),
             ActionCmd::Remove { view, offset, len } => Self::remove(s, view, offset, len),
+
+            ActionCmd::ToggleIndentation { doc } => Self::toggle_indentation(s, doc),
 
             ActionCmd::SetDocPath { doc, path } => Self::set_doc_path(s, doc, path),
 
@@ -415,6 +419,39 @@ impl ActionProtocol {
         });
     }
 
+    pub fn insert_tab(s: &mut State, view: ViewId) {
+        let doc = s.index.view_to_doc(view).unwrap();
+        let indentation = s.doc_store[&doc].indentation;
+
+        Self::execute_transaction(s, view, |data, cursors, tab_width| {
+            cursors
+                .iter()
+                .map(|cursor| {
+                    let insert = match indentation {
+                        DocStoreTypes::Indentation::Tabs => "\t".to_string(),
+                        DocStoreTypes::Indentation::Spaces => {
+                            let start =
+                                data.line_start_offset(data.line_idx_at_offset(cursor.offset));
+                            let text = data.slice(start..cursor.offset);
+
+                            let column = text.graphemes(true).fold(0, |x, ch| {
+                                x + if ch == "\t" {
+                                    *tab_width - x % *tab_width
+                                } else {
+                                    ch.width()
+                                }
+                            });
+
+                            " ".repeat(*tab_width - column % *tab_width)
+                        }
+                    };
+
+                    Edit { offset: cursor.offset, remove: 0, insert }
+                })
+                .collect()
+        });
+    }
+
     pub fn insert_at(s: &mut State, view: ViewId, text: String, offset: usize) {
         Self::execute_transaction(s, view, |_, _, _| {
             vec![Edit { offset, remove: 0, insert: text }]
@@ -429,6 +466,24 @@ impl ActionProtocol {
         Self::execute_transaction(s, view, |_, _, _| {
             vec![Edit { offset, remove: len, insert: String::new() }]
         });
+    }
+
+    pub fn toggle_indentation(s: &mut State, doc: DocId) {
+        let dse = s.doc_store.get_mut(&doc).unwrap();
+        if dse.mode.singleton() {
+            return;
+        }
+
+        dse.indentation = match dse.indentation {
+            DocStoreTypes::Indentation::Tabs => DocStoreTypes::Indentation::Spaces,
+            DocStoreTypes::Indentation::Spaces => DocStoreTypes::Indentation::Tabs,
+        };
+        let message = match dse.indentation {
+            DocStoreTypes::Indentation::Tabs => "Indentation using tabs".to_string(),
+            DocStoreTypes::Indentation::Spaces => "Indentation using spaces".to_string(),
+        };
+
+        util::mp::message(s, message, Duration::from_secs(3));
     }
 
     pub fn set_doc_path(s: &mut State, doc: DocId, path: Option<PathBuf>) {

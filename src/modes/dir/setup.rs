@@ -30,7 +30,8 @@ pub fn vmode(s: &mut State, view: ViewId) {
     };
     vse.mode_line_config = ModeLineConfig {
         left: vec![
-            ModeLineWidget::Text { text: "[DIR]".to_string(), face: Face::default() },
+            ModeLineWidget::DocMode { face: Face::default() },
+            ModeLineWidget::ViewMode { face: Face::default() },
             ModeLineWidget::Custom(|s, _, _| {
                 (format!("[{}]", s.p.dir.pwd.display()), Face::default())
             }),

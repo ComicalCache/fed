@@ -157,6 +157,11 @@ pub fn keymap() -> Keymap<Cmd> {
         Cmd::Jump,
         "Jump to a line",
     );
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Char('i'), KeyModifiers::CONTROL)],
+        Cmd::ToggleIndentation,
+        "Toggle between tabs and spaces for indentation",
+    );
 
     keymap.bind(
         &[

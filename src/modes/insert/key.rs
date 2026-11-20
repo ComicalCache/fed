@@ -15,6 +15,7 @@ use crate::types::KeyInputHandler;
 use crate::types::KeyInputPriority;
 use crate::types::Keymap;
 use crate::types::ParseResult;
+use crate::util;
 
 pub struct InsertKeyInput {
     keymap: Keymap<Cmd>,
@@ -50,6 +51,18 @@ impl InsertKeyInput {
 
                 Some(cmds)
             }
+            Cmd::Tab => {
+                let mut cmds = Vec::new();
+                if !self.whitespace {
+                    cmds.push(FCmd::Action(ActionCmd::EndCommit { doc }));
+                    cmds.push(FCmd::Action(ActionCmd::StartCommit { doc }));
+                }
+                self.whitespace = true;
+
+                cmds.push(FCmd::Action(ActionCmd::InsertTab { view }));
+
+                Some(cmds)
+            }
             Cmd::Move(motion) => {
                 self.whitespace = false;
 
@@ -65,6 +78,15 @@ impl InsertKeyInput {
 
                 Some(vec![FCmd::Action(ActionCmd::Delete { view })])
             }
+            Cmd::DeleteMotion(motion) => {
+                self.whitespace = false;
+
+                let (vse, dse) =
+                    State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
+                let offsets = util::motion::offsets(motion, vse, dse);
+
+                Some(common::remove_offsets(view, offsets))
+            }
             Cmd::SaveDoc => {
                 self.whitespace = false;
 
@@ -78,6 +100,9 @@ impl InsertKeyInput {
             }
             Cmd::FindFile => Some(common::find_file(s)),
             Cmd::SelectTheme => Some(common::select_theme()),
+            Cmd::ToggleIndentation => {
+                Some(vec![FCmd::Action(ActionCmd::ToggleIndentation { doc })])
+            }
             Cmd::Escape => {
                 self.whitespace = false;
 

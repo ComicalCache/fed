@@ -168,19 +168,20 @@ impl SearchProtocol {
             return;
         }
 
-        let first = matches.first().map(|m| m.start);
+        let Some(first) = matches.first().map(|m| m.start) else {
+            Self::close(s, request.view);
+            util::mp::message(s, "No matches found".to_string(), Duration::from_secs(3));
+            return;
+        };
+
         let vse = s.view_store.get_mut(&request.view).unwrap();
         let offsets: Vec<_> = vse.cursors.list.iter().map(|c| c.offset).collect();
         vse.search = Some(SearchState::new(query, matches, request.rev));
 
         ActionProtocol::push_view_mode(s, request.view, ViewStoreTypes::Mode::Search);
 
-        if let Some(first) = first {
-            ActionProtocol::remove_cursors(s, request.view, &offsets);
-            ActionProtocol::create_cursors_at_offsets(s, request.view, vec![first]);
-        } else {
-            util::mp::message(s, "No matches found".to_string(), Duration::from_secs(3));
-        }
+        ActionProtocol::remove_cursors(s, request.view, &offsets);
+        ActionProtocol::create_cursors_at_offsets(s, request.view, vec![first]);
     }
 
     pub fn navigate(s: &mut State, view: ViewId, forward: bool) {

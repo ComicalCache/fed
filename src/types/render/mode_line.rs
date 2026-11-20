@@ -20,9 +20,25 @@ pub enum ModeLineWidget {
 impl ModeLineWidget {
     pub fn render(&self, s: &State, vse: &ViewStoreEntry, dse: &DocStoreEntry) -> (String, Face) {
         match self {
-            Self::DocMode { face } => (format!("[{}]", dse.mode.to_string().to_uppercase()), *face),
+            Self::DocMode { face } => {
+                let mut mode_face = if dse.mode == DocStoreTypes::Mode::Grep {
+                    s.theme.search_match
+                } else {
+                    s.theme.selection
+                };
+                mode_face.merge(*face);
+
+                (format!("[{}]", dse.mode.to_string().to_uppercase()), mode_face)
+            }
             Self::ViewMode { face } => {
-                (format!("[{}]", vse.mode().to_string().to_uppercase()), *face)
+                let mut mode_face = match vse.mode() {
+                    ViewStoreTypes::Mode::Search => s.theme.search_match,
+                    ViewStoreTypes::Mode::Insert => s.theme.active_cursor,
+                    _ => s.theme.selection,
+                };
+                mode_face.merge(*face);
+
+                (format!("[{}]", vse.mode().to_string().to_uppercase()), mode_face)
             }
             Self::ReadWrite { face } => {
                 (if dse.read_only { "[R]".to_string() } else { "[RW]".to_string() }, *face)
@@ -34,7 +50,7 @@ impl ModeLineWidget {
                 )
             }
             Self::CursorPos { face } => {
-				let lines = dse.doc.data.line_count();
+                let lines = dse.doc.data.line_count();
                 let offset = vse.cursors.list.first().map_or(0, |c| c.offset);
                 let y = dse.doc.data.line_idx_at_offset(offset);
 

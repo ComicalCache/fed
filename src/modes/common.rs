@@ -24,6 +24,7 @@ use crate::protocols::picker::PickerEntry;
 use crate::protocols::picker::PickerProtocol;
 use crate::protocols::view::ViewCmd;
 use crate::state::DocId;
+use crate::state::DocStoreTypes;
 use crate::state::State;
 use crate::state::ViewId;
 use crate::state::ViewStoreTypes;
@@ -277,23 +278,40 @@ pub fn indentation(
     lines.sort_unstable();
     lines.dedup();
 
+    let width = *s.view_store[&view].layout.tab_width;
+
     let mut cmds = Vec::new();
     if dedent {
-        // FIXME: option to also respect leading spaces.
         for y in lines.into_iter().rev() {
             let start = dse.doc.data.line_start_offset(y);
             let end = dse.doc.data.line_end_offset(y);
 
-            if dse.doc.data.chunks(start..end).next().is_some_and(|chunk| chunk.starts_with('\t')) {
-                cmds.push(FCmd::Action(ActionCmd::Remove { view, offset: start, len: 1 }));
+            let len = if dse.doc.data.chunks(start..end).next().is_some_and(|c| c.starts_with('\t'))
+            {
+                1
+            } else {
+                dse.doc
+                    .data
+                    .chunks(start..end)
+                    .flat_map(str::chars)
+                    .take(width)
+                    .take_while(|&ch| ch == ' ')
+                    .count()
+            };
+
+            if len > 0 {
+                cmds.push(FCmd::Action(ActionCmd::Remove { view, offset: start, len }));
             }
         }
     } else {
-        // FIXME: option to convert tab to spaces.
+        let text = match dse.indentation {
+            DocStoreTypes::Indentation::Tabs => "\t".to_string(),
+            DocStoreTypes::Indentation::Spaces => " ".repeat(width),
+        };
         for y in lines.into_iter().rev() {
             cmds.push(FCmd::Action(ActionCmd::InsertAt {
                 view,
-                text: "\t".to_string(),
+                text: text.clone(),
                 offset: dse.doc.data.line_start_offset(y),
             }));
         }

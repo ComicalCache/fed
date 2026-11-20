@@ -145,6 +145,9 @@ impl NormalKeyInput {
             }
             Cmd::FindFile => Some(common::find_file(s)),
             Cmd::SelectTheme => Some(common::select_theme()),
+            Cmd::ToggleIndentation => {
+                Some(vec![FCmd::Action(ActionCmd::ToggleIndentation { doc })])
+            }
             Cmd::Jump => common::jump(s, view, true),
             Cmd::SplitWindow(direction) => common::split_window(s, doc, direction),
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),

@@ -30,6 +30,7 @@ pub enum Cmd {
     DiscardChanges,
     FindFile,
     SelectTheme,
+    ToggleIndentation,
     Jump,
     SplitWindow(RectSplit),
     FocusWindow(Motion),

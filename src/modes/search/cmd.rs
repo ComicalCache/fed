@@ -19,6 +19,7 @@ pub enum Cmd {
     FocusWindow(Motion),
     IncreaseWindow,
     DecreaseWindow,
+    EnterSearchMode,
     EnterDirMode,
     EnterManageMode,
     ShowGrep,

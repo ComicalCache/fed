@@ -20,7 +20,6 @@ use crate::state::DocStoreTypes;
 use crate::state::State;
 use crate::types::Decoration;
 use crate::types::Face;
-use crate::types::Pos;
 use crate::types::Span;
 use crate::types::render::WindowId;
 use crate::util::format;
@@ -109,7 +108,13 @@ impl DirProtocol {
         ActionProtocol::remove(s, s.p.dir.view, 0, len);
         ActionProtocol::insert(s, s.p.dir.view, text);
         ActionProtocol::saved(s, s.p.dir.doc);
-        ActionProtocol::move_cursor_to_pos(s, s.p.dir.view, Pos::new(0, 1), true);
+
+        let (vse, dse) =
+            State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, s.p.dir.view).unwrap();
+        let offset =
+            s.p.dir.entries.get(1).map_or(0, |e| dse.doc.data.line_start_offset(1) + e.path_offset);
+        let pos = util::offset_to_pos(offset, vse, dse);
+        ActionProtocol::move_cursor_to_pos(s, s.p.dir.view, pos, true);
 
         s.doc_store.get_mut(&s.p.dir.doc).unwrap().read_only = true;
         Self::decorate(s);

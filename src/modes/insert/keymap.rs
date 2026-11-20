@@ -31,24 +31,14 @@ pub fn keymap() -> Keymap<Cmd> {
     );
 
     keymap.bind(
-        &[KeyChord::new(KeyCode::Left, KeyModifiers::ALT)],
+        &[KeyChord::new(KeyCode::Left, KeyModifiers::CONTROL)],
         Cmd::Move(Motion::PrevWord),
-        "Move the cursor with the motion",
+        "Move to the previous word",
     );
     keymap.bind(
-        &[KeyChord::new(KeyCode::Left, KeyModifiers::SHIFT | KeyModifiers::ALT)],
-        Cmd::Move(Motion::PrevWordEnd),
-        "Move the cursor with the motion",
-    );
-    keymap.bind(
-        &[KeyChord::new(KeyCode::Right, KeyModifiers::ALT)],
-        Cmd::Move(Motion::NextWord),
-        "Move the cursor with the motion",
-    );
-    keymap.bind(
-        &[KeyChord::new(KeyCode::Right, KeyModifiers::SHIFT | KeyModifiers::ALT)],
+        &[KeyChord::new(KeyCode::Right, KeyModifiers::CONTROL)],
         Cmd::Move(Motion::NextWordEnd),
-        "Move the cursor with the motion",
+        "Move to the next word end",
     );
 
     keymap.bind(
@@ -63,14 +53,25 @@ pub fn keymap() -> Keymap<Cmd> {
     );
 
     keymap.bind(
+        &[KeyChord::new(KeyCode::Backspace, KeyModifiers::CONTROL)],
+        Cmd::DeleteMotion(Motion::PrevWord),
+        "Delete the previous word",
+    );
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Delete, KeyModifiers::CONTROL)],
+        Cmd::DeleteMotion(Motion::NextWordEnd),
+        "Delete the next word",
+    );
+
+    keymap.bind(
         &[KeyChord::new(KeyCode::Enter, KeyModifiers::empty())],
         Cmd::Input("\n".to_string()),
         "Insert a newline",
     );
     keymap.bind(
         &[KeyChord::new(KeyCode::Tab, KeyModifiers::empty())],
-        Cmd::Input("\t".to_string()),
-        "Insert a tab character",
+        Cmd::Tab,
+        "Insert indentation",
     );
     keymap.bind(
         &[KeyChord::new(KeyCode::Char('s'), KeyModifiers::CONTROL)],
@@ -86,6 +87,11 @@ pub fn keymap() -> Keymap<Cmd> {
         &[KeyChord::new(KeyCode::Char('t'), KeyModifiers::CONTROL)],
         Cmd::SelectTheme,
         "Open the theme selector",
+    );
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Char('i'), KeyModifiers::CONTROL)],
+        Cmd::ToggleIndentation,
+        "Toggle between tabs and spaces for indentation",
     );
 
     keymap.bind(

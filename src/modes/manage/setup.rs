@@ -27,7 +27,10 @@ pub fn vmode(s: &mut State, view: ViewId) {
         rulers: Vec::new(),
     };
     vse.mode_line_config = ModeLineConfig {
-        left: vec![ModeLineWidget::Text { text: "[MANAGE]".to_string(), face: Face::default() }],
+        left: vec![
+            ModeLineWidget::DocMode { face: Face::default() },
+            ModeLineWidget::ViewMode { face: Face::default() },
+        ],
         right: vec![ModeLineWidget::SearchMatches { face: Face::default() }],
     };
 }

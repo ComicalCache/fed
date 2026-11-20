@@ -121,6 +121,11 @@ pub fn keymap() -> Keymap<Cmd> {
     );
 
     keymap.bind(
+        &[KeyChord::new(KeyCode::Char('f'), KeyModifiers::empty())],
+        Cmd::EnterSearchMode,
+        "Search the current document",
+    );
+    keymap.bind(
         &[KeyChord::new(KeyCode::Char('d'), KeyModifiers::ALT)],
         Cmd::EnterDirMode,
         "Open the directory viewer",
