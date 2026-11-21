@@ -180,22 +180,7 @@ impl DocViewProtocol {
         view
     }
 
-    pub fn destroy_view(s: &mut State, view: ViewId) {
-        if s.destroy_view(view).is_some() {
-            ViewProtocol::resize(s);
-        }
-    }
-
-    fn prepare_view(s: &mut State, doc: DocId, view: Option<ViewId>, raw: bool) -> ViewId {
-        let view = view.unwrap_or_else(|| s.create_view(doc));
-
-        s.view_store.get_mut(&view).unwrap().raw = raw;
-        s.vmode(view);
-
-        view
-    }
-
-    fn show_doc(s: &mut State, doc: DocId, window: WindowId, force: bool) {
+    pub fn show_doc(s: &mut State, doc: DocId, window: WindowId, force: bool) {
         let view = if force {
             None
         } else {
@@ -212,5 +197,20 @@ impl DocViewProtocol {
         };
 
         Self::show(s, doc, view, window, false, None);
+    }
+
+    pub fn destroy_view(s: &mut State, view: ViewId) {
+        if s.destroy_view(view).is_some() {
+            ViewProtocol::resize(s);
+        }
+    }
+
+    fn prepare_view(s: &mut State, doc: DocId, view: Option<ViewId>, raw: bool) -> ViewId {
+        let view = view.unwrap_or_else(|| s.create_view(doc));
+
+        s.view_store.get_mut(&view).unwrap().raw = raw;
+        s.vmode(view);
+
+        view
     }
 }

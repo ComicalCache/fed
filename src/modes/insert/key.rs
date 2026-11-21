@@ -99,6 +99,7 @@ impl InsertKeyInput {
                 Some(cmds)
             }
             Cmd::FindFile => Some(common::find_file(s)),
+            Cmd::SelectDoc => Some(common::select_doc(s)),
             Cmd::SelectTheme => Some(common::select_theme()),
             Cmd::ToggleIndentation => {
                 Some(vec![FCmd::Action(ActionCmd::ToggleIndentation { doc })])

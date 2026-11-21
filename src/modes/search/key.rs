@@ -74,6 +74,7 @@ impl SearchKeyInput {
                 Some(common::save_doc(s, doc))
             }
             Cmd::FindFile => Some(common::find_file(s)),
+            Cmd::SelectDoc => Some(common::select_doc(s)),
             Cmd::SelectTheme => Some(common::select_theme()),
             Cmd::Jump => common::jump(s, view, true),
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),

@@ -44,6 +44,7 @@ impl ReadKeyInput {
             Cmd::YankLine => common::yank_line(s, view),
             Cmd::ScrollView(motion) => Some(common::scroll_view(s, view, motion)),
             Cmd::FindFile => Some(common::find_file(s)),
+            Cmd::SelectDoc => Some(common::select_doc(s)),
             Cmd::SelectTheme => Some(common::select_theme()),
             Cmd::Jump => common::jump(s, view, true),
             Cmd::SplitWindow(direction) => common::split_window(s, doc, direction),

@@ -44,6 +44,11 @@ pub fn keymap() -> Keymap<Cmd> {
         "Open the file selector",
     );
     keymap.bind(
+        &[KeyChord::new(KeyCode::Char('d'), KeyModifiers::CONTROL)],
+        Cmd::SelectDoc,
+        "Open the document selector",
+    );
+    keymap.bind(
         &[KeyChord::new(KeyCode::Char('t'), KeyModifiers::CONTROL)],
         Cmd::SelectTheme,
         "Open the theme selector",

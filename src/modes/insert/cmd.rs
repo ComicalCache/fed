@@ -10,6 +10,7 @@ pub enum Cmd {
     DeleteMotion(Motion),
     SaveDoc,
     FindFile,
+    SelectDoc,
     SelectTheme,
     ToggleIndentation,
     Escape,

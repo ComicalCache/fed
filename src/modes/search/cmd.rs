@@ -14,6 +14,7 @@ pub enum Cmd {
     ReplaceAll,
     SaveDoc,
     FindFile,
+    SelectDoc,
     SelectTheme,
     Jump,
     FocusWindow(Motion),

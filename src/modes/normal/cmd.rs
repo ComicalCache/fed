@@ -29,6 +29,7 @@ pub enum Cmd {
     SaveDoc,
     DiscardChanges,
     FindFile,
+    SelectDoc,
     SelectTheme,
     ToggleIndentation,
     Jump,

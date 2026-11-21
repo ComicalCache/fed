@@ -45,6 +45,7 @@ impl GrepKeyInput {
             Cmd::HotRedoAll => Some(vec![FCmd::Grep(GrepCmd::HotRedoAll)]),
             Cmd::SaveAll => Some(vec![FCmd::Grep(GrepCmd::SaveAll)]),
             Cmd::FindFile => Some(common::find_file(s)),
+            Cmd::SelectDoc => Some(common::select_doc(s)),
             Cmd::SelectTheme => Some(common::select_theme()),
             Cmd::Jump => common::jump(s, view, true),
             Cmd::Select => Some(vec![FCmd::Grep(GrepCmd::SelectResult)]),

@@ -24,6 +24,7 @@ pub enum Cmd {
     EnterGrepModeInDir,
     SaveDoc,
     FindFile,
+    SelectDoc,
     SelectTheme,
     Jump,
     FocusWindow(Motion),

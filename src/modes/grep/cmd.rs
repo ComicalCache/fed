@@ -14,6 +14,7 @@ pub enum Cmd {
     HotRedoAll,
     SaveAll,
     FindFile,
+    SelectDoc,
     SelectTheme,
     Jump,
     Select,

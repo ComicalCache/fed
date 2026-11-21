@@ -239,7 +239,7 @@ dependencies = [
 
 [[package]]
 name = "fed"
-version = "3.26.0"
+version = "3.27.0"
 dependencies = [
  "anstyle-parse",
  "arboard",

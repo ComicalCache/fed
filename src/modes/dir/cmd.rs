@@ -7,6 +7,7 @@ pub enum Cmd {
     YankLine,
     ScrollView(Motion),
     FindFile,
+    SelectDoc,
     SelectTheme,
     Jump,
     Create,

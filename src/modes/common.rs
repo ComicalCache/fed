@@ -7,6 +7,7 @@ use crossterm::event::MouseEventKind;
 use tokio::sync::oneshot;
 
 use crate::fed::FCmd;
+use crate::modes::picker::entries::DocEntry;
 use crate::modes::picker::entries::ThemeEntry;
 use crate::piece_table::Chunks;
 use crate::protocols::action::ActionCmd;
@@ -678,6 +679,54 @@ pub fn find_file(s: &State) -> Vec<FCmd> {
     });
 
     vec![FCmd::Io(IoCmd::Scan { path, scallback })]
+}
+
+pub fn select_doc(s: &State) -> Vec<FCmd> {
+    let Some(window) = s.workspace.active_window else { return Vec::new() };
+
+    let root = std::env::current_dir().ok();
+    let mut entries: Vec<_> = s
+        .doc_store
+        .iter()
+        .filter(|(_, dse)| !dse.mode.singleton())
+        .map(|(&doc, dse)| {
+            let name = dse.doc.path.as_ref().map_or_else(
+                || format!("SCRATCHPAD {}", doc.0),
+                |p| {
+                    root.as_ref()
+                        .and_then(|r| p.strip_prefix(r).ok())
+                        .unwrap_or(p)
+                        .display()
+                        .to_string()
+                },
+            );
+
+            DocEntry { doc, name, modified: dse.doc.modified }
+        })
+        .collect();
+
+    entries.sort_unstable_by(|a, b| a.name.cmp(&b.name));
+    let entries = entries.into_iter().map(|e| Box::new(e) as Box<dyn PickerEntry>).collect();
+
+    let callback = Box::new(move |s: &mut State, selected: Option<Box<dyn PickerEntry>>| {
+        let Some(selected) = selected else { return };
+
+        let entry = selected.into_any().downcast::<DocEntry>().unwrap();
+        if s.workspace.get_rect(window).is_none() || !s.doc_store.contains_key(&entry.doc) {
+            return;
+        }
+
+        ActionProtocol::set_active_window(s, Some(window));
+        DocViewProtocol::show_doc(s, entry.doc, window, false);
+    });
+
+    let rect = s.workspace.rect();
+    vec![FCmd::Picker(PickerCmd::Open {
+        width: rect.width * 9 / 10,
+        height: rect.height * 9 / 10,
+        entries,
+        callback,
+    })]
 }
 
 pub fn select_theme() -> Vec<FCmd> {
