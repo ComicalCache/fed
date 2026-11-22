@@ -10,11 +10,17 @@ pub(super) fn get(path: &Path) -> Option<Result<Arc<HighlightConfiguration>, Str
     static ZIG: OnceLock<Result<Arc<HighlightConfiguration>, String>> = OnceLock::new();
     static RUST: OnceLock<Result<Arc<HighlightConfiguration>, String>> = OnceLock::new();
     static C: OnceLock<Result<Arc<HighlightConfiguration>, String>> = OnceLock::new();
+    static HTML: OnceLock<Result<Arc<HighlightConfiguration>, String>> = OnceLock::new();
+    static JAVASCRIPT: OnceLock<Result<Arc<HighlightConfiguration>, String>> = OnceLock::new();
+    static CSS: OnceLock<Result<Arc<HighlightConfiguration>, String>> = OnceLock::new();
 
     match path.extension()?.to_str()? {
         "zig" => Some(ZIG.get_or_init(|| zig().map(Arc::new)).clone()),
         "rs" => Some(RUST.get_or_init(|| rust().map(Arc::new)).clone()),
         "c" | "h" => Some(C.get_or_init(|| c().map(Arc::new)).clone()),
+        "html" => Some(HTML.get_or_init(|| html().map(Arc::new)).clone()),
+        "js" => Some(JAVASCRIPT.get_or_init(|| javascript().map(Arc::new)).clone()),
+        "css" => Some(CSS.get_or_init(|| css().map(Arc::new)).clone()),
         _ => None,
     }
 }
@@ -68,6 +74,58 @@ fn c() -> Result<HighlightConfiguration, String> {
     let mut config =
         HighlightConfiguration::new(tree_sitter_c::LANGUAGE.into(), "c", &query, "", "")
             .map_err(|err| err.to_string())?;
+    config.configure(&SyntaxHighlight::ALL.map(SyntaxHighlight::name));
+
+    Ok(config)
+}
+
+fn html() -> Result<HighlightConfiguration, String> {
+    let query = self::normalize(
+        tree_sitter_html::HIGHLIGHTS_QUERY
+            .replace("@tag", "@type")
+            .as_str()
+    );
+
+    let mut config = HighlightConfiguration::new(
+        tree_sitter_html::LANGUAGE.into(),
+        "html",
+        &query,
+        tree_sitter_html::INJECTIONS_QUERY,
+        ""
+    )
+    .map_err(|err| err.to_string())?;
+    config.configure(&SyntaxHighlight::ALL.map(SyntaxHighlight::name));
+
+    Ok(config)
+}
+
+fn javascript() -> Result<HighlightConfiguration, String> {
+    let query = self::normalize(tree_sitter_javascript::HIGHLIGHT_QUERY);
+
+    let mut config = HighlightConfiguration::new(
+        tree_sitter_javascript::LANGUAGE.into(),
+        "javascript",
+        &query,
+        tree_sitter_javascript::INJECTIONS_QUERY,
+        tree_sitter_javascript::LOCALS_QUERY
+    )
+    .map_err(|err| err.to_string())?;
+    config.configure(&SyntaxHighlight::ALL.map(SyntaxHighlight::name));
+
+    Ok(config)
+}
+
+fn css() -> Result<HighlightConfiguration, String> {
+    let query = self::normalize(tree_sitter_css::HIGHLIGHTS_QUERY);
+
+    let mut config = HighlightConfiguration::new(
+        tree_sitter_css::LANGUAGE.into(),
+        "css",
+        &query,
+        "",
+        ""
+    )
+    .map_err(|err| err.to_string())?;
     config.configure(&SyntaxHighlight::ALL.map(SyntaxHighlight::name));
 
     Ok(config)
