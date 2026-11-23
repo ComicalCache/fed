@@ -3,6 +3,7 @@ use crossterm::event::KeyEvent;
 use crossterm::event::KeyModifiers;
 
 use crate::fed::FCmd;
+use crate::modes::common;
 use crate::modes::mp::cmd::Cmd;
 use crate::modes::mp::keymap;
 use crate::protocols::action::ActionCmd;
@@ -15,6 +16,7 @@ use crate::types::KeyInputHandler;
 use crate::types::KeyInputPriority;
 use crate::types::Keymap;
 use crate::types::ParseResult;
+use crate::util;
 
 pub struct MpKeyInput {
     keymap: Keymap<Cmd>,
@@ -40,6 +42,13 @@ impl MpKeyInput {
             }
             Cmd::Backspace => vec![FCmd::Action(ActionCmd::Backspace { view })],
             Cmd::Delete => vec![FCmd::Action(ActionCmd::Delete { view })],
+            Cmd::DeleteMotion(motion) => {
+                let (vse, dse) =
+                    State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
+                let offsets = util::motion::offsets(motion, vse, dse);
+
+                common::remove_offsets(view, offsets)
+            }
             Cmd::PrevHistory => vec![FCmd::Mp(MpCmd::History { forward: false })],
             Cmd::NextHistory => vec![FCmd::Mp(MpCmd::History { forward: true })],
             Cmd::Submit => vec![FCmd::Mp(MpCmd::Submit)],

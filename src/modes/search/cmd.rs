@@ -1,4 +1,5 @@
 use crate::types::Motion;
+use crate::types::RectSplit;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Cmd {
@@ -17,12 +18,15 @@ pub enum Cmd {
     SelectDoc,
     SelectTheme,
     Jump,
+    ToggleIndentation,
+    SplitWindow(RectSplit),
     FocusWindow(Motion),
     IncreaseWindow,
     DecreaseWindow,
     EnterSearchMode,
     EnterDirMode,
     EnterManageMode,
+    ShowKeybinds,
     ShowGrep,
     EnterGrepMode,
     EnterGrepModeInDir,

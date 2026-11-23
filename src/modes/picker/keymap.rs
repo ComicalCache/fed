@@ -19,15 +19,16 @@ pub fn keymap() -> Keymap<Cmd> {
         Cmd::Move(Motion::Right),
         "Move the cursor with the motion",
     );
+
     keymap.bind(
-        &[KeyChord::new(KeyCode::Left, KeyModifiers::ALT)],
+        &[KeyChord::new(KeyCode::Left, KeyModifiers::CONTROL)],
         Cmd::Move(Motion::PrevWord),
-        "Move the cursor with the motion",
+        "Move to the previous word",
     );
     keymap.bind(
-        &[KeyChord::new(KeyCode::Right, KeyModifiers::ALT)],
-        Cmd::Move(Motion::NextWord),
-        "Move the cursor with the motion",
+        &[KeyChord::new(KeyCode::Right, KeyModifiers::CONTROL)],
+        Cmd::Move(Motion::NextWordEnd),
+        "Move to the next word end",
     );
 
     keymap.bind(
@@ -42,14 +43,24 @@ pub fn keymap() -> Keymap<Cmd> {
     );
 
     keymap.bind(
+        &[KeyChord::new(KeyCode::Up, KeyModifiers::empty())],
+        Cmd::ChangeSelection(Motion::Up),
+        "Move the selection up",
+    );
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Down, KeyModifiers::empty())],
+        Cmd::ChangeSelection(Motion::Down),
+        "Move the selection down",
+    );
+    keymap.bind(
         &[KeyChord::new(KeyCode::Char('k'), KeyModifiers::CONTROL)],
         Cmd::ChangeSelection(Motion::Up),
-        "Move the selection with the motion",
+        "Move the selection up",
     );
     keymap.bind(
         &[KeyChord::new(KeyCode::Char('j'), KeyModifiers::CONTROL)],
         Cmd::ChangeSelection(Motion::Down),
-        "Move the selection with the motion",
+        "Move the selection down",
     );
 
     keymap.bind(
@@ -62,6 +73,18 @@ pub fn keymap() -> Keymap<Cmd> {
         Cmd::Delete,
         "Delete the character under the cursor",
     );
+
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Backspace, KeyModifiers::CONTROL)],
+        Cmd::DeleteMotion(Motion::PrevWord),
+        "Delete the previous word",
+    );
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Delete, KeyModifiers::CONTROL)],
+        Cmd::DeleteMotion(Motion::NextWordEnd),
+        "Delete the next word",
+    );
+
     keymap.bind(
         &[KeyChord::new(KeyCode::Tab, KeyModifiers::empty())],
         Cmd::Input("\t".to_string()),

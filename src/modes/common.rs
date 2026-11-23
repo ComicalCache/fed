@@ -60,13 +60,11 @@ pub fn mouse(s: &State, window: WindowId, view: ViewId, event: MouseEvent) -> Ve
     pos = pos.saturating_sub(content.pos) + *vse.scroll;
 
     if event.modifiers.contains(KeyModifiers::ALT) {
-        match dse.max_cursors {
-            Some(max) => {
-                if vse.cursors.list.len() < max {
-                    cmds.push(FCmd::Action(ActionCmd::CreateCursorAtPos { view, pos }));
-                }
-            }
-            None => cmds.push(FCmd::Action(ActionCmd::CreateCursorAtPos { view, pos })),
+        let offset = util::pos_to_offset(pos, vse, dse);
+        if vse.cursors.list.iter().any(|c| c.offset == offset) && vse.cursors.list.len() > 1 {
+            cmds.push(FCmd::Action(ActionCmd::RemoveCursors { view, offsets: vec![offset] }));
+        } else if dse.max_cursors.is_none_or(|max| vse.cursors.list.len() < max) {
+            cmds.push(FCmd::Action(ActionCmd::CreateCursorAtPos { view, pos }));
         }
     } else {
         cmds.push(FCmd::Action(ActionCmd::MoveCursorToPos {

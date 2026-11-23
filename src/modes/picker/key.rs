@@ -3,6 +3,7 @@ use crossterm::event::KeyEvent;
 use crossterm::event::KeyModifiers;
 
 use crate::fed::FCmd;
+use crate::modes::common;
 use crate::modes::picker::cmd::Cmd;
 use crate::modes::picker::keymap;
 use crate::protocols::action::ActionCmd;
@@ -13,6 +14,7 @@ use crate::types::KeyInputHandler;
 use crate::types::KeyInputPriority;
 use crate::types::Keymap;
 use crate::types::ParseResult;
+use crate::util;
 use crate::util::text::sanitize;
 
 pub struct PickerKeyInput {
@@ -54,6 +56,16 @@ impl PickerKeyInput {
                     FCmd::Action(ActionCmd::Saved { doc }),
                     FCmd::Picker(PickerCmd::FilterList),
                 ]
+            }
+            Cmd::DeleteMotion(motion) => {
+                let (vse, dse) =
+                    State::vse_and_dse(&s.view_store, &s.doc_store, &s.index, view).unwrap();
+                let offsets = util::motion::offsets(motion, vse, dse);
+                let mut cmds = common::remove_offsets(view, offsets);
+                cmds.push(FCmd::Action(ActionCmd::Saved { doc }));
+                cmds.push(FCmd::Picker(PickerCmd::FilterList));
+
+                cmds
             }
             Cmd::ChangeSelection(motion) => {
                 vec![FCmd::Picker(PickerCmd::ChangeSelection(motion))]

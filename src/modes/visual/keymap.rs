@@ -6,6 +6,7 @@ use crate::modes::visual::cmd::Cmd;
 use crate::types::KeyChord;
 use crate::types::Keymap;
 use crate::types::Motion;
+use crate::types::RectSplit;
 
 pub fn keymap() -> Keymap<Cmd> {
     let mut keymap = Keymap::new();
@@ -145,6 +146,29 @@ pub fn keymap() -> Keymap<Cmd> {
         "Jump to a line",
     );
 
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Char('i'), KeyModifiers::CONTROL)],
+        Cmd::ToggleIndentation,
+        "Toggle between tabs and spaces for indentation",
+    );
+
+    keymap.bind(
+        &[
+            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+            KeyChord::new(KeyCode::Char('H'), KeyModifiers::SHIFT),
+        ],
+        Cmd::SplitWindow(RectSplit::Horizontal),
+        "Split the window",
+    );
+    keymap.bind(
+        &[
+            KeyChord::new(KeyCode::Char('w'), KeyModifiers::CONTROL),
+            KeyChord::new(KeyCode::Char('V'), KeyModifiers::SHIFT),
+        ],
+        Cmd::SplitWindow(RectSplit::Vertical),
+        "Split the window",
+    );
+
     for (ch, motion) in
         [('h', Motion::Left), ('j', Motion::Down), ('k', Motion::Up), ('l', Motion::Right)]
     {
@@ -183,6 +207,11 @@ pub fn keymap() -> Keymap<Cmd> {
         &[KeyChord::new(KeyCode::Char('b'), KeyModifiers::ALT)],
         Cmd::EnterManageMode,
         "Open the document and view manager",
+    );
+    keymap.bind(
+        &[KeyChord::new(KeyCode::Char('h'), KeyModifiers::ALT)],
+        Cmd::ShowKeybinds,
+        "Open the keybind viewer",
     );
     keymap.bind(&[KeyChord::new(KeyCode::Char('q'), KeyModifiers::CONTROL)], Cmd::Quit, "Quit fed");
 

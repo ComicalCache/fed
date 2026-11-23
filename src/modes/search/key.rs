@@ -7,6 +7,7 @@ use crate::modes::search::keymap;
 use crate::protocols::action::ActionCmd;
 use crate::protocols::dir::DirCmd;
 use crate::protocols::grep::GrepCmd;
+use crate::protocols::keybind::KeybindCmd;
 use crate::protocols::manage::ManageCmd;
 use crate::protocols::search::SearchCmd;
 use crate::state::DocStoreTypes;
@@ -77,6 +78,10 @@ impl SearchKeyInput {
             Cmd::SelectDoc => Some(common::select_doc(s)),
             Cmd::SelectTheme => Some(common::select_theme()),
             Cmd::Jump => common::jump(s, view, true),
+            Cmd::ToggleIndentation => {
+                Some(vec![FCmd::Action(ActionCmd::ToggleIndentation { doc })])
+            }
+            Cmd::SplitWindow(direction) => common::split_window(s, doc, direction),
             Cmd::FocusWindow(motion) => common::focus_window(s, motion),
             Cmd::IncreaseWindow => common::resize_window(s, true),
             Cmd::DecreaseWindow => common::resize_window(s, false),
@@ -90,6 +95,10 @@ impl SearchKeyInput {
             Cmd::EnterManageMode => {
                 let window = s.workspace.active_window?;
                 Some(vec![FCmd::Manage(ManageCmd::Show { window })])
+            }
+            Cmd::ShowKeybinds => {
+                let window = s.workspace.active_window?;
+                Some(vec![FCmd::Keybind(KeybindCmd::Show { window })])
             }
             Cmd::ShowGrep => {
                 let window = s.workspace.active_window?;
